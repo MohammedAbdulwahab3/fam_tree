@@ -53,11 +53,28 @@ func main() {
 	}
 
 	// Initialize Firebase App
-	opt := option.WithCredentialsFile("firebase-credentials.json")
-	app, err := firebase.NewApp(context.Background(), nil, opt)
-	if err != nil {
-		log.Printf("Warning: Failed to initialize Firebase app: %v", err)
-		log.Println("Auth middleware will skip token verification until credentials are provided")
+	var app *firebase.App
+
+	// Try to load Firebase credentials from environment variable first, then file
+	firebaseCreds := os.Getenv("FIREBASE_CREDENTIALS")
+	if firebaseCreds != "" {
+		opt := option.WithCredentialsJSON([]byte(firebaseCreds))
+		app, err = firebase.NewApp(context.Background(), nil, opt)
+		if err != nil {
+			log.Printf("Warning: Failed to initialize Firebase from env: %v", err)
+		} else {
+			log.Println("Firebase initialized from environment variable")
+		}
+	} else if _, err := os.Stat("firebase-credentials.json"); err == nil {
+		opt := option.WithCredentialsFile("firebase-credentials.json")
+		app, err = firebase.NewApp(context.Background(), nil, opt)
+		if err != nil {
+			log.Printf("Warning: Failed to initialize Firebase from file: %v", err)
+		} else {
+			log.Println("Firebase initialized from credentials file")
+		}
+	} else {
+		log.Println("Warning: No Firebase credentials found. Auth will be skipped.")
 	}
 
 	// Initialize Handlers
