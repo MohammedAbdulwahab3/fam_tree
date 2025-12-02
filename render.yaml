@@ -1,0 +1,24 @@
+services:
+  # Web Service for Go Backend
+  - type: web
+    name: family-tree-backend
+    env: go
+    plan: free
+    buildCommand: go build -o server main.go
+    startCommand: ./server
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: DATABASE_URL
+        fromDatabase:
+          name: family-tree-db
+          property: connectionString
+
+databases:
+  # PostgreSQL Database
+  - name: family-tree-db
+    plan: free
+    databaseName: family_tree
+    user: family_tree_user
+
+version: "1"

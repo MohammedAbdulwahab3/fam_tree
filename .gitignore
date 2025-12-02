@@ -1,0 +1,31 @@
+# Binaries
+main
+server
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Logs
+*.log
+backend.log
+
+# Database
+*.db
+*.sqlite
+postgres_data/
+
+# Environment
+.env
+.env.local
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
