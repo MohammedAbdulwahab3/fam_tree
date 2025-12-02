@@ -4,6 +4,7 @@ services:
     name: family-tree-backend
     runtime: go
     plan: free
+    goVersion: 1.21.0
     buildCommand: go build -o server .
     startCommand: ./server
     envVars:
