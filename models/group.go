@@ -15,6 +15,7 @@ type Post struct {
 	Content      string          `json:"content"`
 	Photos       JSONStringArray `gorm:"type:text" json:"photos"`
 	Videos       JSONStringArray `gorm:"type:text" json:"videos"`
+	Files        JSONStringArray `gorm:"type:text" json:"files"`
 	CreatedAt    time.Time       `json:"createdAt"`
 	UpdatedAt    time.Time       `json:"updatedAt"`
 	DeletedAt    gorm.DeletedAt  `gorm:"index" json:"-"`
@@ -41,6 +42,7 @@ type Event struct {
 	Title        string          `json:"title"`
 	Description  string          `json:"description"`
 	Location     string          `json:"location"`
+	MapLink      string          `json:"mapLink"`
 	DateTime     time.Time       `json:"dateTime"`
 	CreatedBy    string          `json:"createdBy"`
 	Attendees    JSONStringArray `gorm:"type:text" json:"attendees"`

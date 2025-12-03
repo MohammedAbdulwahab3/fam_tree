@@ -42,6 +42,34 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 	c.JSON(http.StatusCreated, post)
 }
 
+func (h *PostHandler) UpdatePost(c *gin.Context) {
+	id := c.Param("id")
+	var req models.Post
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var post models.Post
+	if result := h.DB.First(&post, "id = ?", id); result.Error != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Post not found"})
+		return
+	}
+
+	post.Content = req.Content
+	post.Photos = req.Photos
+	post.Videos = req.Videos
+	post.Files = req.Files
+	post.UpdatedAt = time.Now()
+
+	if result := h.DB.Save(&post); result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, post)
+}
+
 func (h *PostHandler) DeletePost(c *gin.Context) {
 	id := c.Param("id")
 	if result := h.DB.Delete(&models.Post{}, "id = ?", id); result.Error != nil {

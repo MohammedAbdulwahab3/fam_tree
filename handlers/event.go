@@ -42,6 +42,35 @@ func (h *EventHandler) CreateEvent(c *gin.Context) {
 	c.JSON(http.StatusCreated, event)
 }
 
+func (h *EventHandler) UpdateEvent(c *gin.Context) {
+	id := c.Param("id")
+	var req models.Event
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var event models.Event
+	if result := h.DB.First(&event, "id = ?", id); result.Error != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Event not found"})
+		return
+	}
+
+	event.Title = req.Title
+	event.Description = req.Description
+	event.Location = req.Location
+	event.MapLink = req.MapLink
+	event.DateTime = req.DateTime
+	event.UpdatedAt = time.Now()
+
+	if result := h.DB.Save(&event); result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, event)
+}
+
 func (h *EventHandler) DeleteEvent(c *gin.Context) {
 	id := c.Param("id")
 	if result := h.DB.Delete(&models.Event{}, "id = ?", id); result.Error != nil {

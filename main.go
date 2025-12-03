@@ -150,6 +150,8 @@ func main() {
 		// Message Routes - all users can chat
 		api.GET("/messages", messageHandler.GetMessages)
 		api.POST("/messages", messageHandler.SendMessage)
+		api.PUT("/messages/:id", messageHandler.UpdateMessage)
+		api.DELETE("/messages/:id", messageHandler.DeleteMessage)
 
 		// Event Routes - READ for all, RSVP for all
 		api.GET("/events", eventHandler.GetEvents)
@@ -166,12 +168,14 @@ func main() {
 		admin.PUT("/persons/:id", personHandler.UpdatePerson)
 		admin.DELETE("/persons/:id", personHandler.DeletePerson)
 
-		// Post management - CREATE, DELETE (admin only)
+		// Post management - CREATE, UPDATE, DELETE (admin only)
 		admin.POST("/posts", postHandler.CreatePost)
+		admin.PUT("/posts/:id", postHandler.UpdatePost)
 		admin.DELETE("/posts/:id", postHandler.DeletePost)
 
-		// Event management - CREATE, DELETE (admin only)
+		// Event management - CREATE, UPDATE, DELETE (admin only)
 		admin.POST("/events", eventHandler.CreateEvent)
+		admin.PUT("/events/:id", eventHandler.UpdateEvent)
 		admin.DELETE("/events/:id", eventHandler.DeleteEvent)
 
 		// User management
