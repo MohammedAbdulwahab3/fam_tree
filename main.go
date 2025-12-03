@@ -10,6 +10,7 @@ import (
 	"family-tree-backend/middleware"
 	"family-tree-backend/models"
 	"family-tree-backend/seed"
+	"family-tree-backend/services"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/postgres"
@@ -45,7 +46,19 @@ func main() {
 	}
 
 	// Auto Migrate
-	db.AutoMigrate(&models.User{}, &models.Person{}, &models.Post{}, &models.Message{}, &models.Event{}, &models.Comment{}, &models.Reaction{})
+	db.AutoMigrate(
+		&models.User{},
+		&models.Person{},
+		&models.Post{},
+		&models.Message{},
+		&models.Event{},
+		&models.Comment{},
+		&models.Reaction{},
+		&models.Notification{},
+		&models.DeviceToken{},
+		&models.NotificationPreference{},
+		&models.Reminder{},
+	)
 
 	// Create uploads directory
 	if _, err := os.Stat("uploads"); os.IsNotExist(err) {
@@ -80,13 +93,31 @@ func main() {
 	// Initialize Redis
 	middleware.InitRedis()
 
+	// Initialize Notification Service
+	var notificationService *services.NotificationService
+	if app != nil {
+		var err error
+		notificationService, err = services.NewNotificationService(db, app)
+		if err != nil {
+			log.Printf("Warning: Failed to initialize notification service: %v", err)
+		} else {
+			log.Println("Notification service initialized")
+			// Start background worker for processing scheduled reminders
+			go notificationService.ProcessScheduledReminders()
+		}
+	} else {
+		log.Println("Warning: Notification service not initialized (Firebase app is nil)")
+	}
+
 	// Initialize Handlers
 	authHandler := &handlers.AuthHandler{DB: db}
 	personHandler := &handlers.PersonHandler{DB: db}
 	uploadHandler := &handlers.UploadHandler{}
-	postHandler := &handlers.PostHandler{DB: db}
-	messageHandler := &handlers.MessageHandler{DB: db}
-	eventHandler := &handlers.EventHandler{DB: db}
+	postHandler := &handlers.PostHandler{DB: db, NotificationService: notificationService}
+	messageHandler := &handlers.MessageHandler{DB: db, NotificationService: notificationService}
+	eventHandler := &handlers.EventHandler{DB: db, NotificationService: notificationService}
+	notificationHandler := &handlers.NotificationHandler{DB: db}
+	reminderHandler := &handlers.ReminderHandler{DB: db}
 
 	// Setup Router
 	r := gin.Default()
@@ -159,6 +190,22 @@ func main() {
 		// Event Routes - READ for all, RSVP for all
 		api.GET("/events", eventHandler.GetEvents)
 		api.POST("/events/:id/rsvp", eventHandler.ToggleRSVP)
+
+		// Notification Routes
+		api.POST("/devices/register", notificationHandler.RegisterDeviceToken)
+		api.GET("/notifications", notificationHandler.GetNotifications)
+		api.GET("/notifications/unread-count", notificationHandler.GetUnreadCount)
+		api.PUT("/notifications/:id/read", notificationHandler.MarkAsRead)
+		api.PUT("/notifications/read-all", notificationHandler.MarkAllAsRead)
+		api.GET("/notifications/preferences", notificationHandler.GetPreferences)
+		api.PUT("/notifications/preferences", notificationHandler.UpdatePreferences)
+
+		// Reminder Routes
+		api.GET("/reminders", reminderHandler.GetReminders)
+		api.POST("/reminders", reminderHandler.CreateReminder)
+		api.PUT("/reminders/:id", reminderHandler.UpdateReminder)
+		api.PUT("/reminders/:id/snooze", reminderHandler.SnoozeReminder)
+		api.DELETE("/reminders/:id", reminderHandler.DeleteReminder)
 	}
 
 	// Admin-only Routes

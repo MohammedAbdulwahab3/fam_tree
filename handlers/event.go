@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"family-tree-backend/models"
+	"family-tree-backend/services"
 	"net/http"
 	"time"
 
@@ -11,7 +12,8 @@ import (
 )
 
 type EventHandler struct {
-	DB *gorm.DB
+	DB                  *gorm.DB
+	NotificationService *services.NotificationService
 }
 
 func (h *EventHandler) GetEvents(c *gin.Context) {
@@ -37,6 +39,11 @@ func (h *EventHandler) CreateEvent(c *gin.Context) {
 	if result := h.DB.Create(&event); result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
 		return
+	}
+
+	// Schedule automatic reminders for attendees
+	if h.NotificationService != nil && len(event.Attendees) > 0 {
+		go h.NotificationService.ScheduleEventReminders(&event)
 	}
 
 	c.JSON(http.StatusCreated, event)
@@ -68,11 +75,26 @@ func (h *EventHandler) UpdateEvent(c *gin.Context) {
 		return
 	}
 
+	// Delete old auto-reminders and create new ones if date/time changed
+	if h.NotificationService != nil {
+		go func() {
+			h.DB.Where("entity_id = ? AND entity_type = ? AND reminder_type = ?",
+				event.ID, "event", models.ReminderTypeAuto).Delete(&models.Reminder{})
+			if len(event.Attendees) > 0 {
+				h.NotificationService.ScheduleEventReminders(&event)
+			}
+		}()
+	}
+
 	c.JSON(http.StatusOK, event)
 }
 
 func (h *EventHandler) DeleteEvent(c *gin.Context) {
 	id := c.Param("id")
+
+	// Delete associated reminders first
+	h.DB.Where("entity_id = ? AND entity_type = ?", id, "event").Delete(&models.Reminder{})
+
 	if result := h.DB.Delete(&models.Event{}, "id = ?", id); result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
 		return

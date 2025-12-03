@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"family-tree-backend/models"
+	"family-tree-backend/services"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -11,7 +13,8 @@ import (
 )
 
 type PostHandler struct {
-	DB *gorm.DB
+	DB                  *gorm.DB
+	NotificationService *services.NotificationService
 }
 
 func (h *PostHandler) GetPosts(c *gin.Context) {
@@ -37,6 +40,32 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 	if result := h.DB.Create(&post); result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
 		return
+	}
+
+	// Send notification to all users about new post
+	if h.NotificationService != nil {
+		go func() {
+			var users []models.User
+			h.DB.Find(&users)
+
+			var userIDs []string
+			for _, user := range users {
+				// Don't notify the post author
+				if user.ID != post.UserID {
+					userIDs = append(userIDs, user.ID)
+				}
+			}
+
+			h.NotificationService.SendBatchNotifications(
+				userIDs,
+				models.NotificationNewPost,
+				"post",
+				post.ID,
+				"New Post from "+post.UserName,
+				post.Content,
+				nil,
+			)
+		}()
 	}
 
 	c.JSON(http.StatusCreated, post)
@@ -107,6 +136,53 @@ func (h *PostHandler) CreateComment(c *gin.Context) {
 	if result := h.DB.Create(&comment); result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
 		return
+	}
+
+	// Send notification to post author and mentioned users
+	if h.NotificationService != nil {
+		go func() {
+			// Get post details
+			var post models.Post
+			if h.DB.First(&post, "id = ?", postID).Error == nil {
+				// Notify post author (if not the commenter)
+				if post.UserID != comment.UserID {
+					h.NotificationService.SendNotification(
+						post.UserID,
+						models.NotificationNewComment,
+						"post",
+						postID,
+						comment.UserName+" commented on your post",
+						comment.Text,
+						nil,
+					)
+				}
+			}
+
+			// Extract @mentions from comment text
+			mentionRegex := regexp.MustCompile(`@(\w+)`)
+			mentions := mentionRegex.FindAllStringSubmatch(comment.Text, -1)
+
+			for _, mention := range mentions {
+				if len(mention) > 1 {
+					userName := mention[1]
+					var user models.User
+					if h.DB.Where("name = ?", userName).First(&user).Error == nil {
+						// Don't notify if they're the commenter or already notified as post author
+						if user.ID != comment.UserID && user.ID != post.UserID {
+							h.NotificationService.SendNotification(
+								user.ID,
+								models.NotificationMention,
+								"comment",
+								comment.ID,
+								comment.UserName+" mentioned you in a comment",
+								comment.Text,
+								map[string]string{"postId": postID},
+							)
+						}
+					}
+				}
+			}
+		}()
 	}
 
 	c.JSON(http.StatusCreated, comment)

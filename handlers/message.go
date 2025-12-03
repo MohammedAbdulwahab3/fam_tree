@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"family-tree-backend/models"
+	"family-tree-backend/services"
 	"net/http"
 	"time"
 
@@ -11,7 +12,8 @@ import (
 )
 
 type MessageHandler struct {
-	DB *gorm.DB
+	DB                  *gorm.DB
+	NotificationService *services.NotificationService
 }
 
 func (h *MessageHandler) GetMessages(c *gin.Context) {
@@ -38,6 +40,32 @@ func (h *MessageHandler) SendMessage(c *gin.Context) {
 	if result := h.DB.Create(&message); result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
 		return
+	}
+
+	// Send notification to all users except sender
+	if h.NotificationService != nil {
+		go func() {
+			var users []models.User
+			h.DB.Find(&users)
+
+			var userIDs []string
+			for _, user := range users {
+				// Don't notify the message sender
+				if user.ID != message.UserID {
+					userIDs = append(userIDs, user.ID)
+				}
+			}
+
+			h.NotificationService.SendBatchNotifications(
+				userIDs,
+				models.NotificationNewMessage,
+				"message",
+				message.ID,
+				"New message from "+message.UserName,
+				message.Text,
+				nil,
+			)
+		}()
 	}
 
 	c.JSON(http.StatusCreated, message)
