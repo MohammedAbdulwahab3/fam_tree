@@ -77,6 +77,9 @@ func main() {
 		log.Println("Warning: No Firebase credentials found. Auth will be skipped.")
 	}
 
+	// Initialize Redis
+	middleware.InitRedis()
+
 	// Initialize Handlers
 	authHandler := &handlers.AuthHandler{DB: db}
 	personHandler := &handlers.PersonHandler{DB: db}

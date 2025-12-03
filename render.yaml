@@ -18,6 +18,18 @@ services:
         sync: false
       - key: GIN_MODE
         value: release
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: family-tree-redis
+          property: connectionString
+
+  # Redis Service for Caching
+  - type: redis
+    name: family-tree-redis
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
 
 databases:
   # PostgreSQL Database

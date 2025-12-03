@@ -1,6 +1,9 @@
 package handlers
 
 import (
+	"context"
+	"encoding/json"
+	"family-tree-backend/middleware"
 	"family-tree-backend/models"
 	"net/http"
 	"time"
@@ -14,18 +17,36 @@ type PersonHandler struct {
 	DB *gorm.DB
 }
 
+const personsCacheKey = "persons:all"
+const personsCacheDuration = 5 * time.Minute
+
 func (h *PersonHandler) GetPersons(c *gin.Context) {
+	ctx := context.Background()
+
+	// Try to get from cache first
+	cachedData, err := middleware.GetCache(ctx, personsCacheKey)
+	if err == nil && cachedData != "" {
+		var persons []models.Person
+		if err := json.Unmarshal([]byte(cachedData), &persons); err == nil {
+			c.Header("X-Cache", "HIT")
+			c.JSON(http.StatusOK, persons)
+			return
+		}
+	}
+
+	// Cache miss, fetch from database
 	var persons []models.Person
-
-	// Optional: Filter by AuthUserID if query param provided, or just return all
-	// For now, let's return all, or filter by treeId if we had one.
-	// The frontend expects to filter.
-
 	if result := h.DB.Find(&persons); result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
 		return
 	}
 
+	// Store in cache
+	if jsonData, err := json.Marshal(persons); err == nil {
+		middleware.SetCache(ctx, personsCacheKey, string(jsonData), personsCacheDuration)
+	}
+
+	c.Header("X-Cache", "MISS")
 	c.JSON(http.StatusOK, persons)
 }
 
@@ -66,6 +87,10 @@ func (h *PersonHandler) CreatePerson(c *gin.Context) {
 		return
 	}
 
+	// Invalidate cache
+	ctx := context.Background()
+	middleware.DeleteCache(ctx, personsCacheKey)
+
 	c.JSON(http.StatusCreated, person)
 }
 
@@ -94,6 +119,10 @@ func (h *PersonHandler) UpdatePerson(c *gin.Context) {
 		return
 	}
 
+	// Invalidate cache
+	ctx := context.Background()
+	middleware.DeleteCache(ctx, personsCacheKey)
+
 	c.JSON(http.StatusOK, person)
 }
 
@@ -103,6 +132,11 @@ func (h *PersonHandler) DeletePerson(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
 		return
 	}
+
+	// Invalidate cache
+	ctx := context.Background()
+	middleware.DeleteCache(ctx, personsCacheKey)
+
 	c.JSON(http.StatusOK, gin.H{"message": "Person deleted"})
 }
 
@@ -148,6 +182,10 @@ func (h *PersonHandler) UpdatePersonWithPermission(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
 		return
 	}
+
+	// Invalidate cache
+	ctx := context.Background()
+	middleware.DeleteCache(ctx, personsCacheKey)
 
 	// Fetch updated person
 	h.DB.First(&person, "id = ?", id)
