@@ -50,12 +50,14 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	// Create user
 	user := models.User{
-		ID:        uuid.New().String(),
-		Email:     req.Email,
-		Password:  string(hashedPassword),
-		Name:      req.Name,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		ID:           uuid.New().String(),
+		Email:        req.Email,
+		Password:     string(hashedPassword),
+		Name:         req.Name,
+		FamilyTreeID: "default-tree-id", // TODO: Make this dynamic or configurable
+		IsVerified:   false,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
 	}
 
 	if result := h.DB.Create(&user); result.Error != nil {

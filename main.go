@@ -58,6 +58,7 @@ func main() {
 		&models.DeviceToken{},
 		&models.NotificationPreference{},
 		&models.Reminder{},
+		&models.LinkRequest{},
 	)
 
 	// Create uploads directory
@@ -118,6 +119,7 @@ func main() {
 	eventHandler := &handlers.EventHandler{DB: db, NotificationService: notificationService}
 	notificationHandler := &handlers.NotificationHandler{DB: db}
 	reminderHandler := &handlers.ReminderHandler{DB: db}
+	linkHandler := &handlers.LinkHandler{DB: db}
 
 	// Setup Router
 	r := gin.Default()
@@ -206,13 +208,20 @@ func main() {
 		api.PUT("/reminders/:id", reminderHandler.UpdateReminder)
 		api.PUT("/reminders/:id/snooze", reminderHandler.SnoozeReminder)
 		api.DELETE("/reminders/:id", reminderHandler.DeleteReminder)
+
+		// Link Request Routes
+		api.POST("/link-requests", linkHandler.RequestLink)
+		api.GET("/link-requests/my-status", linkHandler.GetMyLinkStatus)
 	}
 
 	// Admin-only Routes
 	admin := r.Group("/api/admin")
-	admin.Use(middleware.AuthMiddleware(app, db))
-	admin.Use(middleware.AdminMiddleware(db))
+	admin.Use(middleware.AuthMiddleware(app, db), middleware.AdminMiddleware(db))
 	{
+		// Link Request Admin Routes
+		admin.GET("/link-requests", linkHandler.GetLinkRequests)
+		admin.PUT("/link-requests/:id", linkHandler.UpdateLinkStatus)
+
 		// Person management - CREATE, DELETE (admin only)
 		admin.POST("/persons", personHandler.CreatePerson)
 		admin.PUT("/persons/:id", personHandler.UpdatePerson)
