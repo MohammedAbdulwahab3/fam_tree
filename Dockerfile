@@ -1,6 +1,9 @@
-FROM golang:1.21-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 WORKDIR /app
+
+# Enable automatic toolchain download
+ENV GOTOOLCHAIN=auto
 
 # Copy go mod files
 COPY go.mod go.sum ./
@@ -22,14 +25,11 @@ WORKDIR /root/
 # Copy the binary from builder
 COPY --from=builder /app/server .
 
-# Copy any config files if needed
-# COPY --from=builder /app/config ./config
-
 # Create uploads directory
 RUN mkdir -p /root/uploads
 
 # Expose port
-EXPOSE 8080
+EXPOSE 5000
 
 # Run the application
 CMD ["./server"]
