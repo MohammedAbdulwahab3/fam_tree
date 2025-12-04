@@ -1,0 +1,34 @@
+{
+  "family": "family-tree-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::652614757484:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "family-tree-container",
+      "image": "652614757484.dkr.ecr.eu-north-1.amazonaws.com/family-tree-backend:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 5000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {"name": "PORT", "value": "5000"},
+        {"name": "GIN_MODE", "value": "release"},
+        {"name": "DATABASE_URL", "value": "postgresql://postgres:FamilyTree2024!@family-tree-db.c5a6g4c40lkq.eu-north-1.rds.amazonaws.com:5432/postgres?sslmode=require"}
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/family-tree",
+          "awslogs-region": "eu-north-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}
