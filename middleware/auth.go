@@ -17,6 +17,7 @@ func AuthMiddleware(app *firebase.App, db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		var uid string
+		var email string
 
 		// No auth header - use dev mode
 		if authHeader == "" {
@@ -54,6 +55,10 @@ func AuthMiddleware(app *firebase.App, db *gorm.DB) gin.HandlerFunc {
 						uid = "unverified-user"
 					} else {
 						uid = token.UID
+						// Get email from token claims
+						if e, ok := token.Claims["email"].(string); ok {
+							email = e
+						}
 					}
 				}
 			}
@@ -61,20 +66,43 @@ func AuthMiddleware(app *firebase.App, db *gorm.DB) gin.HandlerFunc {
 
 		// Sync user to local DB
 		var user models.User
+		
+		// First try to find by ID (Firebase UID)
 		if err := db.First(&user, "id = ?", uid).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
-				// Create new user with default member role
-				newUser := models.User{
-					ID:    uid,
-					Email: "", // We might not have email in token claims easily without extra lookup
-					Name:  "Firebase User",
-					Role:  models.RoleMember,
+				// Try to find by email if we have it
+				if email != "" {
+					if err := db.First(&user, "email = ?", email).Error; err == nil {
+						// Found user by email - update their ID to Firebase UID
+						log.Printf("Found user by email %s, updating ID from %s to %s", email, user.ID, uid)
+						db.Model(&user).Update("id", uid)
+						user.ID = uid
+					} else {
+						// Create new user with default member role
+						newUser := models.User{
+							ID:    uid,
+							Email: email,
+							Name:  "Firebase User",
+							Role:  models.RoleMember,
+						}
+						if err := db.Create(&newUser).Error; err != nil {
+							log.Printf("Error creating user sync: %v", err)
+						}
+						user = newUser
+					}
+				} else {
+					// No email, create user with just UID
+					newUser := models.User{
+						ID:    uid,
+						Email: "",
+						Name:  "Firebase User",
+						Role:  models.RoleMember,
+					}
+					if err := db.Create(&newUser).Error; err != nil {
+						log.Printf("Error creating user sync: %v", err)
+					}
+					user = newUser
 				}
-				if err := db.Create(&newUser).Error; err != nil {
-					log.Printf("Error creating user sync: %v", err)
-					// Continue anyway, maybe just a glitch
-				}
-				user = newUser
 			} else {
 				log.Printf("Error checking user sync: %v", err)
 			}

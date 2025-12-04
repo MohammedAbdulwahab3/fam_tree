@@ -2,8 +2,8 @@
   "family": "family-tree-task",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
-  "cpu": "256",
-  "memory": "512",
+  "cpu": "1024",
+  "memory": "2048",
   "executionRoleArn": "arn:aws:iam::652614757484:role/ecsTaskExecutionRole",
   "containerDefinitions": [
     {
@@ -19,7 +19,9 @@
       "environment": [
         {"name": "PORT", "value": "5000"},
         {"name": "GIN_MODE", "value": "release"},
-        {"name": "DATABASE_URL", "value": "postgresql://postgres:FamilyTree2024!@family-tree-db.c5a6g4c40lkq.eu-north-1.rds.amazonaws.com:5432/postgres?sslmode=require"}
+        {"name": "DATABASE_URL", "value": "SET_VIA_AWS_CONSOLE"},
+        {"name": "REDIS_URL", "value": "SET_VIA_AWS_CONSOLE"},
+        {"name": "FIREBASE_CREDENTIALS", "value": "SET_VIA_AWS_CONSOLE"}
       ],
       "logConfiguration": {
         "logDriver": "awslogs",
