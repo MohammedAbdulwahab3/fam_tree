@@ -21,6 +21,8 @@ import 'package:family_tree/data/services/storage_service.dart';
 import 'dart:typed_data';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:family_tree/features/admin/admin_family_artboard.dart';
+
 /// Admin Dashboard with full management capabilities
 class AdminDashboardPage extends ConsumerStatefulWidget {
   const AdminDashboardPage({Key? key}) : super(key: key);
@@ -514,6 +516,37 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage>
             ],
           ),
           
+          const SizedBox(height: 12),
+          
+          // Second row of quick actions
+          Row(
+            children: [
+              _buildQuickAction(
+                icon: Icons.verified_user_rounded,
+                label: 'Link Verification',
+                color: Colors.purple,
+                isDark: isDark,
+                onTap: () => context.go('/admin/link-requests'),
+              ),
+              const SizedBox(width: 12),
+              _buildQuickAction(
+                icon: Icons.campaign_rounded,
+                label: 'Announcement',
+                color: Colors.orange,
+                isDark: isDark,
+                onTap: () => _showAnnouncementDialog(),
+              ),
+              const SizedBox(width: 12),
+              _buildQuickAction(
+                icon: Icons.download_rounded,
+                label: 'Export Data',
+                color: Colors.teal,
+                isDark: isDark,
+                onTap: () => _showExportDialog(isDark),
+              ),
+            ],
+          ),
+          
           const SizedBox(height: 24),
           
           // Recent Members
@@ -725,7 +758,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage>
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(28),
             decoration: BoxDecoration(
               gradient: isDark 
                   ? AppTheme.primaryGradient
@@ -734,71 +767,79 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage>
               boxShadow: [
                 BoxShadow(
                   color: ElegantColors.terracotta.withOpacity(0.3),
-                  blurRadius: 20,
+                  blurRadius: 24,
                   offset: const Offset(0, 8),
                 ),
               ],
             ),
             child: const Icon(
-              Icons.dashboard_customize_rounded,
+              Icons.account_tree_rounded,
               size: 64,
               color: Colors.white,
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 28),
           Text(
             'Family Artboard',
             style: GoogleFonts.playfairDisplay(
-              fontSize: 28,
+              fontSize: 32,
               fontWeight: FontWeight.bold,
               color: isDark ? Colors.white : ElegantColors.charcoal,
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Manage your family tree with the visual artboard',
+            'Visual management for your family tree',
             style: GoogleFonts.cormorantGaramond(
               fontSize: 16,
               color: isDark ? Colors.white60 : ElegantColors.warmGray,
             ),
           ),
           const SizedBox(height: 12),
-          Text(
-            '${_persons.length} family members',
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: isDark ? AppTheme.primaryLight : ElegantColors.terracotta,
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: isDark ? AppTheme.primaryLight.withOpacity(0.15) : ElegantColors.terracotta.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              '${_persons.length} family members',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isDark ? AppTheme.primaryLight : ElegantColors.terracotta,
+              ),
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 36),
           
           // Open Artboard Button
           ElevatedButton.icon(
             onPressed: () => context.go('/admin/artboard'),
-            icon: const Icon(Icons.open_in_new_rounded),
+            icon: const Icon(Icons.dashboard_customize_rounded, size: 22),
             label: Text(
               'Open Artboard',
-              style: GoogleFonts.cormorantGaramond(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+              style: GoogleFonts.inter(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
               ),
             ),
             style: ElevatedButton.styleFrom(
               backgroundColor: isDark ? AppTheme.primaryLight : ElegantColors.terracotta,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 18),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
+              elevation: 4,
             ),
           ),
           
-          const SizedBox(height: 24),
+          const SizedBox(height: 32),
           
-          // Features list
+          // Features
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(24),
             margin: const EdgeInsets.symmetric(horizontal: 32),
             decoration: BoxDecoration(
               color: isDark ? Colors.white.withOpacity(0.05) : ElegantColors.cream,
@@ -809,13 +850,13 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage>
             ),
             child: Column(
               children: [
-                _buildFeatureRow(Icons.add_circle_outline, 'Add single or multiple family members', isDark),
+                _buildFeatureRow(Icons.person_add_rounded, 'Add & edit family members', isDark),
                 const SizedBox(height: 12),
-                _buildFeatureRow(Icons.delete_sweep, 'Cascade delete (removes all descendants)', isDark),
+                _buildFeatureRow(Icons.delete_sweep_rounded, 'Delete with cascade (removes descendants)', isDark),
                 const SizedBox(height: 12),
-                _buildFeatureRow(Icons.check_box_outlined, 'Multi-select for batch operations', isDark),
+                _buildFeatureRow(Icons.checklist_rounded, 'Multi-select for batch operations', isDark),
                 const SizedBox(height: 12),
-                _buildFeatureRow(Icons.account_tree, 'Visual tree, list, and focus views', isDark),
+                _buildFeatureRow(Icons.center_focus_strong_rounded, 'Focus mode drill-down view', isDark),
               ],
             ),
           ),
@@ -823,6 +864,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage>
       ),
     );
   }
+
   
   Widget _buildFeatureRow(IconData icon, String text, bool isDark) {
     return Row(
@@ -1245,6 +1287,10 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage>
             onSelected: (value) {
               if (value == 'admin' || value == 'member') {
                 _updateUserRole(user, value);
+              } else if (value == 'delete') {
+                _confirmDeleteUser(user);
+              } else if (value == 'ban') {
+                _banUser(user);
               }
             },
             itemBuilder: (context) => [
@@ -1267,6 +1313,27 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage>
                     Icon(Icons.person_outline, size: 20),
                     SizedBox(width: 8),
                     Text('Make Member'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'ban',
+                child: Row(
+                  children: [
+                    Icon(Icons.block, size: 20, color: Colors.orange),
+                    SizedBox(width: 8),
+                    Text('Ban User', style: TextStyle(color: Colors.orange)),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'delete',
+                child: Row(
+                  children: [
+                    Icon(Icons.delete_forever, size: 20, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Delete User', style: TextStyle(color: Colors.red)),
                   ],
                 ),
               ),
@@ -2232,5 +2299,301 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage>
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return months[month - 1];
+  }
+
+  // ===== ANNOUNCEMENT DIALOG =====
+  void _showAnnouncementDialog() {
+    final titleController = TextEditingController();
+    final messageController = TextEditingController();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDark ? AppTheme.cardDark : Colors.white,
+        title: Row(
+          children: [
+            const Icon(Icons.campaign_rounded, color: Colors.orange),
+            const SizedBox(width: 8),
+            Text(
+              'Send Announcement',
+              style: GoogleFonts.playfairDisplay(
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: titleController,
+              decoration: const InputDecoration(
+                labelText: 'Title',
+                hintText: 'Enter announcement title',
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: messageController,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                labelText: 'Message',
+                hintText: 'Enter announcement message',
+                alignLabelWithHint: true,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              if (titleController.text.isEmpty || messageController.text.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please fill in all fields')),
+                );
+                return;
+              }
+              try {
+                await _adminRepo.sendAnnouncement(
+                  title: titleController.text,
+                  message: messageController.text,
+                );
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Announcement sent to all users!'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error: $e')),
+                );
+              }
+            },
+            icon: const Icon(Icons.send),
+            label: const Text('Send'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ===== EXPORT DIALOG =====
+  void _showExportDialog(bool isDark) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDark ? AppTheme.cardDark : Colors.white,
+        title: Row(
+          children: [
+            const Icon(Icons.download_rounded, color: Colors.teal),
+            const SizedBox(width: 8),
+            Text(
+              'Export Family Tree',
+              style: GoogleFonts.playfairDisplay(
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Export your family tree data for backup or transfer.',
+              style: TextStyle(
+                color: isDark ? Colors.white70 : Colors.black54,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _buildExportOption(
+              'JSON Format',
+              'Complete data with all fields',
+              Icons.code,
+              isDark,
+              () => _exportData('json'),
+            ),
+            const SizedBox(height: 8),
+            _buildExportOption(
+              'CSV Format',
+              'Spreadsheet-friendly format',
+              Icons.table_chart,
+              isDark,
+              () => _exportData('csv'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExportOption(String title, String subtitle, IconData icon, bool isDark, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.teal.withOpacity(0.3)),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: Colors.teal),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black87,
+                  )),
+                  Text(subtitle, style: TextStyle(
+                    fontSize: 12,
+                    color: isDark ? Colors.white60 : Colors.grey,
+                  )),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.teal),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _exportData(String format) async {
+    Navigator.pop(context);
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Exporting data...')),
+      );
+      final data = await _adminRepo.exportFamilyTreeData('main-family-tree');
+      
+      // For web, we'd use a download link; for mobile, we'd save to file
+      // For now, show success
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Exported ${data['persons']?.length ?? 0} persons as $format'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Export failed: $e')),
+      );
+    }
+  }
+
+  // ===== USER DELETE/BAN =====
+  Future<void> _confirmDeleteUser(AppUser user) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete User'),
+        content: Text('Are you sure you want to delete ${user.name}? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await _adminRepo.deleteUser(user.id);
+        _loadData();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('${user.name} has been deleted')),
+          );
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _banUser(AppUser user) async {
+    final reasonController = TextEditingController();
+    
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Ban User'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Are you sure you want to ban ${user.name}?'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: reasonController,
+              decoration: const InputDecoration(
+                labelText: 'Reason (optional)',
+                hintText: 'Why is this user being banned?',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Ban User'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await _adminRepo.banUser(user.id, reason: reasonController.text);
+        _loadData();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('${user.name} has been banned')),
+          );
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
   }
 }

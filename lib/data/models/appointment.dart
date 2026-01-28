@@ -9,6 +9,8 @@ class Appointment {
   final String? mapLink; // Google Maps URL for routing
   final String createdBy;
   final List<String> attendees;
+  final List<String>? maybes; // Users who responded 'maybe'
+  final List<String>? declined; // Users who declined
 
   Appointment({
     required this.id,
@@ -20,7 +22,12 @@ class Appointment {
     this.mapLink,
     required this.createdBy,
     this.attendees = const [],
+    this.maybes,
+    this.declined,
   });
+
+  // Getter for backward compatibility
+  DateTime get date => dateTime;
 
   /// Create from JSON (Go backend response)
   factory Appointment.fromJson(Map<String, dynamic> json) {
@@ -34,6 +41,8 @@ class Appointment {
       mapLink: json['mapLink'],
       createdBy: json['createdBy'] ?? '',
       attendees: List<String>.from(json['attendees'] ?? []),
+      maybes: json['maybes'] != null ? List<String>.from(json['maybes']) : null,
+      declined: json['declined'] != null ? List<String>.from(json['declined']) : null,
     );
   }
 
@@ -49,6 +58,8 @@ class Appointment {
       'mapLink': mapLink,
       'createdBy': createdBy,
       'attendees': attendees,
+      'maybes': maybes,
+      'declined': declined,
     };
   }
 
@@ -58,21 +69,26 @@ class Appointment {
     String? title,
     String? description,
     DateTime? dateTime,
+    DateTime? date, // Alias for dateTime
     String? location,
     String? mapLink,
     String? createdBy,
     List<String>? attendees,
+    List<String>? maybes,
+    List<String>? declined,
   }) {
     return Appointment(
       id: id ?? this.id,
       familyTreeId: familyTreeId ?? this.familyTreeId,
       title: title ?? this.title,
       description: description ?? this.description,
-      dateTime: dateTime ?? this.dateTime,
+      dateTime: dateTime ?? date ?? this.dateTime,
       location: location ?? this.location,
       mapLink: mapLink ?? this.mapLink,
       createdBy: createdBy ?? this.createdBy,
       attendees: attendees ?? this.attendees,
+      maybes: maybes ?? this.maybes,
+      declined: declined ?? this.declined,
     );
   }
 }

@@ -6,10 +6,9 @@ import 'package:family_tree/core/theme/app_theme.dart';
 import 'package:family_tree/data/models/person.dart';
 import 'package:family_tree/data/repositories/person_repository.dart';
 import 'package:family_tree/features/auth/providers/auth_provider.dart';
-import 'dart:ui';
 
 class LinkProfilePage extends ConsumerStatefulWidget {
-  const LinkProfilePage({Key? key}) : super(key: key);
+  const LinkProfilePage({super.key});
 
   @override
   ConsumerState<LinkProfilePage> createState() => _LinkProfilePageState();
@@ -369,7 +368,7 @@ class _LinkProfilePageState extends ConsumerState<LinkProfilePage>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
+          const Icon(
             Icons.person_search_rounded,
             size: 64,
             color: AppTheme.textMuted,
@@ -448,7 +447,7 @@ class _LinkProfilePageState extends ConsumerState<LinkProfilePage>
               child: Padding(
                 padding: const EdgeInsets.all(2),
                 child: Container(
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     shape: BoxShape.circle,
                     color: AppTheme.surfaceDark,
                   ),
@@ -484,7 +483,7 @@ class _LinkProfilePageState extends ConsumerState<LinkProfilePage>
                   Row(
                     children: [
                       if (person.birthDate != null) ...[
-                        Icon(
+                        const Icon(
                           Icons.cake_outlined,
                           size: 14,
                           color: AppTheme.textMuted,

@@ -136,6 +136,59 @@ class AuthController extends StateNotifier<AuthState> {
   void clearError() {
     state = state.copyWith(clearError: true);
   }
+
+  /// Send password reset email
+  Future<void> sendPasswordResetEmail(String email) async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    
+    try {
+      await _authService.sendPasswordResetEmail(email: email);
+      state = state.copyWith(isLoading: false);
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: e.toString().replaceAll('Exception: ', ''),
+      );
+    }
+  }
+
+  /// Send email verification
+  Future<void> sendEmailVerification() async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    
+    try {
+      await _authService.sendEmailVerification();
+      state = state.copyWith(isLoading: false);
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: e.toString().replaceAll('Exception: ', ''),
+      );
+    }
+  }
+
+  /// Check if email is verified
+  bool get isEmailVerified => _authService.isEmailVerified;
+
+  /// Reload user to get latest verification status
+  Future<void> reloadUser() async {
+    await _authService.reloadUser();
+  }
+
+  /// Sign in with Apple
+  Future<void> signInWithApple() async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    
+    try {
+      await _authService.signInWithApple();
+      state = state.copyWith(isLoading: false);
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: e.toString().replaceAll('Exception: ', ''),
+      );
+    }
+  }
 }
 
 /// Provider for AuthController

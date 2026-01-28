@@ -25,6 +25,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   bool _isSignUp = false;
   bool _showPhoneAuth = false;
   bool _obscurePassword = true;
+  bool _rememberMe = true;
 
   @override
   void dispose() {
@@ -47,8 +48,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         ),
       );
     } else if (mounted) {
-      // Redirect to dashboard after sign in
-      context.go('/dashboard');
+      // Redirect to tree after sign in
+      context.go('/tree');
     }
   }
 
@@ -74,8 +75,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         ),
       );
     } else if (mounted) {
-      // Redirect to dashboard after sign in/up
-      context.go('/dashboard');
+      // Redirect to tree after sign in/up
+      context.go('/tree');
     }
   }
 
@@ -105,6 +106,102 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         ),
       );
     }
+  }
+
+  void _showForgotPasswordDialog() {
+    final emailController = TextEditingController(text: _emailController.text);
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.cardDark,
+        title: Text(
+          'Reset Password',
+          style: GoogleFonts.playfairDisplay(
+            color: AppTheme.textPrimary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Enter your email address and we\'ll send you a link to reset your password.',
+              style: GoogleFonts.inter(
+                color: AppTheme.textSecondary,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: AppTheme.spaceMd),
+            TextField(
+              controller: emailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: InputDecoration(
+                labelText: 'Email',
+                labelStyle: GoogleFonts.inter(color: AppTheme.textSecondary),
+                prefixIcon: const Icon(Icons.email, color: AppTheme.primaryLight),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(color: AppTheme.textMuted),
+            ),
+          ),
+          Consumer(
+            builder: (context, ref, _) {
+              final authState = ref.watch(authControllerProvider);
+              return ElevatedButton(
+                onPressed: authState.isLoading ? null : () async {
+                  final email = emailController.text.trim();
+                  if (email.isEmpty || !email.contains('@')) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Please enter a valid email'),
+                        backgroundColor: AppTheme.error,
+                      ),
+                    );
+                    return;
+                  }
+                  
+                  await ref.read(authControllerProvider.notifier).sendPasswordResetEmail(email);
+                  
+                  final state = ref.read(authControllerProvider);
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          state.error ?? 'Password reset email sent! Check your inbox.',
+                        ),
+                        backgroundColor: state.error != null ? AppTheme.error : Colors.green,
+                      ),
+                    );
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryLight,
+                ),
+                child: authState.isLoading 
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text('Send Reset Link'),
+              );
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -267,7 +364,47 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             },
           ),
           
-          const SizedBox(height: AppTheme.spaceXl),
+          const SizedBox(height: AppTheme.spaceSm),
+          
+          // Remember Me and Forgot Password row
+          if (!_isSignUp)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Remember Me
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Checkbox(
+                      value: _rememberMe,
+                      onChanged: (val) => setState(() => _rememberMe = val ?? true),
+                      activeColor: AppTheme.primaryLight,
+                      side: const BorderSide(color: AppTheme.textMuted),
+                    ),
+                    Text(
+                      'Remember Me',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+                // Forgot Password
+                TextButton(
+                  onPressed: () => _showForgotPasswordDialog(),
+                  child: Text(
+                    'Forgot Password?',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: AppTheme.primaryLight,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          
+          const SizedBox(height: AppTheme.spaceMd),
           
           // Sign In/Up Button
           _buildGradientButton(

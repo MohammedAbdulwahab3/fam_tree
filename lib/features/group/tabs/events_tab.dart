@@ -8,6 +8,8 @@ import 'package:family_tree/features/auth/providers/auth_provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:add_2_calendar/add_2_calendar.dart';
+import 'package:family_tree/data/services/notification_service.dart';
 
 /// Provider for appointments stream
 final appointmentsProvider = StreamProvider.family<List<Appointment>, String>((ref, familyTreeId) {
@@ -29,8 +31,8 @@ class _EventsTabState extends ConsumerState<EventsTab> {
   final GroupRepository _repository = GroupRepository();
   bool _isCalendarView = false; // Toggle between list and calendar view
 
-  void _toggleRSVP(String appointmentId, String userId) async {
-    await _repository.toggleRSVP(appointmentId, userId);
+  void _toggleRSVP(String appointmentId, String userId, String status) async {
+    await _repository.toggleRSVP(appointmentId, userId, status);
   }
 
   void _deleteAppointment(String appointmentId) async {
@@ -55,6 +57,242 @@ class _EventsTabState extends ConsumerState<EventsTab> {
 
     if (confirm == true) {
       await _repository.deleteAppointment(appointmentId);
+    }
+  }
+
+  String _getRSVPStatus(Appointment appointment, String userId) {
+    if (appointment.attendees.contains(userId)) return 'yes';
+    if (appointment.maybes?.contains(userId) ?? false) return 'maybe';
+    if (appointment.declined?.contains(userId) ?? false) return 'no';
+    return '';
+  }
+
+  Widget _buildRSVPOption({
+    required String label,
+    required IconData icon,
+    required bool isSelected,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withOpacity(0.15) : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: isSelected ? color : AppTheme.textMuted),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                color: isSelected ? color : AppTheme.textMuted,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _editEvent(Appointment appointment) {
+    final titleController = TextEditingController(text: appointment.title);
+    final descController = TextEditingController(text: appointment.description ?? '');
+    final locationController = TextEditingController(text: appointment.location ?? '');
+    DateTime selectedDate = appointment.date;
+    
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: widget.isDark ? AppTheme.surfaceDark : Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text('Edit Event', style: GoogleFonts.playfairDisplay(
+            color: widget.isDark ? AppTheme.textPrimary : ElegantColors.charcoal,
+            fontWeight: FontWeight.w700,
+          )),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: titleController,
+                  style: GoogleFonts.inter(
+                    color: widget.isDark ? AppTheme.textPrimary : ElegantColors.charcoal,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: 'Event Title',
+                    labelStyle: GoogleFonts.inter(color: AppTheme.textMuted),
+                    filled: true,
+                    fillColor: widget.isDark ? AppTheme.backgroundDark : Colors.grey.shade100,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: descController,
+                  maxLines: 3,
+                  style: GoogleFonts.inter(
+                    color: widget.isDark ? AppTheme.textPrimary : ElegantColors.charcoal,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: 'Description',
+                    labelStyle: GoogleFonts.inter(color: AppTheme.textMuted),
+                    filled: true,
+                    fillColor: widget.isDark ? AppTheme.backgroundDark : Colors.grey.shade100,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: locationController,
+                  style: GoogleFonts.inter(
+                    color: widget.isDark ? AppTheme.textPrimary : ElegantColors.charcoal,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: 'Location',
+                    labelStyle: GoogleFonts.inter(color: AppTheme.textMuted),
+                    filled: true,
+                    fillColor: widget.isDark ? AppTheme.backgroundDark : Colors.grey.shade100,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.calendar_today, color: AppTheme.primaryLight),
+                  title: Text(
+                    DateFormat('MMM d, yyyy • h:mm a').format(selectedDate),
+                    style: GoogleFonts.inter(
+                      color: widget.isDark ? AppTheme.textPrimary : ElegantColors.charcoal,
+                    ),
+                  ),
+                  onTap: () async {
+                    final date = await showDatePicker(
+                      context: context,
+                      initialDate: selectedDate,
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                    );
+                    if (date != null) {
+                      final time = await showTimePicker(
+                        context: context,
+                        initialTime: TimeOfDay.fromDateTime(selectedDate),
+                      );
+                      if (time != null) {
+                        setDialogState(() {
+                          selectedDate = DateTime(
+                            date.year, date.month, date.day,
+                            time.hour, time.minute,
+                          );
+                        });
+                      }
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cancel', style: GoogleFonts.inter(color: AppTheme.textMuted)),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (titleController.text.trim().isEmpty) return;
+                
+                final updated = appointment.copyWith(
+                  title: titleController.text.trim(),
+                  description: descController.text.trim(),
+                  location: locationController.text.trim(),
+                  date: selectedDate,
+                );
+                await _repository.updateAppointment(updated);
+                Navigator.pop(context);
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryLight),
+              child: Text('Save', style: GoogleFonts.inter(color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _addToCalendar(Appointment appointment) {
+    final event = Event(
+      title: appointment.title,
+      description: appointment.description ?? '',
+      location: appointment.location ?? '',
+      startDate: appointment.dateTime,
+      endDate: appointment.dateTime.add(const Duration(hours: 1)),
+      allDay: false,
+    );
+    Add2Calendar.addEvent2Cal(event);
+  }
+
+  void _setReminder(Appointment appointment) async {
+    final result = await showDialog<Duration>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: Text('Set Reminder', style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.bold)),
+        backgroundColor: widget.isDark ? AppTheme.surfaceDark : Colors.white,
+        children: [
+          SimpleDialogOption(
+            child: Text('15 minutes before', style: GoogleFonts.inter(color: widget.isDark ? Colors.white : Colors.black)),
+            onPressed: () => Navigator.pop(context, const Duration(minutes: 15)),
+          ),
+          SimpleDialogOption(
+            child: Text('1 hour before', style: GoogleFonts.inter(color: widget.isDark ? Colors.white : Colors.black)),
+            onPressed: () => Navigator.pop(context, const Duration(hours: 1)),
+          ),
+          SimpleDialogOption(
+            child: Text('1 day before', style: GoogleFonts.inter(color: widget.isDark ? Colors.white : Colors.black)),
+            onPressed: () => Navigator.pop(context, const Duration(days: 1)),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null) {
+      final scheduledDate = appointment.dateTime.subtract(result);
+      if (scheduledDate.isBefore(DateTime.now())) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Cannot set reminder in the past')),
+          );
+        }
+        return;
+      }
+
+      await NotificationService().scheduleNotification(
+        id: appointment.id.hashCode,
+        title: 'Upcoming Event: ${appointment.title}',
+        body: 'Starting in ${result.inMinutes >= 60 ? "${result.inHours} hours" : "${result.inMinutes} minutes"}',
+        scheduledDate: scheduledDate,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Reminder set!')),
+        );
+      }
     }
   }
 
@@ -276,21 +514,74 @@ class _EventsTabState extends ConsumerState<EventsTab> {
                   ],
                 ),
               ),
-              if (isCreator)
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert, color: AppTheme.textMuted),
-                  onSelected: (value) {
-                    if (value == 'delete') {
-                      _deleteAppointment(appointment.id);
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Text('Delete'),
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert, color: AppTheme.textMuted),
+                color: widget.isDark ? AppTheme.surfaceDark : Colors.white,
+                onSelected: (value) {
+                  if (value == 'delete') {
+                    _deleteAppointment(appointment.id);
+                  } else if (value == 'edit') {
+                    _editEvent(appointment);
+                  } else if (value == 'calendar') {
+                    _addToCalendar(appointment);
+                  } else if (value == 'reminder') {
+                    _setReminder(appointment);
+                  }
+                },
+                itemBuilder: (context) => [
+                  if (isCreator) ...[
+                    PopupMenuItem(
+                      value: 'edit',
+                      child: Row(
+                        children: [
+                          Icon(Icons.edit, size: 18, color: AppTheme.primaryLight),
+                          const SizedBox(width: 8),
+                          Text('Edit Event', style: GoogleFonts.inter(
+                            color: widget.isDark ? AppTheme.textPrimary : ElegantColors.charcoal,
+                          )),
+                        ],
+                      ),
                     ),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          const Icon(Icons.delete, size: 18, color: Colors.red),
+                          const SizedBox(width: 8),
+                          Text('Delete', style: GoogleFonts.inter(
+                            color: Colors.red,
+                          )),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuDivider(),
                   ],
-                ),
+                  PopupMenuItem(
+                    value: 'calendar',
+                    child: Row(
+                      children: [
+                        Icon(Icons.calendar_today, size: 18, color: AppTheme.primaryLight),
+                        const SizedBox(width: 8),
+                        Text('Add to Calendar', style: GoogleFonts.inter(
+                          color: widget.isDark ? AppTheme.textPrimary : ElegantColors.charcoal,
+                        )),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'reminder',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.notifications_active, size: 18, color: AppTheme.accentGold),
+                        const SizedBox(width: 8),
+                        Text('Set Reminder', style: GoogleFonts.inter(
+                          color: widget.isDark ? AppTheme.textPrimary : ElegantColors.charcoal,
+                        )),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
 
@@ -363,27 +654,38 @@ class _EventsTabState extends ConsumerState<EventsTab> {
                 ),
               ),
               const Spacer(),
-              // RSVP button
+              // RSVP buttons (Yes/Maybe/No)
               if (!isPast)
-                ElevatedButton(
-                  onPressed: () => _toggleRSVP(appointment.id, currentUserId),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isAttending ? AppTheme.success : AppTheme.primaryLight,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppTheme.spaceMd,
-                      vertical: AppTheme.spaceXs,
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: AppTheme.primaryLight.withOpacity(0.3),
                     ),
                   ),
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        isAttending ? Icons.check_circle : Icons.add_circle_outline,
-                        size: 16,
+                      _buildRSVPOption(
+                        label: 'Yes',
+                        icon: Icons.check,
+                        isSelected: isAttending,
+                        color: AppTheme.success,
+                        onTap: () => _toggleRSVP(appointment.id, currentUserId, 'yes'),
                       ),
-                      const SizedBox(width: AppTheme.spaceXs),
-                      Text(
-                        isAttending ? 'Attending' : 'Join',
-                        style: GoogleFonts.inter(fontSize: 12),
+                      _buildRSVPOption(
+                        label: 'Maybe',
+                        icon: Icons.help_outline,
+                        isSelected: _getRSVPStatus(appointment, currentUserId) == 'maybe',
+                        color: Colors.orange,
+                        onTap: () => _toggleRSVP(appointment.id, currentUserId, 'maybe'),
+                      ),
+                      _buildRSVPOption(
+                        label: 'No',
+                        icon: Icons.close,
+                        isSelected: _getRSVPStatus(appointment, currentUserId) == 'no',
+                        color: Colors.red,
+                        onTap: () => _toggleRSVP(appointment.id, currentUserId, 'no'),
                       ),
                     ],
                   ),

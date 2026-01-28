@@ -108,17 +108,14 @@ class GroupRepository {
     
     while (true) {
       try {
-        if (_shouldFetch(_lastMessagesFetch)) {
-          final messages = await getMessages();
-          yield messages;
-        } else if (_cachedMessages != null) {
-          yield _cachedMessages!;
-        }
+        // Always fetch fresh messages (real-time is important for chat)
+        final messages = await getMessages(forceRefresh: true);
+        yield messages;
       } catch (e) {
         print('Error fetching messages: $e');
         if (_cachedMessages != null) yield _cachedMessages!;
       }
-      await Future.delayed(const Duration(seconds: 3));
+      await Future.delayed(const Duration(seconds: 1)); // Fast polling for chat
     }
   }
 
@@ -148,12 +145,28 @@ class GroupRepository {
   /// Send a message
   Future<String> sendMessage(Message message) async {
     try {
+      // Optimistic update - add message to cache immediately
+      final tempMessage = Message(
+        id: 'temp-${DateTime.now().millisecondsSinceEpoch}',
+        familyTreeId: message.familyTreeId,
+        userId: message.userId,
+        userName: message.userName,
+        userPhoto: message.userPhoto,
+        text: message.text,
+        type: message.type,
+        mediaUrl: message.mediaUrl,
+        sentAt: DateTime.now(),
+      );
+      _cachedMessages = [...(_cachedMessages ?? []), tempMessage];
+      
       final response = await _api.post('/api/messages', body: message.toJson());
       if (response.statusCode == 201 || response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        _lastMessagesFetch = null; // Force refresh
+        _lastMessagesFetch = null; // Force refresh on next poll
         return data['id'] ?? '';
       }
+      // Remove temp message on failure
+      _cachedMessages?.removeWhere((m) => m.id == tempMessage.id);
       print('Send message failed with status ${response.statusCode}: ${response.body}');
       throw Exception('Failed to send message (${response.statusCode})');
     } catch (e) {
@@ -260,13 +273,24 @@ class GroupRepository {
     }
   }
 
-  /// Toggle RSVP for an event
-  Future<void> toggleRSVP(String eventId, String userId) async {
+  /// Toggle RSVP for an event with status (yes/maybe/no)
+  Future<void> toggleRSVP(String eventId, String userId, [String status = 'yes']) async {
     try {
-      await _api.post('/api/events/$eventId/rsvp');
+      await _api.post('/api/events/$eventId/rsvp', body: {'status': status});
       _lastEventsFetch = null;
     } catch (e) {
       print('Error toggling RSVP: $e');
+      rethrow;
+    }
+  }
+
+  /// Update an existing appointment
+  Future<void> updateAppointment(Appointment appointment) async {
+    try {
+      await _api.put('/api/events/${appointment.id}', body: appointment.toJson());
+      _lastEventsFetch = null;
+    } catch (e) {
+      print('Error updating event: $e');
       rethrow;
     }
   }
@@ -326,6 +350,16 @@ class GroupRepository {
       await _api.delete('/api/comments/$commentId');
     } catch (e) {
       print('Error deleting comment: $e');
+      rethrow;
+    }
+  }
+
+  /// Update a comment
+  Future<void> updateComment(Comment comment) async {
+    try {
+      await _api.put('/api/comments/${comment.id}', body: comment.toJson());
+    } catch (e) {
+      print('Error updating comment: $e');
       rethrow;
     }
   }

@@ -1,15 +1,18 @@
-import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:family_tree/core/theme/app_theme.dart';
 import 'package:family_tree/core/theme/elegant_theme.dart';
 import 'package:family_tree/core/widgets/video_player_widget.dart';
+import 'package:family_tree/core/widgets/full_screen_image_viewer.dart';
 import 'package:family_tree/data/models/message.dart';
 import 'package:family_tree/data/repositories/group_repository.dart';
 import 'package:family_tree/data/services/storage_service.dart';
 import 'package:family_tree/features/auth/providers/auth_provider.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:google_fonts/google_fonts.dart' hide Config;
 import 'package:intl/intl.dart';
 import 'package:family_tree/providers/admin_provider.dart';
 
@@ -36,6 +39,10 @@ class _ChatTabState extends ConsumerState<ChatTab> {
   final StorageService _storageService = StorageService();
   final ImagePicker _picker = ImagePicker();
   bool _isUploading = false;
+  bool _showEmojiPicker = false;
+  Message? _replyingTo;
+  int _lastMessageCount = 0;
+  bool _isFirstLoad = true;
 
   @override
   void dispose() {
@@ -199,12 +206,32 @@ class _ChatTabState extends ConsumerState<ChatTab> {
                 return _buildEmptyState();
               }
 
-              // Auto-scroll to bottom on new messages
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (_scrollController.hasClients) {
-                  _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+              // Only auto-scroll to bottom on first load or when new messages arrive
+              // Don't scroll when user is viewing older messages
+              if (messages.isNotEmpty) {
+                final hasNewMessages = messages.length > _lastMessageCount;
+                final shouldAutoScroll = _isFirstLoad || hasNewMessages;
+                
+                if (shouldAutoScroll) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (_scrollController.hasClients) {
+                      // Check if user is near the bottom before scrolling
+                      final position = _scrollController.position;
+                      final isNearBottom = position.pixels >= position.maxScrollExtent - 100 || _isFirstLoad;
+                      
+                      if (isNearBottom) {
+                        _scrollController.animateTo(
+                          position.maxScrollExtent,
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeOut,
+                        );
+                      }
+                    }
+                    _isFirstLoad = false;
+                  });
                 }
-              });
+                _lastMessageCount = messages.length;
+              }
 
               return ListView.builder(
                 controller: _scrollController,
@@ -227,6 +254,52 @@ class _ChatTabState extends ConsumerState<ChatTab> {
           ),
         ),
 
+          // Reply bar (when replying to a message)
+          if (_replyingTo != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceMd, vertical: AppTheme.spaceSm),
+              decoration: BoxDecoration(
+                color: AppTheme.surfaceDark.withValues(alpha: 0.8),
+                border: Border(
+                  left: BorderSide(color: AppTheme.primaryLight, width: 3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Replying to ${_replyingTo!.userName}',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.primaryLight,
+                          ),
+                        ),
+                        Text(
+                          _replyingTo!.text.length > 50 
+                              ? '${_replyingTo!.text.substring(0, 50)}...' 
+                              : _replyingTo!.text,
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: AppTheme.textMuted,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => setState(() => _replyingTo = null),
+                    icon: const Icon(Icons.close, color: AppTheme.textMuted, size: 18),
+                  ),
+                ],
+              ),
+            ),
+
           // Message input
           Container(
             padding: const EdgeInsets.all(AppTheme.spaceMd),
@@ -245,13 +318,29 @@ class _ChatTabState extends ConsumerState<ChatTab> {
                   ),
                 Row(
                   children: [
+                    // Attachment button
                     IconButton(
                       icon: const Icon(Icons.add_circle_outline, color: AppTheme.primaryLight),
                       onPressed: _showAttachmentOptions,
                     ),
+                    // Emoji button
+                    IconButton(
+                      icon: Icon(
+                        _showEmojiPicker ? Icons.keyboard : Icons.emoji_emotions_outlined,
+                        color: AppTheme.primaryLight,
+                      ),
+                      onPressed: () {
+                        setState(() => _showEmojiPicker = !_showEmojiPicker);
+                      },
+                    ),
                     Expanded(
                       child: TextField(
                         controller: _messageController,
+                        onTap: () {
+                          if (_showEmojiPicker) {
+                            setState(() => _showEmojiPicker = false);
+                          }
+                        },
                         decoration: InputDecoration(
                           hintText: 'Type a message...',
                           hintStyle: GoogleFonts.inter(color: AppTheme.textMuted),
@@ -286,15 +375,55 @@ class _ChatTabState extends ConsumerState<ChatTab> {
               ],
             ),
           ),
+          
+          // Emoji Picker Panel
+          if (_showEmojiPicker)
+            SizedBox(
+              height: 250,
+              child: EmojiPicker(
+                onEmojiSelected: (category, emoji) {
+                  _messageController.text += emoji.emoji;
+                  _messageController.selection = TextSelection.fromPosition(
+                    TextPosition(offset: _messageController.text.length),
+                  );
+                },
+                config: Config(
+                  height: 250,
+                  checkPlatformCompatibility: true,
+                  emojiViewConfig: EmojiViewConfig(
+                    backgroundColor: AppTheme.surfaceDark,
+                    columns: 8,
+                    emojiSizeMax: 28,
+                  ),
+                  categoryViewConfig: CategoryViewConfig(
+                    backgroundColor: AppTheme.surfaceDark,
+                    indicatorColor: AppTheme.primaryLight,
+                    iconColorSelected: AppTheme.primaryLight,
+                    iconColor: AppTheme.textMuted,
+                  ),
+                  bottomActionBarConfig: const BottomActionBarConfig(
+                    enabled: false,
+                  ),
+                  searchViewConfig: SearchViewConfig(
+                    backgroundColor: AppTheme.surfaceDark,
+                    buttonIconColor: AppTheme.textMuted,
+                  ),
+                ),
+              ),
+            ),
       ],
     );
   }
 
   Widget _buildMessageBubble(Message message, bool isOwnMessage, bool isAdmin) {
+    final heroTag = 'chat_image_${message.id}';
+    
     return GestureDetector(
-      onLongPress: () {
-        if (isOwnMessage || isAdmin) {
-          _showMessageOptions(message, isOwnMessage, isAdmin);
+      onLongPress: () => _showMessageOptions(message, isOwnMessage, isAdmin),
+      onHorizontalDragEnd: (details) {
+        // Swipe right to reply
+        if (details.primaryVelocity != null && details.primaryVelocity! > 300) {
+          setState(() => _replyingTo = message);
         }
       },
       child: Padding(
@@ -355,31 +484,41 @@ class _ChatTabState extends ConsumerState<ChatTab> {
                   
                   // Media content
                   if (message.type == 'image' && message.mediaUrl != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: AppTheme.spaceXs, bottom: AppTheme.spaceXs),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-                        child: Image.network(
-                          message.mediaUrl!,
-                          width: 200,
-                          fit: BoxFit.cover,
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return Container(
+                    GestureDetector(
+                      onTap: () => FullScreenImageViewer.show(
+                        context, 
+                        message.mediaUrl!,
+                        heroTag: heroTag,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: AppTheme.spaceXs, bottom: AppTheme.spaceXs),
+                        child: Hero(
+                          tag: heroTag,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                            child: Image.network(
+                              message.mediaUrl!,
                               width: 200,
-                              height: 150,
-                              color: Colors.black12,
-                              child: const Center(child: CircularProgressIndicator()),
-                            );
-                          },
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              width: 200,
-                              height: 150,
-                              color: Colors.black12,
-                              child: const Center(child: Icon(Icons.broken_image, color: Colors.white)),
-                            );
-                          },
+                              fit: BoxFit.cover,
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return Container(
+                                  width: 200,
+                                  height: 150,
+                                  color: Colors.black12,
+                                  child: const Center(child: CircularProgressIndicator()),
+                                );
+                              },
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  width: 200,
+                                  height: 150,
+                                  color: Colors.black12,
+                                  child: const Center(child: Icon(Icons.broken_image, color: Colors.white)),
+                                );
+                              },
+                            ),
+                          ),
                         ),
                       ),
                     )
@@ -463,26 +602,73 @@ class _ChatTabState extends ConsumerState<ChatTab> {
     showModalBottomSheet(
       context: context,
       backgroundColor: widget.isDark ? AppTheme.surfaceDark : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (context) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (message.type == 'text')
+          // Handle bar
+          Container(
+            margin: const EdgeInsets.only(top: 12, bottom: 8),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          
+          // Copy (for text messages, available to everyone)
+          if (message.type == 'text' && message.text.isNotEmpty)
             ListTile(
-              leading: const Icon(Icons.edit, color: AppTheme.primaryLight),
+              leading: const Icon(Icons.copy_rounded, color: AppTheme.primaryLight),
+              title: Text('Copy', style: TextStyle(color: widget.isDark ? Colors.white : Colors.black)),
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: message.text));
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Message copied'),
+                    duration: Duration(seconds: 1),
+                    backgroundColor: AppTheme.success,
+                  ),
+                );
+              },
+            ),
+          
+          // Reply (available to everyone)
+          ListTile(
+            leading: const Icon(Icons.reply_rounded, color: AppTheme.primaryLight),
+            title: Text('Reply', style: TextStyle(color: widget.isDark ? Colors.white : Colors.black)),
+            onTap: () {
+              Navigator.pop(context);
+              setState(() => _replyingTo = message);
+            },
+          ),
+          
+          // Edit (only for own text messages)
+          if (isOwnMessage && message.type == 'text')
+            ListTile(
+              leading: const Icon(Icons.edit_rounded, color: AppTheme.primaryLight),
               title: Text('Edit', style: TextStyle(color: widget.isDark ? Colors.white : Colors.black)),
               onTap: () {
                 Navigator.pop(context);
                 _showEditMessageDialog(message);
               },
             ),
-          ListTile(
-            leading: const Icon(Icons.delete, color: Colors.red),
-            title: Text('Delete', style: TextStyle(color: widget.isDark ? Colors.white : Colors.black)),
-            onTap: () {
-              Navigator.pop(context);
-              _confirmDeleteMessage(message);
-            },
-          ),
+          
+          // Delete (for own messages or admins)
+          if (isOwnMessage || isAdmin)
+            ListTile(
+              leading: const Icon(Icons.delete_rounded, color: Colors.red),
+              title: Text('Delete', style: TextStyle(color: widget.isDark ? Colors.white : Colors.black)),
+              onTap: () {
+                Navigator.pop(context);
+                _confirmDeleteMessage(message);
+              },
+            ),
+          
           const SizedBox(height: 16),
         ],
       ),

@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:family_tree/data/models/person.dart';
 import 'package:family_tree/data/repositories/person_repository.dart';
 import 'package:family_tree/features/tree_view/tree_canvas.dart';
-import 'package:family_tree/data/services/dummy_data_service.dart';
 
 /// State for the tree view
 class TreeState {
@@ -59,7 +58,7 @@ class TreeController extends StateNotifier<TreeState> {
     required PersonRepository repository,
     required this.familyTreeId,
   })  : _repository = repository,
-        super(TreeState(isLoading: true)) {
+        super(const TreeState(isLoading: true)) {
     _init();
   }
 

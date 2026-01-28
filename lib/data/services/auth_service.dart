@@ -155,4 +155,62 @@ class AuthService {
       _googleSignIn.signOut(),
     ]);
   }
+
+  /// Send password reset email
+  Future<void> sendPasswordResetEmail({required String email}) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') {
+        throw Exception('No user found with this email');
+      } else if (e.code == 'invalid-email') {
+        throw Exception('Invalid email address');
+      }
+      throw Exception(e.message ?? 'Failed to send reset email');
+    }
+  }
+
+  /// Send email verification to current user
+  Future<void> sendEmailVerification() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('No user is signed in');
+    }
+    if (user.emailVerified) {
+      throw Exception('Email is already verified');
+    }
+    try {
+      await user.sendEmailVerification();
+    } on FirebaseAuthException catch (e) {
+      throw Exception(e.message ?? 'Failed to send verification email');
+    }
+  }
+
+  /// Check if current user's email is verified
+  bool get isEmailVerified => _auth.currentUser?.emailVerified ?? false;
+
+  /// Reload current user to get latest data
+  Future<void> reloadUser() async {
+    await _auth.currentUser?.reload();
+  }
+
+  /// Sign in with Apple
+  Future<UserCredential> signInWithApple() async {
+    try {
+      // Create and configure an OAuthProvider for Sign In With Apple
+      final appleProvider = OAuthProvider('apple.com')
+        ..addScope('email')
+        ..addScope('name');
+
+      // Sign in with popup on web, or native on mobile
+      return await _auth.signInWithProvider(appleProvider);
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'account-exists-with-different-credential') {
+        throw Exception('An account already exists with a different sign-in method');
+      }
+      throw Exception(e.message ?? 'Failed to sign in with Apple');
+    } catch (e) {
+      throw Exception('Apple Sign In failed: ${e.toString()}');
+    }
+  }
 }

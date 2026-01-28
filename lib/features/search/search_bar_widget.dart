@@ -24,10 +24,10 @@ class SearchBarWidget extends ConsumerWidget {
   final Function(String)? onPersonSelected;
 
   const SearchBarWidget({
-    Key? key,
+    super.key,
     required this.familyTreeId,
     this.onPersonSelected,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -119,7 +119,7 @@ class SearchBarWidget extends ConsumerWidget {
                 decoration: AppTheme.glassDecoration(),
                 child: Text(
                   'Error: $error',
-                  style: TextStyle(color: AppTheme.error),
+                  style: const TextStyle(color: AppTheme.error),
                 ),
               ),
             ),

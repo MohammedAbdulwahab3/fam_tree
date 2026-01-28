@@ -1,4 +1,4 @@
-import 'dart:io';
+
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -16,6 +16,7 @@ import 'package:family_tree/features/group/tabs/feed_tab.dart';
 import 'package:family_tree/features/group/tabs/chat_tab.dart';
 import 'package:family_tree/features/group/tabs/events_tab.dart';
 import 'package:family_tree/features/group/tabs/members_tab.dart';
+import 'package:family_tree/core/widgets/theme_toggle_button.dart';
 import 'package:family_tree/providers/admin_provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:family_tree/features/maps/location_picker_dialog.dart';
@@ -374,7 +375,7 @@ class _GroupPageState extends ConsumerState<GroupPage> with SingleTickerProvider
                 color: isDark ? Colors.white : ElegantColors.charcoal,
                 size: 18,
               ),
-              onPressed: () => context.go('/dashboard'),
+              onPressed: () => context.go('/tree'),
             ),
           ),
           
@@ -475,6 +476,13 @@ class _GroupPageState extends ConsumerState<GroupPage> with SingleTickerProvider
                 ),
               ),
             ],
+          ),
+          
+          const SizedBox(width: 12),
+          
+          // Theme Toggle
+          ThemeToggleIcon(
+            color: isDark ? Colors.white : ElegantColors.charcoal,
           ),
           const SizedBox(width: 12),
           
@@ -578,7 +586,7 @@ class _GroupPageState extends ConsumerState<GroupPage> with SingleTickerProvider
                 color: isDark ? AppTheme.textPrimary : ElegantColors.charcoal, 
                 size: 20,
               ),
-              onPressed: () => context.go('/dashboard'),
+              onPressed: () => context.go('/tree'),
             ),
           ),
           
@@ -701,7 +709,8 @@ class _GroupPageState extends ConsumerState<GroupPage> with SingleTickerProvider
           _buildTab(Icons.dynamic_feed_rounded, 'Feed', 0, isDark),
           _buildTab(Icons.chat_bubble_rounded, 'Chat', 1, isDark),
           _buildTab(Icons.event_rounded, 'Events', 2, isDark),
-          _buildTab(Icons.people_rounded, 'Members', 3, isDark),
+          // Members tab - commented out for now
+          // _buildTab(Icons.people_rounded, 'Members', 3, isDark),
         ],
       ),
     );

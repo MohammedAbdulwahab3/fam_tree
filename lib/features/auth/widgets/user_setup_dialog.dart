@@ -8,7 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 /// Dialog shown for first-time users to set up their Person profile
 class UserSetupDialog extends ConsumerStatefulWidget {
-  const UserSetupDialog({Key? key}) : super(key: key);
+  const UserSetupDialog({super.key});
 
   @override
   ConsumerState<UserSetupDialog> createState() => _UserSetupDialogState();
@@ -44,7 +44,7 @@ class _UserSetupDialogState extends ConsumerState<UserSetupDialog> {
       if (user == null) return;
 
       // Search in the demo tree for now
-      final results = await _repository.searchPersons('demo-tree-001', query);
+      final results = await _repository.searchPersons('main-family-tree', query);
       
       // Filter out persons already linked to users
       final availableResults = results.where((p) => p.authUserId == null).toList();
@@ -154,7 +154,7 @@ class _UserSetupDialogState extends ConsumerState<UserSetupDialog> {
     try {
       final newPerson = Person(
         id: '',
-        familyTreeId: 'demo-tree-001',
+        familyTreeId: 'main-family-tree',
         authUserId: user.uid,
         firstName: firstName,
         lastName: lastName,

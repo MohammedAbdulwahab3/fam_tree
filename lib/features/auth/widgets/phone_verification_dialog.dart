@@ -12,9 +12,9 @@ class PhoneVerificationDialog extends ConsumerStatefulWidget {
   final String phoneNumber;
 
   const PhoneVerificationDialog({
-    Key? key,
+    super.key,
     required this.phoneNumber,
-  }) : super(key: key);
+  });
 
   @override
   ConsumerState<PhoneVerificationDialog> createState() =>

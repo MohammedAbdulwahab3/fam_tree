@@ -43,4 +43,25 @@ class Comment {
       'createdAt': createdAt.toUtc().toIso8601String(),
     };
   }
+
+  /// Create a copy with optional field overrides
+  Comment copyWith({
+    String? id,
+    String? postId,
+    String? userId,
+    String? userName,
+    String? userPhoto,
+    String? text,
+    DateTime? createdAt,
+  }) {
+    return Comment(
+      id: id ?? this.id,
+      postId: postId ?? this.postId,
+      userId: userId ?? this.userId,
+      userName: userName ?? this.userName,
+      userPhoto: userPhoto ?? this.userPhoto,
+      text: text ?? this.text,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
 }

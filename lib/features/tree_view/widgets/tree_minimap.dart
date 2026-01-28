@@ -134,7 +134,7 @@ class TreeMinimap extends StatelessWidget {
                 ),
                 child: Text(
                   '${persons.length} people',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 9,
                     fontWeight: FontWeight.w500,
                     color: AppTheme.primaryLight,
@@ -210,7 +210,7 @@ class _MinimapPainter extends CustomPainter {
     }
     
     // Add margin
-    final margin = 50.0;
+    const margin = 50.0;
     minX -= margin;
     minY -= margin;
     maxX += margin;

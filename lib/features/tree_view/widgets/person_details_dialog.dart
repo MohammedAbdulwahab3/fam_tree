@@ -15,12 +15,12 @@ class PersonDetailsDialog extends ConsumerStatefulWidget {
   final Function(String) onPersonTapped;
 
   const PersonDetailsDialog({
-    Key? key,
+    super.key,
     required this.person,
     this.spouses = const [],
     this.children = const [],
     required this.onPersonTapped,
-  }) : super(key: key);
+  });
 
   @override
   ConsumerState<PersonDetailsDialog> createState() => _PersonDetailsDialogState();
@@ -210,7 +210,7 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
     final isAlive = widget.person.deathDate == null;
     final age = _calculateAge();
 
-    return Container(
+    return SizedBox(
       height: 200,
       child: Stack(
         clipBehavior: Clip.none,
@@ -624,7 +624,7 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
         children: [
           Row(
             children: [
-              Icon(
+              const Icon(
                 Icons.auto_stories_rounded,
                 size: 18,
                 color: AppTheme.primaryLight,
@@ -679,7 +679,7 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
               ),
               child: Text(
                 '${relatives.length}',
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                   color: AppTheme.accentTeal,
@@ -708,7 +708,7 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
               child: _buildRelativeCard(entry.value, isDark),
             ),
           );
-        }).toList(),
+        }),
       ],
     );
   }
@@ -735,7 +735,7 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
               Container(
                 width: 44,
                 height: 44,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: LinearGradient(
                     colors: [AppTheme.primaryLight, AppTheme.accentTeal],

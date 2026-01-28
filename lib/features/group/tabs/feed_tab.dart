@@ -21,7 +21,7 @@ final postsProvider = StreamProvider.family<List<Post>, String>((ref, familyTree
 class FeedTab extends ConsumerStatefulWidget {
   final bool isDark;
   
-  const FeedTab({Key? key, this.isDark = true}) : super(key: key);
+  const FeedTab({super.key, this.isDark = true});
 
   @override
   ConsumerState<FeedTab> createState() => _FeedTabState();
@@ -374,7 +374,7 @@ class _PostCardState extends State<_PostCard> with SingleTickerProviderStateMixi
                   value: 'delete',
                   child: Row(
                     children: [
-                      Icon(Icons.delete_outline, color: AppTheme.error, size: 20),
+                      const Icon(Icons.delete_outline, color: AppTheme.error, size: 20),
                       const SizedBox(width: 8),
                       Text('Delete', style: GoogleFonts.cormorantGaramond(color: AppTheme.error)),
                     ],
@@ -467,7 +467,7 @@ class _PostCardState extends State<_PostCard> with SingleTickerProviderStateMixi
         alignment: Alignment.center,
         children: [
           Container(
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               gradient: LinearGradient(
                 colors: [AppTheme.primaryDeep, AppTheme.primaryLight],
               ),

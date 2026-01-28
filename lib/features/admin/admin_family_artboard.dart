@@ -14,7 +14,12 @@ typedef ArtboardColors = ElegantColors;
 /// Beautiful Admin Family Artboard
 /// An elegant, high-fidelity view for managing the family tree
 class AdminFamilyArtboard extends ConsumerStatefulWidget {
-  const AdminFamilyArtboard({Key? key}) : super(key: key);
+  final bool showBackButton;
+  
+  const AdminFamilyArtboard({
+    Key? key,
+    this.showBackButton = true,
+  }) : super(key: key);
 
   @override
   ConsumerState<AdminFamilyArtboard> createState() => _AdminFamilyArtboardState();
@@ -178,7 +183,41 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
           SafeArea(
             child: Column(
               children: [
-                _buildHeader(),
+                // Header with back navigation
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () => context.go('/admin'),
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: isDark ? Colors.white.withOpacity(0.1) : ArtboardColors.warmWhite,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isDark ? Colors.white.withOpacity(0.1) : ArtboardColors.champagne,
+                            ),
+                          ),
+                          child: Icon(
+                            Icons.arrow_back_rounded,
+                            size: 20,
+                            color: isDark ? Colors.white : ArtboardColors.charcoal,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Text(
+                        'Family Artboard',
+                        style: GoogleFonts.playfairDisplay(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? Colors.white : ArtboardColors.charcoal,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 _buildFilterBar(),
                 Expanded(
                   child: _isLoading
@@ -233,11 +272,13 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                 // Back button and badge row
                 Row(
                   children: [
-                    _buildElegantButton(
-                      icon: Icons.arrow_back_rounded,
-                      onTap: () => context.go('/admin'),
-                    ),
-                    const SizedBox(width: 12),
+                    if (widget.showBackButton) ...[
+                      _buildElegantButton(
+                        icon: Icons.arrow_back_rounded,
+                        onTap: () => context.go('/admin'),
+                      ),
+                      const SizedBox(width: 12),
+                    ],
                     Expanded(
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -317,11 +358,13 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
           padding: const EdgeInsets.all(24),
           child: Row(
             children: [
-              _buildElegantButton(
-                icon: Icons.arrow_back_rounded,
-                onTap: () => context.go('/admin'),
-              ),
-              const SizedBox(width: 20),
+              if (widget.showBackButton) ...[
+                _buildElegantButton(
+                  icon: Icons.arrow_back_rounded,
+                  onTap: () => context.go('/admin'),
+                ),
+                const SizedBox(width: 20),
+              ],
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -569,16 +612,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                       );
                     }),
                     
-                    const SizedBox(width: 4),
-                    
-                    // Layout toggles
-                    _buildCompactLayoutToggle('focus', Icons.center_focus_strong_rounded),
-                    const SizedBox(width: 6),
-                    _buildCompactLayoutToggle('list', Icons.view_list_rounded),
-                    const SizedBox(width: 6),
-                    _buildCompactLayoutToggle('tree', Icons.account_tree_rounded),
-                    
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 10),  // Simplified - removed layout toggles
                     
                     // Multi-select
                     GestureDetector(
@@ -774,24 +808,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                 ),
               ),
               
-              const SizedBox(width: 16),
-              
-              // Layout toggle button
-              Container(
-                decoration: BoxDecoration(
-                  color: ArtboardColors.warmWhite,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: ArtboardColors.champagne),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildLayoutToggle('focus', Icons.center_focus_strong_rounded, 'Focus', isFirst: true),
-                    _buildLayoutToggle('list', Icons.view_list_rounded, 'List'),
-                    _buildLayoutToggle('tree', Icons.account_tree_rounded, 'Tree', isLast: true),
-                  ],
-                ),
-              ),
+              // Removed layout toggles - focus mode only
               
               const SizedBox(width: 12),
               
@@ -993,17 +1010,8 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
       return _buildFlatGrid();
     }
 
-    // Switch between layouts
-    switch (_layoutMode) {
-      case 'focus':
-        return _buildFocusLayout(roots);
-      case 'list':
-        return _buildListLayout(roots);
-      case 'tree':
-        return _buildTreeLayout(roots);
-      default:
-        return _buildFocusLayout(roots);
-    }
+    // Always use focus layout (simplified)
+    return _buildFocusLayout(roots);
   }
 
   /// Focus layout - recursive drill-down approach
@@ -1607,17 +1615,60 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                       
                       SizedBox(height: isCompact ? 4 : 8),
                       
-                      // Explore button - dynamic size
-                      Container(
-                        padding: EdgeInsets.symmetric(horizontal: isCompact ? 10 : 14, vertical: isCompact ? 5 : 7),
-                        decoration: BoxDecoration(
-                          color: hasChildren ? color : ArtboardColors.warmGray.withOpacity(0.3),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          hasChildren ? 'Explore' : 'View',
-                          style: GoogleFonts.cormorantGaramond(fontSize: isCompact ? 10 : 12, fontWeight: FontWeight.w700, color: Colors.white),
-                        ),
+                      // Admin Actions Row - Edit/Delete
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // Edit button
+                          GestureDetector(
+                            onTap: () => _showEditDialog(person),
+                            child: Container(
+                              padding: EdgeInsets.all(isCompact ? 6 : 8),
+                              decoration: BoxDecoration(
+                                color: ArtboardColors.sage.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(
+                                Icons.edit_rounded,
+                                size: isCompact ? 14 : 18,
+                                color: ArtboardColors.sage,
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: isCompact ? 6 : 10),
+                          // Explore/View button
+                          GestureDetector(
+                            onTap: () => setState(() => _focusStack.add(person.id)),
+                            child: Container(
+                              padding: EdgeInsets.symmetric(horizontal: isCompact ? 10 : 14, vertical: isCompact ? 5 : 7),
+                              decoration: BoxDecoration(
+                                color: hasChildren ? color : ArtboardColors.warmGray.withOpacity(0.3),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                hasChildren ? 'Explore' : 'View',
+                                style: GoogleFonts.cormorantGaramond(fontSize: isCompact ? 10 : 12, fontWeight: FontWeight.w700, color: Colors.white),
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: isCompact ? 6 : 10),
+                          // Delete button
+                          GestureDetector(
+                            onTap: () => _confirmDelete(person),
+                            child: Container(
+                              padding: EdgeInsets.all(isCompact ? 6 : 8),
+                              decoration: BoxDecoration(
+                                color: Colors.red.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(
+                                Icons.delete_rounded,
+                                size: isCompact ? 14 : 18,
+                                color: Colors.red,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -2580,142 +2631,160 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
     return GestureDetector(
       onTap: () => setState(() => _selectedPerson = person),
       child: Container(
-        width: 180,
+        width: 200,
         margin: const EdgeInsets.symmetric(horizontal: 10),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: ArtboardColors.warmWhite,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: isSelected ? branchColor : ArtboardColors.champagne,
-              width: isSelected ? 2.5 : 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: isSelected 
-                    ? branchColor.withOpacity(0.25)
-                    : ArtboardColors.sienna.withOpacity(0.1),
-                blurRadius: isSelected ? 20 : 12,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Generation badge
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: branchColor.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: ArtboardColors.warmWhite,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isSelected ? branchColor : ArtboardColors.champagne,
+                  width: isSelected ? 2.5 : 1,
                 ),
-                child: Text(
-                  'Gen $generation',
-                  style: GoogleFonts.cormorantGaramond(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: branchColor,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              
-              // Avatar
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [branchColor.withOpacity(0.85), branchColor],
-                  ),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: branchColor.withOpacity(0.3),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Center(
-                  child: Text(
-                    person.firstName[0].toUpperCase(),
-                    style: GoogleFonts.playfairDisplay(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              
-              // Name
-              Text(
-                person.firstName,
-                style: GoogleFonts.playfairDisplay(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: ArtboardColors.charcoal,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              Text(
-                person.lastName,
-                style: GoogleFonts.cormorantGaramond(
-                  fontSize: 12,
-                  color: ArtboardColors.warmGray,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-              
-              // Lifespan
-              if (person.lifespan.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Text(
-                  person.lifespan,
-                  style: GoogleFonts.cormorantGaramond(
-                    fontSize: 11,
-                    color: ArtboardColors.warmGray.withOpacity(0.8),
-                  ),
-                ),
-              ],
-              
-              const SizedBox(height: 12),
-              
-              // Action buttons
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _buildMiniAction(
-                    Icons.edit_rounded,
-                    ArtboardColors.sage,
-                    () => _showEditDialog(person),
-                  ),
-                  const SizedBox(width: 6),
-                  _buildMiniAction(
-                    Icons.person_add_alt_rounded,
-                    ArtboardColors.copper,
-                    () => _showUnifiedAddDialog(preSelectedParent: person),
-                  ),
-                  const SizedBox(width: 6),
-                  _buildMiniAction(
-                    Icons.delete_outline_rounded,
-                    ArtboardColors.dustyRose,
-                    () => _confirmDelete(person),
+                boxShadow: [
+                  BoxShadow(
+                    color: isSelected 
+                        ? branchColor.withOpacity(0.25)
+                        : ArtboardColors.sienna.withOpacity(0.1),
+                    blurRadius: isSelected ? 20 : 12,
+                    offset: const Offset(0, 6),
                   ),
                 ],
               ),
-            ],
-          ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Generation badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: branchColor.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'Gen $generation',
+                      style: GoogleFonts.cormorantGaramond(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: branchColor,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  
+                  // Avatar
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [branchColor.withOpacity(0.85), branchColor],
+                      ),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: branchColor.withOpacity(0.3),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Text(
+                        person.firstName[0].toUpperCase(),
+                        style: GoogleFonts.playfairDisplay(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  
+                  // Name
+                  Text(
+                    person.firstName,
+                    style: GoogleFonts.playfairDisplay(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: ArtboardColors.charcoal,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    person.lastName,
+                    style: GoogleFonts.cormorantGaramond(
+                      fontSize: 12,
+                      color: ArtboardColors.warmGray,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                  
+                  // Lifespan
+                  if (person.lifespan.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      person.lifespan,
+                      style: GoogleFonts.cormorantGaramond(
+                        fontSize: 11,
+                        color: ArtboardColors.warmGray.withOpacity(0.8),
+                      ),
+                    ),
+                  ],
+                  
+                  const SizedBox(height: 12),
+                  
+                  // Edit and Add buttons only
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _buildMiniAction(
+                        Icons.edit_rounded,
+                        ArtboardColors.sage,
+                        () => _showEditDialog(person),
+                      ),
+                      const SizedBox(width: 8),
+                      _buildMiniAction(
+                        Icons.person_add_alt_rounded,
+                        ArtboardColors.copper,
+                        () => _showUnifiedAddDialog(preSelectedParent: person),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            // Delete button at top right - commented out for now
+            // Positioned(
+            //   top: 8,
+            //   right: 8,
+            //   child: GestureDetector(
+            //     onTap: () => _confirmDelete(person),
+            //     child: Container(
+            //       padding: const EdgeInsets.all(6),
+            //       decoration: BoxDecoration(
+            //         color: ArtboardColors.dustyRose.withOpacity(0.15),
+            //         borderRadius: BorderRadius.circular(8),
+            //       ),
+            //       child: Icon(
+            //         Icons.close_rounded,
+            //         size: 14,
+            //         color: ArtboardColors.dustyRose,
+            //       ),
+            //     ),
+            //   ),
+            // ),
+          ],
         ),
       ),
     );
@@ -2730,7 +2799,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
           color: color.withOpacity(0.12),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Icon(icon, size: 16, color: color),
+        child: Icon(icon, size: 14, color: color),
       ),
     );
   }
@@ -3488,480 +3557,270 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
   void _showUnifiedAddDialog({Person? preSelectedParent}) {
     final firstNameController = TextEditingController();
     final lastNameController = TextEditingController();
-    final birthYearController = TextEditingController();
-    final deathYearController = TextEditingController();
-    final bioController = TextEditingController();
     String gender = 'male';
     bool isLoading = false;
     Person? selectedParent = preSelectedParent;
-    String searchQuery = '';
-    // Only allow root if tree is empty (single patriarch rule)
     final bool canAddAsRoot = _persons.isEmpty;
     bool addAsRoot = canAddAsRoot;
     
-    // Pre-fill father name with parent's first name
+    // Pre-fill father name
     if (selectedParent != null) {
-      lastNameController.text = selectedParent.firstName; // Father's name
+      lastNameController.text = selectedParent.firstName;
     }
 
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
-          // Filter persons based on search
-          final filteredPersons = searchQuery.isEmpty
-            ? _persons
-            : _persons.where((p) => 
-                p.fullName.toLowerCase().contains(searchQuery.toLowerCase())
-              ).toList();
-          
-          // Calculate resulting generation
-          final resultGen = addAsRoot ? 1 : (selectedParent != null ? _getGenerationNumber(selectedParent!) + 1 : 0);
           final accentColor = addAsRoot ? ArtboardColors.gold 
-            : (selectedParent != null ? _getBranchColor(selectedParent!) : ArtboardColors.warmGray);
+            : (selectedParent != null ? _getBranchColor(selectedParent!) : ArtboardColors.sage);
 
-          return Dialog(
+          return AlertDialog(
             backgroundColor: ArtboardColors.warmWhite,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-            child: Container(
-              width: 520,
-              constraints: const BoxConstraints(maxHeight: 750),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: accentColor,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    addAsRoot ? Icons.star_rounded : Icons.person_add_alt_1,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  addAsRoot ? 'Add Patriarch' : 'Add Child',
+                  style: GoogleFonts.playfairDisplay(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: ArtboardColors.charcoal,
+                  ),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: 320,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Header
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [accentColor.withOpacity(0.15), accentColor.withOpacity(0.05)],
+                  // Parent info (if adding child)
+                  if (!addAsRoot && selectedParent != null) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: accentColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: accentColor,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Icon(
-                            addAsRoot ? Icons.star_rounded : Icons.person_add_alt_1,
-                            color: Colors.white,
-                            size: 26,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Add Family Member',
-                                style: GoogleFonts.playfairDisplay(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w700,
-                                  color: ArtboardColors.charcoal,
-                                ),
-                              ),
-                              if (resultGen > 0)
-                                Container(
-                                  margin: const EdgeInsets.only(top: 4),
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: accentColor,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    addAsRoot ? '★ GENERATION 1 (PATRIARCH)' : 'GENERATION $resultGen',
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.white,
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () => Navigator.pop(context),
-                          icon: const Icon(Icons.close_rounded),
-                          color: ArtboardColors.warmGray,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Content
-                  Flexible(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      child: Row(
                         children: [
-                          // Mode Selection (only show if can add as root - i.e., tree is empty)
-                          if (canAddAsRoot) ...[
-                            _buildSectionHeader('1. How to Add', Icons.route_rounded),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                // When tree is empty, only show patriarch option
-                                Expanded(
-                                  child: _buildModeChip(
-                                    'Create Patriarch',
-                                    'First ancestor (Gen 1)',
-                                    Icons.star_rounded,
-                                    true,
-                                    ArtboardColors.gold,
-                                    () {},
-                                  ),
-                                ),
-                              ],
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: accentColor,
+                              shape: BoxShape.circle,
                             ),
-                            const SizedBox(height: 20),
-                          ],
-                          
-                          // Parent Selection (only if adding as child)
-                          if (!addAsRoot && _persons.isNotEmpty) ...[
-                            _buildSectionHeader('1. Select Parent', Icons.person_search_rounded),
-                            const SizedBox(height: 12),
-                            
-                            // Search
-                            TextField(
-                              onChanged: (val) => setDialogState(() => searchQuery = val),
-                              style: GoogleFonts.cormorantGaramond(fontSize: 15),
-                              decoration: InputDecoration(
-                                hintText: 'Search by name...',
-                                hintStyle: GoogleFonts.cormorantGaramond(color: ArtboardColors.warmGray),
-                                prefixIcon: const Icon(Icons.search_rounded, color: ArtboardColors.warmGray, size: 20),
-                                filled: true,
-                                fillColor: ArtboardColors.cream,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
+                            child: Center(
+                              child: Text(
+                                selectedParent!.firstName[0].toUpperCase(),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 12),
-
-                            // Parent list
-                            Container(
-                              height: 160,
-                              decoration: BoxDecoration(
-                                color: ArtboardColors.cream,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: ArtboardColors.champagne),
-                              ),
-                              child: filteredPersons.isEmpty
-                                ? Center(
-                                    child: Text(
-                                      'No members found',
-                                      style: GoogleFonts.cormorantGaramond(color: ArtboardColors.warmGray),
-                                    ),
-                                  )
-                                : ListView.builder(
-                                    padding: EdgeInsets.zero,
-                                    itemCount: filteredPersons.length,
-                                    itemBuilder: (context, index) {
-                                      final person = filteredPersons[index];
-                                      final isSelected = selectedParent?.id == person.id;
-                                      final gen = _getGenerationNumber(person);
-                                      final color = _getBranchColor(person);
-                                      final isRoot = person.relationships.parentIds.isEmpty;
-                                      
-                                      return InkWell(
-                                        onTap: () {
-                                          setDialogState(() {
-                                            selectedParent = person;
-                                            lastNameController.text = person.firstName; // Father's name
-                                          });
-                                        },
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                                          decoration: BoxDecoration(
-                                            color: isSelected ? color.withOpacity(0.12) : null,
-                                            border: Border(
-                                              bottom: BorderSide(color: ArtboardColors.champagne.withOpacity(0.5)),
-                                              left: isSelected ? BorderSide(color: color, width: 3) : BorderSide.none,
-                                            ),
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              // Avatar
-                                              Container(
-                                                width: 36,
-                                                height: 36,
-                                                decoration: BoxDecoration(
-                                                  color: color,
-                                                  shape: BoxShape.circle,
-                                                ),
-                                                child: Center(
-                                                  child: Text(
-                                                    person.firstName[0].toUpperCase(),
-                                                    style: const TextStyle(
-                                                      color: Colors.white,
-                                                      fontWeight: FontWeight.bold,
-                                                      fontSize: 15,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 12),
-                                              // Name & info
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                                  children: [
-                                                    Text(
-                                                      person.fullName,
-                                                      style: GoogleFonts.cormorantGaramond(
-                                                        fontSize: 15,
-                                                        fontWeight: FontWeight.w700,
-                                                        color: ArtboardColors.charcoal,
-                                                      ),
-                                                    ),
-                                                    Row(
-                                                      children: [
-                                                        if (isRoot)
-                                                          Container(
-                                                            margin: const EdgeInsets.only(right: 6),
-                                                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                                                            decoration: BoxDecoration(
-                                                              color: ArtboardColors.gold,
-                                                              borderRadius: BorderRadius.circular(4),
-                                                            ),
-                                                            child: const Text(
-                                                              '★',
-                                                              style: TextStyle(fontSize: 8, color: Colors.white),
-                                                            ),
-                                                          ),
-                                                        Text(
-                                                          'Gen $gen',
-                                                          style: GoogleFonts.cormorantGaramond(
-                                                            fontSize: 12,
-                                                            color: color,
-                                                            fontWeight: FontWeight.w600,
-                                                          ),
-                                                        ),
-                                                        Text(
-                                                          ' • ${_getDescendantCount(person)} children',
-                                                          style: GoogleFonts.cormorantGaramond(
-                                                            fontSize: 12,
-                                                            color: ArtboardColors.warmGray,
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                              // Check
-                                              if (isSelected)
-                                                Icon(Icons.check_circle_rounded, color: color, size: 22),
-                                            ],
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                            ),
-                            
-                            // Selected info
-                            if (selectedParent != null) ...[
-                              const SizedBox(height: 12),
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: _getBranchColor(selectedParent!).withOpacity(0.08),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: _getBranchColor(selectedParent!).withOpacity(0.2)),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.subdirectory_arrow_right_rounded, 
-                                      color: _getBranchColor(selectedParent!), size: 20),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text.rich(
-                                        TextSpan(
-                                          style: GoogleFonts.cormorantGaramond(fontSize: 14, color: ArtboardColors.charcoal),
-                                          children: [
-                                            const TextSpan(text: 'New child of '),
-                                            TextSpan(
-                                              text: selectedParent!.fullName,
-                                              style: TextStyle(fontWeight: FontWeight.w700, color: _getBranchColor(selectedParent!)),
-                                            ),
-                                            TextSpan(
-                                              text: ' → Gen ${_getGenerationNumber(selectedParent!) + 1}',
-                                              style: TextStyle(color: _getBranchColor(selectedParent!)),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                            const SizedBox(height: 20),
-                          ],
-
-                          // Person Details
-                          _buildSectionHeader(
-                            _persons.isEmpty || addAsRoot ? '1. Person Details' : '2. Person Details',
-                            Icons.badge_rounded,
                           ),
-                          const SizedBox(height: 12),
-                          
-                          _buildTextField(firstNameController, 'First Name *', Icons.person_rounded),
-                          const SizedBox(height: 12),
-                          _buildTextField(lastNameController, addAsRoot ? 'Family Name *' : 'Father Name (auto-filled)', Icons.person_outline_rounded),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(child: _buildTextField(birthYearController, 'Birth Year', Icons.cake_rounded, 1, true)),
-                              const SizedBox(width: 12),
-                              Expanded(child: _buildTextField(deathYearController, 'Death Year', Icons.event_rounded, 1, true)),
-                            ],
+                          const SizedBox(width: 10),
+                          Text(
+                            'Child of ${selectedParent!.firstName}',
+                            style: GoogleFonts.cormorantGaramond(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: ArtboardColors.charcoal,
+                            ),
                           ),
-                          const SizedBox(height: 12),
-                          _buildGenderSelector(gender, (val) => setDialogState(() => gender = val)),
-                          const SizedBox(height: 12),
-                          _buildTextField(bioController, 'Bio (optional)', Icons.notes_rounded, 2),
                         ],
                       ),
                     ),
+                    const SizedBox(height: 16),
+                  ],
+                  
+                  // First Name
+                  TextField(
+                    controller: firstNameController,
+                    style: GoogleFonts.cormorantGaramond(fontSize: 16),
+                    decoration: InputDecoration(
+                      labelText: 'First Name *',
+                      labelStyle: GoogleFonts.cormorantGaramond(color: ArtboardColors.warmGray),
+                      prefixIcon: const Icon(Icons.person_rounded, color: ArtboardColors.warmGray, size: 20),
+                      filled: true,
+                      fillColor: ArtboardColors.cream,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
                   ),
-
-                  // Actions
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: ArtboardColors.cream,
-                      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
+                  const SizedBox(height: 12),
+                  
+                  // Father/Family Name
+                  TextField(
+                    controller: lastNameController,
+                    style: GoogleFonts.cormorantGaramond(fontSize: 16),
+                    decoration: InputDecoration(
+                      labelText: addAsRoot ? 'Family Name *' : 'Father Name',
+                      labelStyle: GoogleFonts.cormorantGaramond(color: ArtboardColors.warmGray),
+                      prefixIcon: const Icon(Icons.person_outline_rounded, color: ArtboardColors.warmGray, size: 20),
+                      filled: true,
+                      fillColor: ArtboardColors.cream,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
                     ),
-                    child: Row(
-                      children: [
-                        TextButton(
-                          onPressed: isLoading ? null : () => Navigator.pop(context),
-                          child: Text('Cancel', style: GoogleFonts.cormorantGaramond(
-                            color: ArtboardColors.warmGray, fontWeight: FontWeight.w600)),
-                        ),
-                        const Spacer(),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: (addAsRoot || selectedParent != null) ? accentColor : ArtboardColors.warmGray,
-                            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                            elevation: 0,
-                          ),
-                          onPressed: (isLoading || (!addAsRoot && selectedParent == null)) ? null : () async {
-                            if (firstNameController.text.trim().isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Please enter first name'), backgroundColor: ArtboardColors.rust),
-                              );
-                              return;
-                            }
-                            if (lastNameController.text.trim().isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Please enter last name'), backgroundColor: ArtboardColors.rust),
-                              );
-                              return;
-                            }
-                            
-                            setDialogState(() => isLoading = true);
-                            
-                            DateTime? birthDate;
-                            DateTime? deathDate;
-                            if (birthYearController.text.isNotEmpty) {
-                              birthDate = DateTime(int.tryParse(birthYearController.text) ?? 1900);
-                            }
-                            if (deathYearController.text.isNotEmpty) {
-                              deathDate = DateTime(int.tryParse(deathYearController.text) ?? 2000);
-                            }
-                            
-                            final newPerson = Person(
-                              id: '',
-                              familyTreeId: 'main-family-tree',
-                              firstName: firstNameController.text.trim(),
-                              lastName: lastNameController.text.trim(),
-                              gender: gender,
-                              birthDate: birthDate,
-                              deathDate: deathDate,
-                              bio: bioController.text.trim().isEmpty ? null : bioController.text.trim(),
-                              relationships: Relationships(
-                                parentIds: addAsRoot ? [] : [selectedParent!.id],
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Gender Selection - Simple buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setDialogState(() => gender = 'male'),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: BoxDecoration(
+                              color: gender == 'male' ? Colors.blue.withOpacity(0.15) : ArtboardColors.cream,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: gender == 'male' ? Colors.blue : Colors.transparent,
+                                width: 2,
                               ),
-                              createdAt: DateTime.now(),
-                              updatedAt: DateTime.now(),
-                            );
-                            
-                            try {
-                              final newId = await _adminRepo.addPerson(newPerson);
-                              
-                              // Update parent's children list if not root
-                              if (!addAsRoot && selectedParent != null) {
-                                final updatedParent = selectedParent!.copyWith(
-                                  relationships: selectedParent!.relationships.copyWith(
-                                    childrenIds: [...selectedParent!.relationships.childrenIds, newId],
-                                  ),
-                                );
-                                await _adminRepo.updatePerson(updatedParent);
-                              }
-                              
-                              Navigator.pop(context);
-                              _loadData();
-                              
-                              ScaffoldMessenger.of(this.context).showSnackBar(
-                                SnackBar(
-                                  content: Row(children: [
-                                    Icon(addAsRoot ? Icons.star_rounded : Icons.check_circle_rounded, color: Colors.white),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        addAsRoot 
-                                          ? '${firstNameController.text} added as Patriarch!' 
-                                          : '${firstNameController.text} added to ${selectedParent!.firstName}\'s family!',
-                                      ),
-                                    ),
-                                  ]),
-                                  backgroundColor: accentColor,
-                                ),
-                              );
-                            } catch (e) {
-                              setDialogState(() => isLoading = false);
-                              ScaffoldMessenger.of(this.context).showSnackBar(
-                                SnackBar(content: Text('Error: $e'), backgroundColor: ArtboardColors.rust),
-                              );
-                            }
-                          },
-                          child: isLoading
-                            ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            : Row(mainAxisSize: MainAxisSize.min, children: [
-                                Icon(addAsRoot ? Icons.star_rounded : Icons.add_rounded, size: 20, color: Colors.white),
-                                const SizedBox(width: 8),
-                                Text(
-                                  addAsRoot 
-                                    ? 'Create Patriarch' 
-                                    : (selectedParent != null ? 'Add Member' : 'Select Parent'),
-                                  style: GoogleFonts.cormorantGaramond(
-                                    fontWeight: FontWeight.w700, 
-                                    color: Colors.white,
-                                    fontSize: 15,
-                                  ),
-                                ),
-                              ]),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.male, color: gender == 'male' ? Colors.blue : ArtboardColors.warmGray),
+                                const SizedBox(width: 6),
+                                Text('Male', style: TextStyle(
+                                  color: gender == 'male' ? Colors.blue : ArtboardColors.warmGray,
+                                  fontWeight: gender == 'male' ? FontWeight.bold : FontWeight.normal,
+                                )),
+                              ],
+                            ),
+                          ),
                         ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setDialogState(() => gender = 'female'),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: BoxDecoration(
+                              color: gender == 'female' ? Colors.pink.withOpacity(0.15) : ArtboardColors.cream,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: gender == 'female' ? Colors.pink : Colors.transparent,
+                                width: 2,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.female, color: gender == 'female' ? Colors.pink : ArtboardColors.warmGray),
+                                const SizedBox(width: 6),
+                                Text('Female', style: TextStyle(
+                                  color: gender == 'female' ? Colors.pink : ArtboardColors.warmGray,
+                                  fontWeight: gender == 'female' ? FontWeight.bold : FontWeight.normal,
+                                )),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
+            actions: [
+              TextButton(
+                onPressed: isLoading ? null : () => Navigator.pop(context),
+                child: Text('Cancel', style: TextStyle(color: ArtboardColors.warmGray)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: accentColor,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: isLoading ? null : () async {
+                  if (firstNameController.text.trim().isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Please enter first name'), backgroundColor: Colors.red),
+                    );
+                    return;
+                  }
+                  if (lastNameController.text.trim().isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Please enter family/father name'), backgroundColor: Colors.red),
+                    );
+                    return;
+                  }
+                  
+                  setDialogState(() => isLoading = true);
+                  
+                  final newPerson = Person(
+                    id: '',
+                    familyTreeId: 'main-family-tree',
+                    firstName: firstNameController.text.trim(),
+                    lastName: lastNameController.text.trim(),
+                    gender: gender,
+                    relationships: Relationships(
+                      parentIds: addAsRoot ? [] : [selectedParent!.id],
+                    ),
+                    createdAt: DateTime.now(),
+                    updatedAt: DateTime.now(),
+                  );
+                  
+                  try {
+                    final newId = await _adminRepo.addPerson(newPerson);
+                    
+                    if (!addAsRoot && selectedParent != null) {
+                      final updatedParent = selectedParent!.copyWith(
+                        relationships: selectedParent!.relationships.copyWith(
+                          childrenIds: [...selectedParent!.relationships.childrenIds, newId],
+                        ),
+                      );
+                      await _adminRepo.updatePerson(updatedParent);
+                    }
+                    
+                    Navigator.pop(context);
+                    _loadData();
+                    
+                    ScaffoldMessenger.of(this.context).showSnackBar(
+                      SnackBar(
+                        content: Text('${firstNameController.text} added successfully!'),
+                        backgroundColor: accentColor,
+                      ),
+                    );
+                  } catch (e) {
+                    setDialogState(() => isLoading = false);
+                    ScaffoldMessenger.of(this.context).showSnackBar(
+                      SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                    );
+                  }
+                },
+                child: isLoading
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Add', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ],
           );
         },
       ),

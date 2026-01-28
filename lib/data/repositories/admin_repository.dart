@@ -168,4 +168,130 @@ class AdminRepository {
       rethrow;
     }
   }
+
+  /// Delete a user (admin only)
+  Future<void> deleteUser(String userId) async {
+    try {
+      await _api.delete('/api/admin/users/$userId');
+    } catch (e) {
+      print('Error deleting user: $e');
+      rethrow;
+    }
+  }
+
+  /// Ban a user (admin only)
+  Future<void> banUser(String userId, {String? reason}) async {
+    try {
+      await _api.put(
+        '/api/admin/users/$userId/ban',
+        body: {'banned': true, 'reason': reason ?? ''},
+      );
+    } catch (e) {
+      print('Error banning user: $e');
+      rethrow;
+    }
+  }
+
+  /// Unban a user (admin only)
+  Future<void> unbanUser(String userId) async {
+    try {
+      await _api.put(
+        '/api/admin/users/$userId/ban',
+        body: {'banned': false},
+      );
+    } catch (e) {
+      print('Error unbanning user: $e');
+      rethrow;
+    }
+  }
+
+  // ===== ANNOUNCEMENTS =====
+
+  /// Send announcement to all users
+  Future<void> sendAnnouncement({
+    required String title,
+    required String message,
+  }) async {
+    try {
+      await _api.post(
+        '/api/admin/announcements',
+        body: {
+          'title': title,
+          'message': message,
+        },
+      );
+    } catch (e) {
+      print('Error sending announcement: $e');
+      rethrow;
+    }
+  }
+
+  // ===== EXPORT DATA =====
+
+  /// Export family tree data as JSON
+  Future<Map<String, dynamic>> exportFamilyTreeData(String familyTreeId) async {
+    try {
+      final response = await _api.get('/api/admin/export/$familyTreeId');
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      throw Exception('Failed to export data: ${response.body}');
+    } catch (e) {
+      print('Error exporting data: $e');
+      rethrow;
+    }
+  }
+
+  // ===== AUDIT LOGS =====
+
+  /// Get audit logs
+  Future<List<AuditLog>> getAuditLogs({int limit = 50}) async {
+    try {
+      final response = await _api.get('/api/admin/audit-logs?limit=$limit');
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.map((json) => AuditLog.fromJson(json)).toList();
+      }
+      return [];
+    } catch (e) {
+      print('Error getting audit logs: $e');
+      return [];
+    }
+  }
+}
+
+/// Model for audit log entries
+class AuditLog {
+  final String id;
+  final String userId;
+  final String userName;
+  final String action;
+  final String entityType;
+  final String entityId;
+  final Map<String, dynamic>? details;
+  final DateTime createdAt;
+
+  AuditLog({
+    required this.id,
+    required this.userId,
+    required this.userName,
+    required this.action,
+    required this.entityType,
+    required this.entityId,
+    this.details,
+    required this.createdAt,
+  });
+
+  factory AuditLog.fromJson(Map<String, dynamic> json) {
+    return AuditLog(
+      id: json['id'] ?? '',
+      userId: json['user_id'] ?? '',
+      userName: json['user_name'] ?? 'Unknown',
+      action: json['action'] ?? '',
+      entityType: json['entity_type'] ?? '',
+      entityId: json['entity_id'] ?? '',
+      details: json['details'],
+      createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
+    );
+  }
 }

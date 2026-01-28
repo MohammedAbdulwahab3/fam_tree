@@ -7,18 +7,19 @@ import 'package:family_tree/core/theme/elegant_theme.dart';
 import 'package:family_tree/data/models/person.dart';
 import 'package:family_tree/data/repositories/person_repository.dart';
 import 'package:family_tree/features/auth/providers/auth_provider.dart';
+import 'package:family_tree/core/widgets/theme_toggle_button.dart';
 import 'package:family_tree/providers/admin_provider.dart';
 
 /// Main dashboard after authentication
 /// Shows user profile, family stats, and navigation options
-class DashboardPage extends ConsumerStatefulWidget {
-  const DashboardPage({super.key});
+class ProfilePage extends ConsumerStatefulWidget {
+  const ProfilePage({super.key});
 
   @override
-  ConsumerState<DashboardPage> createState() => _DashboardPageState();
+  ConsumerState<ProfilePage> createState() => _ProfilePageState();
 }
 
-class _DashboardPageState extends ConsumerState<DashboardPage>
+class _ProfilePageState extends ConsumerState<ProfilePage>
     with TickerProviderStateMixin {
   final PersonRepository _repository = PersonRepository();
   
@@ -80,6 +81,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
   Widget build(BuildContext context) {
     final user = ref.watch(authStateProvider).value;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isAdmin = ref.watch(userRoleProvider).value?.isAdmin ?? false;
 
     return Scaffold(
       backgroundColor: isDark ? AppTheme.backgroundDark : ElegantColors.cream,
@@ -88,10 +90,16 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
         elevation: 0,
         title: Row(
           children: [
-            const Icon(Icons.account_tree_rounded, color: ElegantColors.terracotta),
+            IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new_rounded),
+              onPressed: () => context.pop(),
+              color: isDark ? Colors.white : ElegantColors.charcoal,
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.person_rounded, color: ElegantColors.terracotta),
             const SizedBox(width: 8),
             Text(
-              'Family Tree',
+              'My Profile',
               style: GoogleFonts.playfairDisplay(
                 fontWeight: FontWeight.w700,
                 color: isDark ? Colors.white : ElegantColors.charcoal,
@@ -100,22 +108,15 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
           ],
         ),
         actions: [
-          TextButton.icon(
-            onPressed: () => context.go('/'),
-            icon: const Icon(Icons.home_rounded, size: 18),
-            label: Text('Home', style: GoogleFonts.cormorantGaramond(fontWeight: FontWeight.w600)),
-            style: TextButton.styleFrom(
-              foregroundColor:  isDark ? Colors.white70 : ElegantColors.warmGray,
+          if (isAdmin)
+            TextButton.icon(
+              onPressed: () => context.go('/admin'),
+              icon: const Icon(Icons.admin_panel_settings_rounded, size: 18),
+              label: Text('Admin', style: GoogleFonts.cormorantGaramond(fontWeight: FontWeight.w600)),
+              style: TextButton.styleFrom(
+                foregroundColor: isDark ? Colors.white70 : ElegantColors.warmGray,
+              ),
             ),
-          ),
-          TextButton.icon(
-            onPressed: () => context.go('/demo'),
-            icon: const Icon(Icons.play_circle_outline_rounded, size: 18),
-            label: Text('Demo', style: GoogleFonts.cormorantGaramond(fontWeight: FontWeight.w600)),
-            style: TextButton.styleFrom(
-              foregroundColor: isDark ? Colors.white70 : ElegantColors.warmGray,
-            ),
-          ),
           const SizedBox(width: 8),
         ],
       ),
@@ -273,6 +274,15 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
   Widget _buildWebProfileSection(dynamic user, bool isDark) {
     return Column(
       children: [
+        // Theme Toggle for Web
+        Align(
+          alignment: Alignment.topRight,
+          child: ThemeToggleIcon(
+            color: isDark ? AppTheme.textPrimary : ElegantColors.charcoal,
+          ),
+        ),
+        const SizedBox(height: 16),
+        
         // Avatar
         Container(
           width: 100,
@@ -404,9 +414,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
     
     return Column(
       children: [
-        _buildWebStatItem(Icons.people_alt_rounded, '${_familyMembers.length}', 'Family Members', 
-            isDark ? AppTheme.accentTeal : ElegantColors.terracotta, isDark),
-        const SizedBox(height: 12),
         _buildWebStatItem(Icons.account_tree_rounded, '$generations', 'Generations', 
             isDark ? AppTheme.primaryLight : ElegantColors.sage, isDark),
         const SizedBox(height: 12),
@@ -495,8 +502,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
       children: [
         _buildWebActionCard(
           icon: Icons.account_tree_rounded,
-          title: 'View My Family',
-          description: 'See your descendants and family connections',
+          title: 'Family Tree',
+          description: 'View your family tree',
           color: ElegantColors.terracotta,
           isDark: isDark,
           onTap: () => context.go('/tree'),
@@ -679,6 +686,14 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
               ],
             ),
           ),
+          const Spacer(),
+          
+          // Theme Toggle
+          ThemeToggleIcon(
+            color: isDark ? AppTheme.textPrimary : ElegantColors.charcoal,
+          ),
+          
+          const SizedBox(width: 8),
           
           // Sign out button
           Container(
@@ -1291,18 +1306,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
       children: [
         Expanded(
           child: _buildStatCard(
-            icon: Icons.people_alt_rounded,
-            value: '${_familyMembers.length}',
-            label: 'Family Members',
-            color: isDark ? AppTheme.accentTeal : ElegantColors.terracotta,
-            isDark: isDark,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildStatCard(
             icon: Icons.account_tree_rounded,
-            value: '5',
+            value: '${_calculateGenerations()}',
             label: 'Generations',
             color: isDark ? AppTheme.primaryLight : ElegantColors.sage,
             isDark: isDark,

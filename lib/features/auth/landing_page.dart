@@ -862,7 +862,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.play_arrow_rounded, color: AppTheme.primaryDeep, size: 22),
+                        const Icon(Icons.play_arrow_rounded, color: AppTheme.primaryDeep, size: 22),
                         const SizedBox(width: 10),
                         Text(
                           'Try Demo',

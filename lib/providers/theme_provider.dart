@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ThemeModeNotifier extends StateNotifier<ThemeMode> {
   static const String _themeKey = 'theme_mode';
   
-  ThemeModeNotifier() : super(ThemeMode.dark) {
+  ThemeModeNotifier() : super(ThemeMode.light) {
     _loadTheme();
   }
 
@@ -18,7 +18,7 @@ class ThemeModeNotifier extends StateNotifier<ThemeMode> {
     if (themeString != null) {
       state = ThemeMode.values.firstWhere(
         (mode) => mode.name == themeString,
-        orElse: () => ThemeMode.dark,
+        orElse: () => ThemeMode.light,
       );
     }
   }

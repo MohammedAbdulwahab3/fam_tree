@@ -8,7 +8,7 @@ import 'package:family_tree/core/theme/app_theme.dart';
 class LocationPickerDialog extends StatefulWidget {
   final LatLng? initialLocation;
 
-  const LocationPickerDialog({Key? key, this.initialLocation}) : super(key: key);
+  const LocationPickerDialog({super.key, this.initialLocation});
 
   @override
   State<LocationPickerDialog> createState() => _LocationPickerDialogState();

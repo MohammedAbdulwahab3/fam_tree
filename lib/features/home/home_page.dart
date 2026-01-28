@@ -10,7 +10,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 /// Beautiful home page showing user and their descendants
 class HomePage extends ConsumerStatefulWidget {
-  const HomePage({Key? key}) : super(key: key);
+  const HomePage({super.key});
 
   @override
   ConsumerState<HomePage> createState() => _HomePageState();
@@ -487,7 +487,7 @@ class _HomePageState extends ConsumerState<HomePage> {
             width: 50,
             height: 50,
             decoration: BoxDecoration(
-              gradient: LinearGradient(
+              gradient: const LinearGradient(
                 colors: [AppTheme.primaryLight, AppTheme.accentTeal],
               ),
               borderRadius: BorderRadius.circular(AppTheme.radiusFull),
@@ -560,7 +560,7 @@ class _HomePageState extends ConsumerState<HomePage> {
       decoration: AppTheme.glassDecoration(),
       child: Column(
         children: [
-          Icon(
+          const Icon(
             Icons.family_restroom,
             size: 64,
             color: AppTheme.textMuted,

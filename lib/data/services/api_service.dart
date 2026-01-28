@@ -1,11 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class ApiService {
-  // Production backend URL (Render)
-  static const String baseUrl = 'https://family-tree-backend-sws1.onrender.com';
+  // Production backend URL (AWS ECS)
+  static const String baseUrl = 'http://13.60.94.189:5000';
   
   // Singleton pattern
   static final ApiService _instance = ApiService._internal();

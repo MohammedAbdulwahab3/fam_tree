@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:family_tree/data/models/person.dart';
 import 'package:family_tree/data/services/api_service.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Repository for Person CRUD operations using Go backend
 class PersonRepository {

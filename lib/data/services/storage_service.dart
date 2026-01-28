@@ -25,4 +25,13 @@ class StorageService {
   Future<String?> uploadVideo(String fileName, Uint8List bytes) async {
     return uploadFile(fileName, bytes);
   }
+
+  /// Upload a profile photo and return the URL
+  Future<String> uploadProfilePhoto(Uint8List bytes, String fileName) async {
+    final url = await uploadFile('profile_$fileName', bytes);
+    if (url == null) {
+      throw Exception('Failed to upload profile photo');
+    }
+    return url;
+  }
 }

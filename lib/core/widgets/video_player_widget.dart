@@ -1,23 +1,19 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 import 'package:family_tree/core/theme/app_theme.dart';
 
 class VideoPlayerWidget extends StatefulWidget {
-  final String? videoUrl;
-  final File? videoFile;
+  final String videoUrl;
   final bool autoPlay;
   final bool looping;
 
   const VideoPlayerWidget({
     Key? key,
-    this.videoUrl,
-    this.videoFile,
+    required this.videoUrl,
     this.autoPlay = false,
     this.looping = false,
-  }) : assert(videoUrl != null || videoFile != null),
-       super(key: key);
+  }) : super(key: key);
 
   @override
   State<VideoPlayerWidget> createState() => _VideoPlayerWidgetState();
@@ -35,11 +31,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   }
 
   Future<void> _initializePlayer() async {
-    if (widget.videoUrl != null) {
-      _videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl!));
-    } else {
-      _videoPlayerController = VideoPlayerController.file(widget.videoFile!);
-    }
+    _videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
 
     await _videoPlayerController.initialize();
 

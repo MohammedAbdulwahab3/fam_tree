@@ -11,7 +11,7 @@ import 'package:family_tree/features/edit/add_person_dialog.dart';
 
 /// Admin Tree Page with full editing capabilities
 class AdminTreePage extends ConsumerStatefulWidget {
-  const AdminTreePage({Key? key}) : super(key: key);
+  const AdminTreePage({super.key});
 
   @override
   ConsumerState<AdminTreePage> createState() => _AdminTreePageState();
@@ -214,7 +214,7 @@ class _AdminTreePageState extends ConsumerState<AdminTreePage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
+          const Icon(
             Icons.family_restroom,
             size: 80,
             color: AppTheme.textMuted,
@@ -473,7 +473,7 @@ class _AdminTreePageState extends ConsumerState<AdminTreePage> {
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  value: gender,
+                  initialValue: gender,
                   decoration: const InputDecoration(
                     labelText: 'Gender',
                     border: OutlineInputBorder(),
@@ -717,7 +717,7 @@ class _AdminTreePageState extends ConsumerState<AdminTreePage> {
               
               // Options
               ListTile(
-                leading: Icon(Icons.edit, color: AppTheme.primaryLight),
+                leading: const Icon(Icons.edit, color: AppTheme.primaryLight),
                 title: const Text('Edit Person'),
                 onTap: () {
                   Navigator.pop(context);
@@ -725,7 +725,7 @@ class _AdminTreePageState extends ConsumerState<AdminTreePage> {
                 },
               ),
               ListTile(
-                leading: Icon(Icons.person_add, color: AppTheme.accentTeal),
+                leading: const Icon(Icons.person_add, color: AppTheme.accentTeal),
                 title: const Text('Add Child'),
                 onTap: () {
                   Navigator.pop(context);

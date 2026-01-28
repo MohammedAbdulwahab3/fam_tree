@@ -5,7 +5,7 @@ import 'package:family_tree/core/theme/app_theme.dart';
 import 'package:family_tree/providers/auth_provider_new.dart';
 
 class AuthTestPage extends ConsumerStatefulWidget {
-  const AuthTestPage({Key? key}) : super(key: key);
+  const AuthTestPage({super.key});
 
   @override
   ConsumerState<AuthTestPage> createState() => _AuthTestPageState();
