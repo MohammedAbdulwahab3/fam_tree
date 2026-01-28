@@ -165,6 +165,16 @@ func main() {
 		})
 
 		// Person Routes - READ for all authenticated users
+
+		// Users endpoint - get all registered users
+		api.GET("/users", func(c *gin.Context) {
+			var users []models.User
+			if result := db.Find(&users); result.Error != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, users)
+		})
 		api.GET("/persons", personHandler.GetPersons)
 		api.GET("/persons/:id", personHandler.GetPerson)
 
