@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Family Tree App Icon</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #f5f5f5;
+        }
+        
+        .icon-container {
+            width: 1024px;
+            height: 1024px;
+            background: linear-gradient(135deg, #10B981 0%, #059669 50%, #047857 100%);
+            border-radius: 180px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 30px 60px rgba(16, 185, 129, 0.4);
+        }
+        
+        .tree-icon-wrapper {
+            font-size: 512px;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        /* Material Icons styling */
+        .material-icons {
+            font-size: inherit;
+        }
+        
+        .instruction {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            padding: 20px 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            font-family: Arial, sans-serif;
+            text-align: center;
+            max-width: 500px;
+        }
+        
+        .instruction h3 {
+            margin: 0 0 10px 0;
+            color: #047857;
+        }
+        
+        .instruction p {
+            margin: 5px 0;
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .instruction button {
+            margin-top: 15px;
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #10B981, #059669);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .instruction button:hover {
+            opacity: 0.9;
+        }
+        
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="instruction" id="instruction">
+        <h3>📱 App Icon Generator</h3>
+        <p><strong>Step 1:</strong> Click "Hide Instructions"</p>
+        <p><strong>Step 2:</strong> Take a screenshot of the icon below</p>
+        <p><strong>Step 3:</strong> Crop to 1024x1024 pixels</p>
+        <p><strong>Step 4:</strong> Save as app_icon.png</p>
+        <button onclick="document.getElementById('instruction').classList.add('hidden')">
+            Hide Instructions
+        </button>
+    </div>
+    
+    <div class="icon-container">
+        <span class="material-icons tree-icon-wrapper">
+            account_tree
+        </span>
+    </div>
+</body>
+</html>

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Download App Icon</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        canvas {
+            border: 2px solid #ddd;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        button {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #10B981, #059669);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        h2 {
+            margin: 0 0 10px 0;
+            color: #047857;
+        }
+
+        p {
+            margin: 5px 0;
+            color: #666;
+        }
+
+        .success {
+            color: #10B981;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="controls">
+        <h2>📱 Family Tree App Icon</h2>
+        <p>This will generate your app icon automatically!</p>
+        <button onclick="downloadIcon()">⬇️ Download app_icon.png</button>
+        <p class="success" id="status"></p>
+    </div>
+
+    <canvas id="iconCanvas" width="1024" height="1024"></canvas>
+
+    <script>
+        const canvas = document.getElementById('iconCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Draw the icon
+        function drawIcon() {
+            // Create gradient background
+            const gradient = ctx.createLinearGradient(0, 0, 1024, 1024);
+            gradient.addColorStop(0, '#10B981');
+            gradient.addColorStop(0.5, '#059669');
+            gradient.addColorStop(1, '#047857');
+
+            // Draw rounded rectangle background
+            const radius = 180;
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.moveTo(radius, 0);
+            ctx.lineTo(1024 - radius, 0);
+            ctx.quadraticCurveTo(1024, 0, 1024, radius);
+            ctx.lineTo(1024, 1024 - radius);
+            ctx.quadraticCurveTo(1024, 1024, 1024 - radius, 1024);
+            ctx.lineTo(radius, 1024);
+            ctx.quadraticCurveTo(0, 1024, 0, 1024 - radius);
+            ctx.lineTo(0, radius);
+            ctx.quadraticCurveTo(0, 0, radius, 0);
+            ctx.closePath();
+            ctx.fill();
+
+            // Add shadow effect
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+            ctx.shadowBlur = 20;
+            ctx.shadowOffsetY = 10;
+
+            // Draw tree icon (simplified)
+            ctx.fillStyle = 'white';
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+            ctx.shadowBlur = 30;
+
+            // Center
+            const centerX = 512;
+            const centerY = 512;
+
+            // Draw trunk
+            ctx.fillRect(centerX - 30, centerY + 80, 60, 200);
+
+            // Draw nodes (circles representing family members)
+            const nodeRadius = 50;
+
+            // Generation 1 (top)
+            ctx.beginPath();
+            ctx.arc(centerX, centerY - 200, nodeRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Generation 2 (middle)
+            ctx.beginPath();
+            ctx.arc(centerX - 150, centerY - 50, nodeRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(centerX + 150, centerY - 50, nodeRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Generation 3 (bottom)
+            ctx.beginPath();
+            ctx.arc(centerX - 220, centerY + 100, nodeRadius * 0.8, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(centerX - 80, centerY + 100, nodeRadius * 0.8, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(centerX + 80, centerY + 100, nodeRadius * 0.8, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(centerX + 220, centerY + 100, nodeRadius * 0.8, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw connecting lines
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 10;
+            ctx.shadowBlur = 10;
+
+            // Lines from top to middle
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY - 150);
+            ctx.lineTo(centerX - 150, centerY - 100);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY - 150);
+            ctx.lineTo(centerX + 150, centerY - 100);
+            ctx.stroke();
+
+            // Lines from middle to bottom
+            ctx.beginPath();
+            ctx.moveTo(centerX - 150, centerY);
+            ctx.lineTo(centerX - 220, centerY + 50);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(centerX - 150, centerY);
+            ctx.lineTo(centerX - 80, centerY + 50);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(centerX + 150, centerY);
+            ctx.lineTo(centerX + 80, centerY + 50);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(centerX + 150, centerY);
+            ctx.lineTo(centerX + 220, centerY + 50);
+            ctx.stroke();
+        }
+
+        function downloadIcon() {
+            const link = document.createElement('a');
+            link.download = 'app_icon.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+
+            document.getElementById('status').textContent = '✅ Downloaded! Now save it to assets/icons/app_icon.png';
+        }
+
+        // Draw on load
+        drawIcon();
+    </script>
+</body>
+
+</html>
