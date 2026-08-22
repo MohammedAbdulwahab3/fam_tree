@@ -1,0 +1,43 @@
+# Binaries
+main
+server
+family-tree-backend
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Uploads (user content)
+uploads/
+
+# Logs
+*.log
+backend.log
+
+# Database
+*.db
+*.sqlite
+postgres_data/
+
+# Environment
+.env
+.env.local
+
+# Firebase credentials (add via Render env var instead)
+firebase-credentials.json
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Elastic Beanstalk Files
+.elasticbeanstalk/*
+!.elasticbeanstalk/*.cfg.yml
+!.elasticbeanstalk/*.global.yml
