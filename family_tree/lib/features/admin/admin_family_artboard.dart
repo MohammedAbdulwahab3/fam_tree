@@ -1,4 +1,8 @@
+import 'dart:convert';
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -7,6 +11,15 @@ import 'package:family_tree/data/repositories/person_repository.dart';
 import 'package:family_tree/data/repositories/admin_repository.dart';
 import 'package:family_tree/core/theme/elegant_theme.dart';
 import 'package:family_tree/core/theme/app_theme.dart';
+import 'package:family_tree/core/theme/app_colors.dart';
+import 'package:family_tree/core/widgets/aurora_background.dart';
+import 'package:family_tree/data/models/post.dart';
+import 'package:family_tree/features/admin/admin_tools_sheet.dart';
+import 'package:family_tree/features/auth/providers/auth_provider.dart';
+import 'package:family_tree/features/admin/link_requests_dashboard.dart';
+import 'package:family_tree/features/admin/post_composer_sheet.dart';
+import 'package:family_tree/data/services/family_export_service.dart';
+import 'package:family_tree/data/services/web_download_helper.dart';
 
 /// Alias for backward compatibility
 typedef ArtboardColors = ElegantColors;
@@ -29,43 +42,50 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
     with TickerProviderStateMixin {
   final PersonRepository _personRepo = PersonRepository();
   final AdminRepository _adminRepo = AdminRepository();
+  late final AnimationController _auroraController;
   
   List<Person> _persons = [];
   List<Person> _filteredPersons = [];
   bool _isLoading = true;
   String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
   String _selectedGeneration = 'All';
   Person? _selectedPerson;
   
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
 
-  final List<String> _generations = ['All', 'Gen 1', 'Gen 2', 'Gen 3', 'Gen 4', 'Gen 5'];
+  /// Derived from the loaded tree — a hardcoded list silently hid Gen 6.
+  List<String> get _generations => [
+        'All',
+        for (var i = 1; i <= _generationCount; i++) 'Gen $i',
+      ];
+
+  int get _generationCount {
+    if (_persons.isEmpty) return 0;
+    return _persons.map(_generationOf).fold<int>(0, (a, b) => a > b ? a : b) + 1;
+  }
   
   // Map to cache branch colors for each person
   Map<String, Color> _branchColorMap = {};
-  
-  // Track collapsed branches
-  Set<String> _collapsedBranches = {};
-  
-  // Multi-select mode for batch operations
-  bool _isMultiSelectMode = false;
-  Set<String> _selectedPersonIds = {};
-  
-  // Layout mode: 'tree' for horizontal tree, 'list' for compact vertical, 'focus' for one family at a time
-  String _layoutMode = 'focus';
+
+  // Rebuilt whenever the roster changes; see _generationOf.
+  Map<String, Person> _personById = {};
+  final Map<String, int> _generationCache = {};
   
   // Stack of focused persons for drill-down navigation
   List<String> _focusStack = [];
   
-  // Zoom level for tree view (controlled by buttons only)
-  double _zoomLevel = 1.0;
   final ScrollController _verticalScrollController = ScrollController(initialScrollOffset: 500);
   final ScrollController _horizontalScrollController = ScrollController(initialScrollOffset: 500);
 
   @override
   void initState() {
     super.initState();
+    _auroraController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 24),
+    )..repeat();
     _fadeController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
@@ -79,6 +99,8 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
 
   @override
   void dispose() {
+    _searchController.dispose();
+    _auroraController.dispose();
     _fadeController.dispose();
     _verticalScrollController.dispose();
     _horizontalScrollController.dispose();
@@ -92,13 +114,68 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
       setState(() {
         _persons = persons;
         _filteredPersons = persons;
+        // Caches derived from the roster must be rebuilt with it.
+        _personById = {for (final p in persons) p.id: p};
+        _generationCache.clear();
         _isLoading = false;
         _buildBranchColorMap();
       });
       _fadeController.forward();
+      
+      // Auto-assign displayOrder to members that don't have one
+      await _initializeDisplayOrders();
     } catch (e) {
       setState(() => _isLoading = false);
     }
+  }
+  
+  /// Auto-assign displayOrder to all family members who have order 0
+  Future<void> _initializeDisplayOrders() async {
+    // Group persons by parent
+    final Map<String, List<Person>> siblingGroups = {};
+    
+    // Roots group
+    final roots = _persons.where((p) => p.relationships.parentIds.isEmpty).toList();
+    siblingGroups['_roots'] = roots;
+    
+    // Children of each parent
+    for (final person in _persons) {
+      for (final parentId in person.relationships.parentIds) {
+        siblingGroups.putIfAbsent(parentId, () => []);
+        siblingGroups[parentId]!.add(person);
+      }
+    }
+    
+    // For each group, assign order based on createdAt if everyone has order 0
+    for (final entry in siblingGroups.entries) {
+      final siblings = entry.value;
+      
+      // Check if any sibling has a valid order (non-zero)
+      final hasOrders = siblings.any((s) => s.displayOrder > 0);
+      if (hasOrders) continue; // Skip if already has orders
+      
+      // Sort by createdAt and assign order numbers
+      siblings.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      
+      for (int i = 0; i < siblings.length; i++) {
+        final person = siblings[i];
+        final newOrder = i + 1;
+        
+        // Update in backend
+        await _adminRepo.updatePerson(person.copyWith(displayOrder: newOrder));
+        
+        // Update local state
+        final idx = _persons.indexWhere((p) => p.id == person.id);
+        if (idx >= 0) {
+          _persons[idx] = person.copyWith(displayOrder: newOrder);
+        }
+      }
+    }
+    
+    // Refresh filtered list
+    setState(() {
+      _filteredPersons = List.from(_persons);
+    });
   }
   
   /// Build a map of person ID to their family branch color
@@ -176,49 +253,20 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
       backgroundColor: isDark ? AppTheme.backgroundDark : ArtboardColors.cream,
       body: Stack(
         children: [
-          // Subtle pattern background
+          // Ambient light, shared with the app's other entry screens.
+          AuroraBackground(
+            animation: _auroraController,
+            isDark: isDark,
+            intensity: 0.5,
+          ),
+          // Fine engraved pattern on top of it, for the paper feel.
           _buildPatternBackground(),
           
           // Main content
           SafeArea(
             child: Column(
               children: [
-                // Header with back navigation
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: Row(
-                    children: [
-                      GestureDetector(
-                        onTap: () => context.go('/admin'),
-                        child: Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: isDark ? Colors.white.withOpacity(0.1) : ArtboardColors.warmWhite,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: isDark ? Colors.white.withOpacity(0.1) : ArtboardColors.champagne,
-                            ),
-                          ),
-                          child: Icon(
-                            Icons.arrow_back_rounded,
-                            size: 20,
-                            color: isDark ? Colors.white : ArtboardColors.charcoal,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Text(
-                        'Family Artboard',
-                        style: GoogleFonts.playfairDisplay(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? Colors.white : ArtboardColors.charcoal,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                _buildFilterBar(),
+                _buildArtboardHeader(isDark),
                 Expanded(
                   child: _isLoading
                       ? _buildLoadingState()
@@ -236,770 +284,603 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
     );
   }
 
+  /// One minimal bar, so the board gets the height.
+  ///
+  /// This was briefly three stacked bands — title, stats, controls — which ate
+  /// roughly a third of the viewport and started the tree halfway down the
+  /// screen. Everything now shares a single row.
+  Widget _buildArtboardHeader(bool isDark) {
+    final fg = context.colors.ink;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 720;
+        return ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+            child: Container(
+              padding: EdgeInsets.symmetric(
+                  horizontal: compact ? 10 : 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.05)
+                    : Colors.white.withValues(alpha: 0.6),
+                border: Border(
+                  bottom: BorderSide(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.10)
+                        : ArtboardColors.champagne,
+                  ),
+                ),
+              ),
+              child: Row(
+                children: [
+                  _roundIcon(
+                    icon: Icons.arrow_back_rounded,
+                    tooltip: 'Back to the tree',
+                    isDark: isDark,
+                    onTap: () => context.go('/tree'),
+                  ),
+                  const SizedBox(width: 6),
+                  _roundIcon(
+                    icon: Icons.refresh_rounded,
+                    tooltip: 'Reload',
+                    isDark: isDark,
+                    onTap: _loadData,
+                  ),
+                  const SizedBox(width: 6),
+                  _toolsMenu(isDark),
+                  const SizedBox(width: 12),
+                  // Flexible rather than fixed: on a narrow phone the title
+                  // ellipsises instead of pushing the controls off the edge.
+                  Flexible(
+                    child: Text(
+                      'Family Artboard',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                      style: GoogleFonts.playfairDisplay(
+                        fontSize: compact ? 16 : 19,
+                        fontWeight: FontWeight.bold,
+                        color: fg,
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: compact ? 8 : 14),
+                  Expanded(
+                    flex: compact ? 3 : 4,
+                    child: _buildInlineSearch(isDark),
+                  ),
+                  const SizedBox(width: 8),
+                  _buildGenerationFilter(isDark, compact: compact),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// A soft circular button. The bare [IconButton]s read as unfinished next to
+  /// the rest of the app's rounded, tinted controls.
+  Widget _roundIcon({
+    required IconData icon,
+    required String tooltip,
+    required bool isDark,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.07)
+            : Colors.white.withValues(alpha: 0.8),
+        shape: CircleBorder(
+          side: BorderSide(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.1)
+                : ArtboardColors.champagne,
+          ),
+        ),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(9),
+            child: Icon(
+              icon,
+              size: 19,
+              color: context.colors.inkSoft,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _toolsMenu(bool isDark) {
+    PopupMenuItem<String> item(String value, IconData icon, String label) {
+      return PopupMenuItem(
+        value: value,
+        child: ListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(icon, size: 20),
+          title: Text(label, style: GoogleFonts.inter(fontSize: 13.5)),
+        ),
+      );
+    }
+
+    return PopupMenuButton<String>(
+      tooltip: 'Admin tools',
+      onSelected: _onToolSelected,
+      position: PopupMenuPosition.under,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: context.colors.surface,
+      itemBuilder: (context) => [
+        item('add-person', Icons.person_add_alt_1_rounded, 'Add member'),
+        item('add-post', Icons.post_add_rounded, 'Add post'),
+        const PopupMenuDivider(),
+        item('members', Icons.people_outline_rounded, 'Members'),
+        item('posts', Icons.forum_outlined, 'Posts'),
+        const PopupMenuDivider(),
+        item('announce', Icons.campaign_outlined, 'Send announcement'),
+        item('links', Icons.verified_user_outlined, 'Link requests'),
+        item('export', Icons.download_outlined, 'Export tree'),
+      ],
+      child: Container(
+        padding: const EdgeInsets.all(9),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.07)
+              : Colors.white.withValues(alpha: 0.8),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.1)
+                : ArtboardColors.champagne,
+          ),
+        ),
+        child: Icon(
+          Icons.tune_rounded,
+          size: 19,
+          color: context.colors.inkSoft,
+        ),
+      ),
+    );
+  }
+
+  void _artboardToast(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: isError ? AppTheme.error : AppTheme.primaryDeep,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+  }
+
+  /// Compose and publish a family post.
+  ///
+  /// The old dialog was a lone textarea and hardcoded photos, videos and files
+  /// to empty, so the feed could only ever receive plain text even though
+  /// [Post] has always carried attachments.
+  Future<void> _showAddPostDialog() async {
+    final user = ref.read(authStateProvider).value;
+
+    final composed = await PostComposerSheet.show(
+      context,
+      authorName: user?.displayName ?? 'Admin',
+    );
+    if (composed == null) return;
+
+    try {
+      await _adminRepo.createPost(
+        Post(
+          id: '',
+          familyTreeId: 'main-family-tree',
+          userId: user?.uid ?? '',
+          userName: user?.displayName ?? 'Admin',
+          userPhoto: user?.photoURL,
+          content: composed.content,
+          photos: composed.photos,
+          videos: composed.videos,
+          files: composed.files,
+          createdAt: DateTime.now(),
+          reactions: const {},
+        ),
+      );
+      final count = composed.photos.length +
+          composed.videos.length +
+          composed.files.length;
+      _artboardToast(
+        count == 0
+            ? 'Posted to the family feed'
+            : 'Posted with $count attachment${count == 1 ? '' : 's'}',
+      );
+      await _loadData();
+    } catch (e) {
+      _artboardToast(readableError(e), isError: true);
+    }
+  }
+
+  Future<void> _showAnnouncementDialog() async {
+    final titleController = TextEditingController();
+    final messageController = TextEditingController();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final send = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor:
+            context.colors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text('Send announcement',
+            style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w700)),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleController,
+                autofocus: true,
+                decoration: const InputDecoration(
+                    labelText: 'Title', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: messageController,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                    labelText: 'Message', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Every member receives this as a notification.',
+                style: GoogleFonts.inter(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Send')),
+        ],
+      ),
+    );
+
+    if (send != true) return;
+    if (titleController.text.trim().isEmpty ||
+        messageController.text.trim().isEmpty) {
+      _artboardToast('A title and a message are both required',
+          isError: true);
+      return;
+    }
+
+    try {
+      await _adminRepo.sendAnnouncement(
+        title: titleController.text.trim(),
+        message: messageController.text.trim(),
+      );
+      _artboardToast('Announcement sent to the family');
+    } catch (e) {
+      _artboardToast(readableError(e), isError: true);
+    }
+  }
+
+  /// Download the whole tree. JSON keeps every field; CSV opens in a
+  /// spreadsheet.
+  Future<void> _exportTree() async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor:
+            context.colors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text('Export tree',
+            style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w700)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.data_object_rounded),
+              title: const Text('JSON'),
+              subtitle: const Text('Every field, for backup or re-import'),
+              onTap: () => Navigator.pop(dialogContext, 'json'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.table_chart_rounded),
+              title: const Text('CSV'),
+              subtitle: const Text('Opens in a spreadsheet'),
+              onTap: () => Navigator.pop(dialogContext, 'csv'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.description_rounded),
+              title: const Text('Member list'),
+              subtitle: const Text('A readable roster'),
+              onTap: () => Navigator.pop(dialogContext, 'list'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+    if (choice == null) return;
+
+    if (_persons.isEmpty) {
+      _artboardToast('There is nobody in the tree to export', isError: true);
+      return;
+    }
+
+    try {
+      final stamp = DateTime.now().toIso8601String().split('T').first;
+      switch (choice) {
+        case 'json':
+          WebDownloadHelper.downloadFile(
+            FamilyExportService.exportAsJson(_persons),
+            'family-tree-$stamp.json',
+            'application/json',
+          );
+        case 'csv':
+          WebDownloadHelper.downloadFile(
+            FamilyExportService.exportAsCsv(_persons),
+            'family-tree-$stamp.csv',
+            'text/csv',
+          );
+        case 'list':
+          WebDownloadHelper.downloadFile(
+            FamilyExportService.exportAsMemberList(_persons, 'Family'),
+            'family-members-$stamp.txt',
+            'text/plain',
+          );
+      }
+      _artboardToast('Export downloaded');
+    } catch (e) {
+      _artboardToast(readableError(e), isError: true);
+    }
+  }
+
+  /// Depth of a person below the roots, memoised in [_generationCache].
+  ///
+  /// Zero-based, unlike [_getGenerationNumber] which is the one-based label
+  /// shown in the filter — [_generationCount] adds the one back.
+  int _generationOf(Person person) {
+    final cached = _generationCache[person.id];
+    if (cached != null) return cached;
+
+    // Guard against a record that lists itself among its own ancestors.
+    _generationCache[person.id] = 0;
+
+    var depth = 0;
+    for (final parentId in person.relationships.parentIds) {
+      final parent = _personById[parentId];
+      if (parent == null) continue;
+      final parentDepth = _generationOf(parent) + 1;
+      if (parentDepth > depth) depth = parentDepth;
+    }
+
+    return _generationCache[person.id] = depth;
+  }
+
+  /// Routes a choice from the admin tools menu.
+  void _onToolSelected(String value) {
+    switch (value) {
+      case 'add-person':
+        _showUnifiedAddDialog();
+      case 'add-post':
+        _showAddPostDialog();
+      case 'members':
+        AdminToolsSheet.open(context, AdminTool.members);
+      case 'posts':
+        AdminToolsSheet.open(context, AdminTool.posts);
+      case 'announce':
+        _showAnnouncementDialog();
+      case 'links':
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const LinkRequestsDashboard()),
+        );
+      case 'export':
+        _exportTree();
+    }
+  }
+
+  Widget _buildInlineSearch(bool isDark) {
+    return TextField(
+      controller: _searchController,
+      onChanged: (v) {
+        setState(() => _searchQuery = v.trim());
+        _filterPersons();
+      },
+      style: GoogleFonts.inter(
+        fontSize: 14,
+        color: context.colors.ink,
+      ),
+      decoration: InputDecoration(
+        isDense: true,
+        hintText: 'Search relatives…',
+        hintStyle: GoogleFonts.inter(
+          fontSize: 13.5,
+          color: context.colors.inkMuted,
+        ),
+        prefixIcon: Icon(
+          Icons.search_rounded,
+          size: 19,
+          color: context.colors.inkMuted,
+        ),
+        suffixIcon: _searchQuery.isEmpty
+            ? null
+            : IconButton(
+                tooltip: 'Clear search',
+                icon: const Icon(Icons.close_rounded, size: 17),
+                onPressed: () {
+                  _searchController.clear();
+                  setState(() => _searchQuery = '');
+                  _filterPersons();
+                },
+              ),
+        filled: true,
+        fillColor: isDark
+            ? Colors.white.withValues(alpha: 0.06)
+            : Colors.white.withValues(alpha: 0.9),
+        contentPadding: const EdgeInsets.symmetric(vertical: 8),
+        // A visible resting border, so the field reads as a control rather
+        // than a slightly lighter patch of the header.
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.1)
+                : ArtboardColors.champagne,
+          ),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.1)
+                : ArtboardColors.champagne,
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(
+            color: context.colors.accent,
+            width: 1.6,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Generation picker. The list comes from the data, so every generation that
+  /// exists is selectable.
+  Widget _buildGenerationFilter(bool isDark, {bool compact = false}) {
+    final selected = _selectedGeneration != 'All';
+    final accent = context.colors.accent;
+    return Container(
+      // Matches the search field so the two read as one control bar, and kept
+      // short because every pixel here is a pixel the tree does not get.
+      height: 40,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        color: selected
+            ? accent.withValues(alpha: isDark ? 0.2 : 0.12)
+            : (isDark
+                ? Colors.white.withValues(alpha: 0.06)
+                : Colors.white.withValues(alpha: 0.9)),
+        border: Border.all(
+          color: selected
+              ? accent
+              : (isDark
+                  ? Colors.white.withValues(alpha: 0.1)
+                  : ArtboardColors.champagne),
+          width: selected ? 1.5 : 1,
+        ),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedGeneration,
+          isDense: true,
+          borderRadius: BorderRadius.circular(14),
+          dropdownColor:
+              isDark ? const Color(0xFF1B2430) : ArtboardColors.warmWhite,
+          icon: Icon(
+            Icons.expand_more_rounded,
+            size: 19,
+            color: selected
+                ? accent
+                : (isDark ? Colors.white70 : ArtboardColors.warmGray),
+          ),
+          style: GoogleFonts.inter(
+            fontSize: 13.5,
+            fontWeight: FontWeight.w600,
+            color: selected
+                ? accent
+                : (context.colors.ink),
+          ),
+          selectedItemBuilder: (context) => _generations
+              .map((g) => Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      g == 'All'
+                          ? (compact ? 'All' : 'All generations')
+                          : g,
+                      style: GoogleFonts.inter(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                        color: selected
+                            ? accent
+                            : (isDark
+                                ? Colors.white
+                                : ArtboardColors.charcoal),
+                      ),
+                    ),
+                  ))
+              .toList(),
+          items: _generations
+              .map((g) => DropdownMenuItem(
+                    value: g,
+                    child: Text(g == 'All' ? 'All generations' : g),
+                  ))
+              .toList(),
+          onChanged: (v) {
+            setState(() => _selectedGeneration = v ?? 'All');
+            _filterPersons();
+          },
+        ),
+      ),
+    );
+  }
+
+  /// Card surface shared by every person card, so the board matches the glass
+  /// used on the feed and the admin sheets instead of an opaque warm panel.
+  Color _cardSurface(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.dark
+        ? Colors.white.withValues(alpha: 0.07)
+        : Colors.white.withValues(alpha: 0.88);
+  }
+
   Widget _buildPatternBackground() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Positioned.fill(
-      child: CustomPaint(
-        painter: _PatternPainter(isDark: isDark),
+      child: Opacity(
+        opacity: 0.5,
+        child: CustomPaint(
+          painter: _PatternPainter(isDark: isDark),
+        ),
       ),
     );
   }
   
   // Helper method to get color based on theme
-  Color _getTextColor(BuildContext context, Color lightColor) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return isDark ? Colors.white : lightColor;
-  }
   
-  Color _getBackgroundColor(BuildContext context, Color lightColor) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return isDark ? AppTheme.surfaceDark : lightColor;
-  }
 
-  Widget _buildHeader() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isMobile = constraints.maxWidth < 600;
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-        
-        if (isMobile) {
-          // Mobile layout - vertical stack
-          return Container(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Back button and badge row
-                Row(
-                  children: [
-                    if (widget.showBackButton) ...[
-                      _buildElegantButton(
-                        icon: Icons.arrow_back_rounded,
-                        onTap: () => context.go('/admin'),
-                      ),
-                      const SizedBox(width: 12),
-                    ],
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: ArtboardColors.terracotta.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: ArtboardColors.terracotta.withOpacity(0.3),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.family_restroom_rounded,
-                              size: 14,
-                              color: ArtboardColors.terracotta,
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              'FAMILY ARTBOARD',
-                              style: GoogleFonts.cormorantGaramond(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 1.5,
-                                color: ArtboardColors.terracotta,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                
-                // Title
-                Text(
-                  'Mohammed\'s Legacy',
-                  style: GoogleFonts.playfairDisplay(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? Colors.white : ArtboardColors.charcoal,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${_persons.length} members • ${_generations.length - 1} generations',
-                  style: GoogleFonts.cormorantGaramond(
-                    fontSize: 14,
-                    color: isDark ? Colors.white70 : ArtboardColors.warmGray,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                
-                // Stats - horizontal compact
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildCompactStatBadge('${_persons.length}', 'Members', ArtboardColors.terracotta),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _buildCompactStatBadge('5', 'Generations', ArtboardColors.sage),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          );
-        }
-        
-        // Desktop layout - original horizontal design
-        return Container(
-          padding: const EdgeInsets.all(24),
-          child: Row(
-            children: [
-              if (widget.showBackButton) ...[
-                _buildElegantButton(
-                  icon: Icons.arrow_back_rounded,
-                  onTap: () => context.go('/admin'),
-                ),
-                const SizedBox(width: 20),
-              ],
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: ArtboardColors.terracotta.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: ArtboardColors.terracotta.withOpacity(0.3),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.family_restroom_rounded,
-                                size: 16,
-                                color: ArtboardColors.terracotta,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'FAMILY ARTBOARD',
-                                style: GoogleFonts.cormorantGaramond(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 2,
-                                  color: ArtboardColors.terracotta,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Mohammed\'s Legacy',
-                      style: GoogleFonts.playfairDisplay(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w700,
-                        color: ArtboardColors.charcoal,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${_persons.length} family members across ${_generations.length - 1} generations',
-                      style: GoogleFonts.cormorantGaramond(
-                        fontSize: 16,
-                        color: ArtboardColors.warmGray,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              _buildStatBadge('${_persons.length}', 'Members', ArtboardColors.terracotta),
-              const SizedBox(width: 12),
-              _buildStatBadge('5', 'Generations', ArtboardColors.sage),
-            ],
-          ),
-        );
-      },
-    );
-  }
 
-  Widget _buildStatBadge(String value, String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: BoxDecoration(
-        color: ArtboardColors.warmWhite,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.1),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: GoogleFonts.playfairDisplay(
-              fontSize: 28,
-              fontWeight: FontWeight.w700,
-              color: color,
-            ),
-          ),
-          Text(
-            label,
-            style: GoogleFonts.cormorantGaramond(
-              fontSize: 12,
-              color: ArtboardColors.warmGray,
-              letterSpacing: 1,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildCompactStatBadge(String value, String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: ArtboardColors.warmWhite,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.08),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            value,
-            style: GoogleFonts.playfairDisplay(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: color,
-            ),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: GoogleFonts.cormorantGaramond(
-              fontSize: 11,
-              color: ArtboardColors.warmGray,
-              letterSpacing: 0.5,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildFilterBar() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isMobile = constraints.maxWidth < 900;
-        
-        if (isMobile) {
-          // Mobile layout - horizontally scrollable with all controls
-          return Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: ArtboardColors.warmWhite,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: ArtboardColors.champagne),
-                  boxShadow: [
-                    BoxShadow(
-                      color: ArtboardColors.sienna.withOpacity(0.05),
-                      blurRadius: 12,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    // Search
-                    Container(
-                      width: 200,
-                      height: 42,
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: ArtboardColors.champagne),
-                      ),
-                      child: TextField(
-                        onChanged: (value) {
-                          _searchQuery = value;
-                          _filterPersons();
-                        },
-                        cursorColor: ArtboardColors.terracotta,
-                        style: GoogleFonts.cormorantGaramond(
-                          fontSize: 15,
-                          color: Colors.black87, // Always dark text on white background
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'Search...',
-                          hintStyle: GoogleFonts.cormorantGaramond(
-                            color: Colors.black45, // Clear hint color
-                            fontSize: 14,
-                            fontStyle: FontStyle.italic,
-                          ),
-                          border: InputBorder.none,
-                          icon: Icon(
-                            Icons.search_rounded,
-                            size: 20,
-                            color: ArtboardColors.terracotta,
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    
-                    // Generation filters
-                    ...List.generate(_generations.length, (index) {
-                      final gen = _generations[index];
-                      final isSelected = _selectedGeneration == gen;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() => _selectedGeneration = gen);
-                            _filterPersons();
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: isSelected ? ArtboardColors.terracotta : ArtboardColors.cream,
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: isSelected ? ArtboardColors.terracotta : ArtboardColors.champagne,
-                              ),
-                            ),
-                            child: Text(
-                              gen,
-                              style: GoogleFonts.cormorantGaramond(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: isSelected ? Colors.white : ArtboardColors.warmGray,
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    }),
-                    
-                    const SizedBox(width: 10),  // Simplified - removed layout toggles
-                    
-                    // Multi-select
-                    GestureDetector(
-                      onTap: () => setState(() {
-                        _isMultiSelectMode = !_isMultiSelectMode;
-                        if (!_isMultiSelectMode) _selectedPersonIds.clear();
-                      }),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: _isMultiSelectMode ? ArtboardColors.terracotta : ArtboardColors.cream,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: _isMultiSelectMode ? ArtboardColors.terracotta : ArtboardColors.champagne,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              _isMultiSelectMode ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
-                              size: 16,
-                              color: _isMultiSelectMode ? Colors.white : ArtboardColors.warmGray,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Select',
-                              style: GoogleFonts.cormorantGaramond(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: _isMultiSelectMode ? Colors.white : ArtboardColors.warmGray,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    
-                    const SizedBox(width: 10),
-                    
-                    // Add Person
-                    GestureDetector(
-                      onTap: _showAddPersonDialog,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: ArtboardColors.terracotta,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.person_add_rounded, size: 16, color: Colors.white),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Add',
-                              style: GoogleFonts.cormorantGaramond(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    
-                    const SizedBox(width: 6),
-                    
-                    // Refresh
-                    GestureDetector(
-                      onTap: _loadData,
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: ArtboardColors.cream,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: ArtboardColors.champagne),
-                        ),
-                        child: Icon(
-                          Icons.refresh_rounded,
-                          size: 20,
-                          color: ArtboardColors.terracotta,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }
-        
-        // Desktop layout - full controls
-        return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 24),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: ArtboardColors.warmWhite,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: ArtboardColors.champagne),
-            boxShadow: [
-              BoxShadow(
-                color: ArtboardColors.sienna.withOpacity(0.05),
-                blurRadius: 20,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              // Search
-              Expanded(
-                flex: 2,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: ArtboardColors.cream,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: TextField(
-                    onChanged: (value) {
-                      _searchQuery = value;
-                      _filterPersons();
-                    },
-                    cursorColor: ArtboardColors.terracotta,
-                    style: GoogleFonts.cormorantGaramond(
-                      fontSize: 16,
-                      color: ArtboardColors.charcoal,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'Search family members...',
-                      hintStyle: GoogleFonts.cormorantGaramond(
-                        color: ArtboardColors.warmGray.withOpacity(0.6),
-                        fontStyle: FontStyle.italic,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: ArtboardColors.champagne),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: ArtboardColors.champagne),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: ArtboardColors.terracotta, width: 2),
-                      ),
-                      filled: true,
-                      fillColor: ElegantColors.cream,
-                      prefixIcon: Icon(
-                        Icons.search_rounded,
-                        color: ArtboardColors.terracotta.withOpacity(0.7),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              
-              const SizedBox(width: 16),
-              
-              // Generation filter
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                decoration: BoxDecoration(
-                  color: ArtboardColors.cream,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: _generations.map((gen) {
-                    final isSelected = _selectedGeneration == gen;
-                    return GestureDetector(
-                      onTap: () {
-                        setState(() => _selectedGeneration = gen);
-                        _filterPersons();
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: isSelected ? ArtboardColors.terracotta : Colors.transparent,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          gen,
-                          style: GoogleFonts.cormorantGaramond(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: isSelected ? Colors.white : ArtboardColors.warmGray,
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-              
-              // Removed layout toggles - focus mode only
-              
-              const SizedBox(width: 12),
-              
-              // Multi-select toggle
-              GestureDetector(
-                onTap: () => setState(() {
-                  _isMultiSelectMode = !_isMultiSelectMode;
-                  if (!_isMultiSelectMode) _selectedPersonIds.clear();
-                }),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: _isMultiSelectMode ? ArtboardColors.terracotta : ArtboardColors.warmWhite,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: _isMultiSelectMode ? ArtboardColors.terracotta : ArtboardColors.champagne,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        _isMultiSelectMode ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
-                        size: 16,
-                        color: _isMultiSelectMode ? Colors.white : ArtboardColors.warmGray,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Select',
-                        style: GoogleFonts.cormorantGaramond(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: _isMultiSelectMode ? Colors.white : ArtboardColors.warmGray,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              
-              // Batch delete button (only when multi-select is active)
-              if (_isMultiSelectMode && _selectedPersonIds.isNotEmpty) ...[ 
-                const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: _confirmBatchDelete,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: ArtboardColors.rust,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.delete_sweep_rounded, size: 16, color: Colors.white),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Delete (${_selectedPersonIds.length})',
-                          style: GoogleFonts.cormorantGaramond(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-              
-              // Batch add button
-              if (_isMultiSelectMode) ...[
-                const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: () => _showBatchAddDialog(),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: ArtboardColors.sage,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.group_add_rounded, size: 16, color: Colors.white),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Add Multiple',
-                          style: GoogleFonts.cormorantGaramond(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-              
-              const SizedBox(width: 12),
-              
-              // Add Person button
-              GestureDetector(
-                onTap: _showAddPersonDialog,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: ArtboardColors.terracotta,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.person_add_rounded, size: 18, color: Colors.white),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Add Person',
-                        style: GoogleFonts.cormorantGaramond(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              
-              const SizedBox(width: 8),
-              
-              // Refresh button
-              _buildElegantButton(
-                icon: Icons.refresh_rounded,
-                onTap: _loadData,
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
 
-  Widget _buildLayoutToggle(String mode, IconData icon, String label, {bool isFirst = false, bool isLast = false}) {
-    final isActive = _layoutMode == mode;
-    return GestureDetector(
-      onTap: () => setState(() => _layoutMode = mode),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: isActive ? ArtboardColors.terracotta : Colors.transparent,
-          borderRadius: BorderRadius.horizontal(
-            left: isFirst ? const Radius.circular(11) : Radius.zero,
-            right: isLast ? const Radius.circular(11) : Radius.zero,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 16, color: isActive ? Colors.white : ArtboardColors.warmGray),
-            const SizedBox(width: 5),
-            Text(
-              label,
-              style: GoogleFonts.cormorantGaramond(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: isActive ? Colors.white : ArtboardColors.warmGray,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildCompactLayoutToggle(String mode, IconData icon) {
-    final isActive = _layoutMode == mode;
-    return GestureDetector(
-      onTap: () => setState(() => _layoutMode = mode),
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: isActive ? ArtboardColors.terracotta : ArtboardColors.cream,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isActive ? ArtboardColors.terracotta : ArtboardColors.champagne,
-          ),
-        ),
-        child: Icon(
-          icon,
-          size: 18,
-          color: isActive ? Colors.white : ArtboardColors.warmGray,
-        ),
-      ),
-    );
-  }
 
   Widget _buildFamilyGrid() {
     // Find root person (no parents = generation 1)
@@ -1080,7 +961,8 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
         // Main content - aligned to top, horizontally centered
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            // Tight at the top so the first card sits just under the bar.
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -1094,9 +976,16 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                     // Connecting line
                     Container(
                       width: 3,
-                      height: 24,
+                      height: 26,
                       decoration: BoxDecoration(
-                        color: color.withOpacity(0.4),
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            color.withValues(alpha: 0.55),
+                            color.withValues(alpha: 0.12),
+                          ],
+                        ),
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -1104,22 +993,37 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                     const SizedBox(height: 10),
                     
                     // Children label
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: ArtboardColors.cream,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: color.withOpacity(0.2)),
-                      ),
-                      child: Text(
-                        '${children.length} ${children.length == 1 ? "Child" : "Children"}',
-                        style: GoogleFonts.cormorantGaramond(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: color,
+                    Builder(builder: (context) {
+                      final dark =
+                          Theme.of(context).brightness == Brightness.dark;
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: dark ? 0.18 : 0.1),
+                          borderRadius: BorderRadius.circular(30),
+                          border:
+                              Border.all(color: color.withValues(alpha: 0.35)),
                         ),
-                      ),
-                    ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.child_care_rounded,
+                                size: 14, color: color),
+                            const SizedBox(width: 7),
+                            Text(
+                              '${children.length} '
+                              '${children.length == 1 ? "child" : "children"}',
+                              style: GoogleFonts.inter(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                                color: dark ? Colors.white : color,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
                     
                     const SizedBox(height: 18),
                     
@@ -1184,172 +1088,151 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
         ),
         
         // Bottom navigation
-        if (!isRoot) _buildDrillDownFooterNav(siblings, currentIndex),
       ],
     );
   }
 
-  Widget _buildDrillDownNav(Person person, Color color, List<Person> siblings, int currentIndex) {
+  /// One slim strip carrying everything drill-down needs: step back, the trail
+  /// you took, and sibling paging. The old design split this across a header
+  /// bar and a second footer bar that repeated the same "back" action.
+  Widget _buildDrillDownNav(
+      Person person, Color color, List<Person> siblings, int currentIndex) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final fg = context.colors.ink;
+    final muted = context.colors.inkMuted;
+    final hasPrev = currentIndex > 0;
+    final hasNext = currentIndex < siblings.length - 1;
+
+    Widget crumb(String label, VoidCallback onTap, {bool current = false}) {
+      return InkWell(
+        onTap: current ? null : onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          child: Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: current ? FontWeight.w700 : FontWeight.w500,
+              color: current ? fg : muted,
+            ),
+          ),
+        ),
+      );
+    }
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: ArtboardColors.warmWhite,
-        border: Border(bottom: BorderSide(color: ArtboardColors.champagne)),
-        boxShadow: [
-          BoxShadow(color: ArtboardColors.sienna.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
-        ],
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.04)
+            : Colors.white.withValues(alpha: 0.6),
+        border: Border(
+          bottom: BorderSide(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.08)
+                : ArtboardColors.champagne,
+          ),
+        ),
       ),
       child: Row(
         children: [
-          // Back button
-          GestureDetector(
-            onTap: () => setState(() {
+          IconButton(
+            icon: Icon(Icons.arrow_back_rounded, size: 20, color: fg),
+            tooltip: 'Back',
+            visualDensity: VisualDensity.compact,
+            onPressed: () => setState(() {
               if (_focusStack.isNotEmpty) _focusStack.removeLast();
             }),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: ArtboardColors.cream,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: ArtboardColors.champagne),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.arrow_back_rounded, size: 18, color: ArtboardColors.charcoal),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Back',
-                    style: GoogleFonts.cormorantGaramond(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: ArtboardColors.charcoal,
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ),
-          
-          const SizedBox(width: 16),
-          
-          // Breadcrumb path
           Expanded(
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
+              reverse: true,
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: () => setState(() => _focusStack.clear()),
-                    child: Text(
-                      'Home',
-                      style: GoogleFonts.cormorantGaramond(
-                        fontSize: 14,
-                        color: ArtboardColors.terracotta,
-                        fontWeight: FontWeight.w600,
-                      ),
+                  crumb('Family', () => setState(() => _focusStack.clear())),
+                  for (final id in _focusStack) ...[
+                    Icon(Icons.chevron_right_rounded, size: 15, color: muted),
+                    crumb(
+                      _personById[id]?.firstName ?? '…',
+                      () {
+                        final idx = _focusStack.indexOf(id);
+                        setState(() =>
+                            _focusStack = _focusStack.sublist(0, idx + 1));
+                      },
+                      current: id == _focusStack.last,
                     ),
-                  ),
-                  ..._focusStack.map((id) {
-                    final p = _persons.firstWhere((p) => p.id == id, orElse: () => person);
-                    final pColor = _getBranchColor(p);
-                    final isLast = id == _focusStack.last;
-                    return Row(
-                      children: [
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 8),
-                          child: Icon(Icons.chevron_right_rounded, size: 16, color: ArtboardColors.warmGray),
-                        ),
-                        GestureDetector(
-                          onTap: isLast ? null : () {
-                            final idx = _focusStack.indexOf(id);
-                            setState(() => _focusStack = _focusStack.sublist(0, idx + 1));
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                            decoration: BoxDecoration(
-                              color: isLast ? pColor.withOpacity(0.15) : Colors.transparent,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              p.firstName,
-                              style: GoogleFonts.playfairDisplay(
-                                fontSize: 14,
-                                fontWeight: isLast ? FontWeight.w700 : FontWeight.w500,
-                                color: isLast ? pColor : ArtboardColors.warmGray,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  }),
+                  ],
                 ],
               ),
             ),
           ),
-          
-          // Generation indicator
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(10),
+          if (siblings.length > 1) ...[
+            Text(
+              '${currentIndex + 1}/${siblings.length}',
+              style: GoogleFonts.inter(fontSize: 11.5, color: muted),
             ),
-            child: Text(
-              'Gen ${_getGenerationNumber(person)}',
-              style: GoogleFonts.cormorantGaramond(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: color,
-              ),
+            IconButton(
+              icon: const Icon(Icons.chevron_left_rounded, size: 20),
+              tooltip: hasPrev ? 'Previous sibling' : null,
+              visualDensity: VisualDensity.compact,
+              color: fg,
+              onPressed: hasPrev
+                  ? () => setState(() {
+                        _focusStack[_focusStack.length - 1] =
+                            siblings[currentIndex - 1].id;
+                      })
+                  : null,
             ),
-          ),
+            IconButton(
+              icon: const Icon(Icons.chevron_right_rounded, size: 20),
+              tooltip: hasNext ? 'Next sibling' : null,
+              visualDensity: VisualDensity.compact,
+              color: fg,
+              onPressed: hasNext
+                  ? () => setState(() {
+                        _focusStack[_focusStack.length - 1] =
+                            siblings[currentIndex + 1].id;
+                      })
+                  : null,
+            ),
+          ],
         ],
       ),
     );
   }
 
   // Dynamic sizing helpers
-  double _getCardSpacing(int count) {
-    if (count <= 3) return 16;
-    if (count <= 6) return 12;
-    return 8;
-  }
-  
+  double _getCardSpacing(int count) => count <= 4 ? 16 : 12;
+
+  /// Card width never drops below a readable size.
+  ///
+  /// The previous scale shrank cards to 95px once a parent had ten or more
+  /// children — Muzeyen has 28 — which made the names unreadable. Cards now
+  /// hold a comfortable width and the Wrap simply flows onto more rows.
   double _getChildCardWidth(int count) {
-    if (count == 1) return 170;
-    if (count == 2) return 155;
-    if (count <= 4) return 140;
-    if (count <= 6) return 120;
-    if (count <= 9) return 105;
-    return 95;
+    if (count == 1) return 200;
+    if (count <= 3) return 180;
+    return 160;
   }
   
-  double _getChildAvatarSize(int count) {
-    if (count <= 2) return 48;
-    if (count <= 4) return 42;
-    if (count <= 6) return 36;
-    return 30;
-  }
-  
-  double _getChildFontSize(int count) {
-    if (count <= 2) return 14;
-    if (count <= 4) return 13;
-    if (count <= 6) return 12;
-    return 11;
-  }
+  // Avatar and label stay legible however many siblings share the row; the
+  // layout gains rows instead of shrinking type.
+  double _getChildAvatarSize(int count) => count <= 3 ? 52 : 44;
+
+  double _getChildFontSize(int count) => count <= 3 ? 14.5 : 13.5;
 
   Widget _buildLargeFocusCard(Person person, Color color, int generation, bool isRoot, int childCount) {
     final avatarSize = childCount > 6 ? 55.0 : 70.0;
     final nameFontSize = childCount > 6 ? 18.0 : 22.0;
-    final padding = childCount > 6 ? 16.0 : 20.0;
     final maxWidth = childCount > 6 ? 380.0 : 420.0;
     
     return Container(
       constraints: BoxConstraints(maxWidth: maxWidth),
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
       decoration: BoxDecoration(
-        color: ArtboardColors.warmWhite,
+        color: _cardSurface(context),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color.withOpacity(0.3), width: 1.5),
         boxShadow: [
@@ -1461,14 +1344,11 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
     final color = _getBranchColor(person);
     final descendantCount = _getDescendantCount(person);
     final hasChildren = descendantCount > 0;
-    final generation = _getGenerationNumber(person);
     
     // Dynamic sizing based on total children
     final cardWidth = _getChildCardWidth(totalChildren);
     final avatarSize = _getChildAvatarSize(totalChildren);
     final fontSize = _getChildFontSize(totalChildren);
-    final isCompact = totalChildren > 6;
-    final padding = isCompact ? 10.0 : 16.0;
     
     return LongPressDraggable<Person>(
       data: person,
@@ -1483,7 +1363,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
             width: cardWidth,
             height: cardWidth * 1.2,
             decoration: BoxDecoration(
-              color: ArtboardColors.warmWhite,
+              color: _cardSurface(context),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(color: color, width: 2),
             ),
@@ -1544,10 +1424,10 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                 },
                 child: Container(
                   width: cardWidth,
-                  padding: EdgeInsets.all(padding),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: ArtboardColors.warmWhite,
-                    borderRadius: BorderRadius.circular(isCompact ? 14 : 18),
+                    color: _cardSurface(context),
+                    borderRadius: BorderRadius.circular(18),
                     border: Border.all(
                       color: isHovering ? color : color.withOpacity(0.3), 
                       width: isHovering ? 2 : 1
@@ -1584,7 +1464,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                         ),
                       ),
                       
-                      SizedBox(height: isCompact ? 6 : 10),
+                      SizedBox(height: 10),
                       
                       // Name
                       Text(
@@ -1594,81 +1474,84 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                         overflow: TextOverflow.ellipsis,
                         maxLines: 1,
                       ),
-                      if (!isCompact)
                         Text(
                           person.lastName,
                           style: GoogleFonts.cormorantGaramond(fontSize: fontSize - 2, color: ArtboardColors.warmGray),
                           overflow: TextOverflow.ellipsis,
                         ),
                       
-                      SizedBox(height: isCompact ? 4 : 8),
+                      SizedBox(height: 8),
                       
                       // Descendants or explore
                       Text(
                         hasChildren ? '$descendantCount desc.' : 'No children',
                         style: GoogleFonts.cormorantGaramond(
-                          fontSize: isCompact ? 9 : 11, 
+                          fontSize: 11, 
                           fontWeight: hasChildren ? FontWeight.w600 : FontWeight.w400,
                           color: hasChildren ? color : ArtboardColors.warmGray,
                         ),
                       ),
                       
-                      SizedBox(height: isCompact ? 4 : 8),
+                      SizedBox(height: 8),
                       
                       // Admin Actions Row - Edit/Delete
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          // Edit button
-                          GestureDetector(
-                            onTap: () => _showEditDialog(person),
-                            child: Container(
-                              padding: EdgeInsets.all(isCompact ? 6 : 8),
-                              decoration: BoxDecoration(
-                                color: ArtboardColors.sage.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Icon(
-                                Icons.edit_rounded,
-                                size: isCompact ? 14 : 18,
-                                color: ArtboardColors.sage,
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: isCompact ? 6 : 10),
-                          // Explore/View button
-                          GestureDetector(
-                            onTap: () => setState(() => _focusStack.add(person.id)),
-                            child: Container(
-                              padding: EdgeInsets.symmetric(horizontal: isCompact ? 10 : 14, vertical: isCompact ? 5 : 7),
-                              decoration: BoxDecoration(
-                                color: hasChildren ? color : ArtboardColors.warmGray.withOpacity(0.3),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                hasChildren ? 'Explore' : 'View',
-                                style: GoogleFonts.cormorantGaramond(fontSize: isCompact ? 10 : 12, fontWeight: FontWeight.w700, color: Colors.white),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Edit button
+                            GestureDetector(
+                              onTap: () => _showEditDialog(person),
+                              child: Container(
+                                padding: EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: ArtboardColors.sage.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  Icons.edit_rounded,
+                                  size: 18,
+                                  color: ArtboardColors.sage,
+                                ),
                               ),
                             ),
-                          ),
-                          SizedBox(width: isCompact ? 6 : 10),
-                          // Delete button
-                          GestureDetector(
-                            onTap: () => _confirmDelete(person),
-                            child: Container(
-                              padding: EdgeInsets.all(isCompact ? 6 : 8),
-                              decoration: BoxDecoration(
-                                color: Colors.red.withOpacity(0.12),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Icon(
-                                Icons.delete_rounded,
-                                size: isCompact ? 14 : 18,
-                                color: Colors.red,
+                            SizedBox(width: 10),
+                            // Explore/View button
+                            GestureDetector(
+                              onTap: () => setState(() => _focusStack.add(person.id)),
+                              child: Container(
+                                padding: EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                                decoration: BoxDecoration(
+                                  color: hasChildren ? color : ArtboardColors.warmGray.withOpacity(0.3),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  hasChildren ? 'Explore' : 'View',
+                                  style: GoogleFonts.cormorantGaramond(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white),
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                            SizedBox(width: 10),
+                            // Delete button
+                            GestureDetector(
+                              onTap: () => _confirmDelete(person),
+                              child: Container(
+                                padding: EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  Icons.delete_rounded,
+                                  size: 18,
+                                  color: Colors.red,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -1681,809 +1564,21 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
     );
   }
 
-  Widget _buildDrillDownFooterNav(List<Person> siblings, int currentIndex) {
-    final hasPrev = currentIndex > 0;
-    final hasNext = currentIndex < siblings.length - 1;
-    
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-      decoration: BoxDecoration(
-        color: ArtboardColors.warmWhite,
-        border: Border(top: BorderSide(color: ArtboardColors.champagne)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Previous sibling
-          if (hasPrev)
-            _buildSiblingNavButton(siblings[currentIndex - 1], true)
-          else
-            const SizedBox(width: 140),
-          
-          // Back to parent
-          GestureDetector(
-            onTap: () => setState(() {
-              if (_focusStack.isNotEmpty) _focusStack.removeLast();
-            }),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              decoration: BoxDecoration(
-                color: ArtboardColors.charcoal,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.arrow_upward_rounded, size: 18, color: Colors.white),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Back to Parent',
-                    style: GoogleFonts.cormorantGaramond(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          
-          // Next sibling
-          if (hasNext)
-            _buildSiblingNavButton(siblings[currentIndex + 1], false)
-          else
-            const SizedBox(width: 140),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildSiblingNavButton(Person sibling, bool isPrev) {
-    final color = _getBranchColor(sibling);
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          if (_focusStack.isNotEmpty) {
-            _focusStack[_focusStack.length - 1] = sibling.id;
-          }
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.3)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isPrev) Icon(Icons.arrow_back_rounded, size: 16, color: color),
-            if (isPrev) const SizedBox(width: 8),
-            Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-              child: Center(
-                child: Text(
-                  sibling.firstName[0],
-                  style: GoogleFonts.playfairDisplay(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              sibling.firstName,
-              style: GoogleFonts.cormorantGaramond(fontSize: 13, fontWeight: FontWeight.w700, color: color),
-            ),
-            if (!isPrev) const SizedBox(width: 8),
-            if (!isPrev) Icon(Icons.arrow_forward_rounded, size: 16, color: color),
-          ],
-        ),
-      ),
-    );
-  }
 
 
   /// Compact vertical list layout
-  Widget _buildListLayout(List<Person> roots) {
-    return FadeTransition(
-      opacity: _fadeAnimation,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ...roots.map((root) => _buildCompactTreeNode(root, 0)),
-          ],
-        ),
-      ),
-    );
-  }
 
   /// Horizontal tree layout
-  Widget _buildTreeLayout(List<Person> roots) {
-    return FadeTransition(
-      opacity: _fadeAnimation,
-      child: Column(
-        children: [
-          // Zoom controls
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildZoomButton(Icons.remove_rounded, () {
-                  setState(() => _zoomLevel = (_zoomLevel - 0.1).clamp(0.3, 2.0));
-                }),
-                const SizedBox(width: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: ArtboardColors.cream,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '${(_zoomLevel * 100).toInt()}%',
-                    style: GoogleFonts.cormorantGaramond(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: ArtboardColors.charcoal,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                _buildZoomButton(Icons.add_rounded, () {
-                  setState(() => _zoomLevel = (_zoomLevel + 0.1).clamp(0.3, 2.0));
-                }),
-                const SizedBox(width: 20),
-                _buildZoomButton(Icons.fit_screen_rounded, () {
-                  setState(() => _zoomLevel = 1.0);
-                }),
-              ],
-            ),
-          ),
-          
-          // Tree content - scrollable with padding above
-          Expanded(
-            child: SingleChildScrollView(
-              controller: _verticalScrollController,
-              scrollDirection: Axis.vertical,
-              child: SingleChildScrollView(
-                controller: _horizontalScrollController,
-                scrollDirection: Axis.horizontal,
-                child: Transform.scale(
-                  scale: _zoomLevel,
-                  alignment: Alignment.topCenter,
-                  child: Padding(
-                    padding: const EdgeInsets.only(
-                      top: 500, // Allow scrolling "up"
-                      bottom: 500,
-                      left: 500,
-                      right: 500,
-                    ),
-                    child: Column(
-                      children: [
-                        ...roots.map((root) => _buildHorizontalTreeNode(root, 0)),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildZoomButton(IconData icon, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: ArtboardColors.warmWhite,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: ArtboardColors.champagne),
-          boxShadow: [
-            BoxShadow(
-              color: ArtboardColors.sienna.withOpacity(0.08),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Icon(icon, size: 20, color: ArtboardColors.terracotta),
-      ),
-    );
-  }
 
   /// Horizontal tree node (original tree layout)
-  Widget _buildHorizontalTreeNode(Person person, int depth) {
-    final children = _filteredPersons.where((p) => 
-      p.relationships.parentIds.contains(person.id)).toList();
-    final generation = depth + 1;
-    final branchColor = _getBranchColor(person);
-    final isRoot = depth == 0;
-
-    return Column(
-      children: [
-        // The person node
-        isRoot 
-            ? _buildRootPersonCard(person, branchColor)
-            : _buildTreePersonCard(person, generation, branchColor),
-        
-        // Connector line down if has children
-        if (children.isNotEmpty) ...[
-          // Vertical line from parent
-          Container(
-            width: 6,
-            height: isRoot ? 80 : 60,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(3),
-              color: branchColor,
-              boxShadow: [
-                BoxShadow(
-                  color: branchColor.withOpacity(0.5),
-                  blurRadius: 10,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-          ),
-          
-          // Horizontal connector bar for multiple children
-          if (children.length > 1)
-            Container(
-              height: 6,
-              width: (children.length * 210.0) + 30,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(3),
-                color: ArtboardColors.charcoal.withOpacity(0.7),
-                boxShadow: [
-                  BoxShadow(
-                    color: ArtboardColors.charcoal.withOpacity(0.3),
-                    blurRadius: 8,
-                  ),
-                ],
-              ),
-            ),
-          
-          // Children row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: children.map((child) {
-              final childColor = _getBranchColor(child);
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Column(
-                  children: [
-                    // Vertical drop line
-                    Container(
-                      width: 6,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(3),
-                        color: childColor,
-                        boxShadow: [
-                          BoxShadow(
-                            color: childColor.withOpacity(0.5),
-                            blurRadius: 8,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    _buildHorizontalTreeNode(child, depth + 1),
-                  ],
-                ),
-              );
-            }).toList(),
-          ),
-        ],
-        
-        // Extra spacing
-        SizedBox(height: isRoot ? 30 : 20),
-      ],
-    );
-  }
 
   /// Special large card for root/patriarch (tree view)
-  Widget _buildRootPersonCard(Person person, Color branchColor) {
-    final isSelected = _selectedPerson?.id == person.id;
-    
-    return GestureDetector(
-      onTap: () => setState(() => _selectedPerson = person),
-      child: Container(
-        width: 260,
-        margin: const EdgeInsets.symmetric(horizontal: 10),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                ArtboardColors.warmWhite,
-                ArtboardColors.champagne.withOpacity(0.5),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: branchColor,
-              width: 3,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: branchColor.withOpacity(0.35),
-                blurRadius: 25,
-                spreadRadius: 4,
-                offset: const Offset(0, 8),
-              ),
-              BoxShadow(
-                color: ArtboardColors.gold.withOpacity(0.15),
-                blurRadius: 50,
-                spreadRadius: 8,
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Crown/Patriarch badge
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [branchColor, branchColor.withOpacity(0.8)],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: branchColor.withOpacity(0.4),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.star_rounded, size: 16, color: Colors.white),
-                    const SizedBox(width: 5),
-                    Text(
-                      'PATRIARCH',
-                      style: GoogleFonts.cormorantGaramond(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-                    const SizedBox(width: 5),
-                    const Icon(Icons.star_rounded, size: 16, color: Colors.white),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              
-              // Large Avatar
-              Container(
-                width: 90,
-                height: 90,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [branchColor.withOpacity(0.85), branchColor],
-                  ),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 3),
-                  boxShadow: [
-                    BoxShadow(
-                      color: branchColor.withOpacity(0.45),
-                      blurRadius: 18,
-                      spreadRadius: 4,
-                      offset: const Offset(0, 5),
-                    ),
-                  ],
-                ),
-                child: Center(
-                  child: Text(
-                    person.firstName[0].toUpperCase(),
-                    style: GoogleFonts.playfairDisplay(
-                      fontSize: 38,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              
-              // Name
-              Text(
-                person.firstName,
-                style: GoogleFonts.playfairDisplay(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w700,
-                  color: ArtboardColors.charcoal,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              Text(
-                person.lastName,
-                style: GoogleFonts.cormorantGaramond(
-                  fontSize: 16,
-                  color: ArtboardColors.warmGray,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-              
-              // Lifespan
-              if (person.lifespan.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: ArtboardColors.cream,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    person.lifespan,
-                    style: GoogleFonts.cormorantGaramond(
-                      fontSize: 12,
-                      color: ArtboardColors.warmGray,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-              
-              const SizedBox(height: 16),
-              
-              // Action buttons
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _buildMiniAction(
-                    Icons.edit_rounded,
-                    ArtboardColors.sage,
-                    () => _showEditDialog(person),
-                  ),
-                  const SizedBox(width: 8),
-                  _buildMiniAction(
-                    Icons.person_add_alt_rounded,
-                    ArtboardColors.copper,
-                    () => _showUnifiedAddDialog(preSelectedParent: person),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   /// Compact vertical tree - much easier to read
-  Widget _buildCompactTreeNode(Person person, int depth) {
-    final children = _filteredPersons.where((p) => 
-      p.relationships.parentIds.contains(person.id)).toList();
-    final generation = depth + 1;
-    final branchColor = _getBranchColor(person);
-    final isRoot = depth == 0;
-    final isCollapsed = _collapsedBranches.contains(person.id);
-    final hasChildren = children.isNotEmpty;
-    final isSelected = _selectedPerson?.id == person.id;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // The person row
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Indent based on depth
-            if (depth > 0)
-              SizedBox(width: depth * 40.0),
-            
-            // Vertical line connector for non-root
-            if (depth > 0)
-              Container(
-                width: 3,
-                height: isRoot ? 80 : 60,
-                margin: const EdgeInsets.only(right: 12),
-                decoration: BoxDecoration(
-                  color: branchColor,
-                  borderRadius: BorderRadius.circular(2),
-                  boxShadow: [
-                    BoxShadow(
-                      color: branchColor.withOpacity(0.4),
-                      blurRadius: 6,
-                    ),
-                  ],
-                ),
-              ),
-            
-            // Person card
-            Expanded(
-              child: _buildCompactPersonCard(
-                person: person,
-                generation: generation,
-                branchColor: branchColor,
-                isRoot: isRoot,
-                isSelected: isSelected,
-                hasChildren: hasChildren,
-                isCollapsed: isCollapsed,
-                onToggleCollapse: () {
-                  setState(() {
-                    if (isCollapsed) {
-                      _collapsedBranches.remove(person.id);
-                    } else {
-                      _collapsedBranches.add(person.id);
-                    }
-                  });
-                },
-              ),
-            ),
-          ],
-        ),
-        
-        // Children (if not collapsed)
-        if (hasChildren && !isCollapsed)
-          Padding(
-            padding: EdgeInsets.only(left: depth * 40.0 + 20),
-            child: Container(
-              decoration: BoxDecoration(
-                border: Border(
-                  left: BorderSide(
-                    color: branchColor.withOpacity(0.4),
-                    width: 3,
-                  ),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: children.map((child) => 
-                  _buildCompactTreeNode(child, depth + 1)
-                ).toList(),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
 
-  Widget _buildCompactPersonCard({
-    required Person person,
-    required int generation,
-    required Color branchColor,
-    required bool isRoot,
-    required bool isSelected,
-    required bool hasChildren,
-    required bool isCollapsed,
-    required VoidCallback onToggleCollapse,
-  }) {
-    return GestureDetector(
-      onTap: () => setState(() => _selectedPerson = person),
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 6),
-        padding: EdgeInsets.all(isRoot ? 20 : 14),
-        decoration: BoxDecoration(
-          color: isSelected 
-              ? branchColor.withOpacity(0.1)
-              : ArtboardColors.warmWhite,
-          borderRadius: BorderRadius.circular(isRoot ? 20 : 14),
-          border: Border.all(
-            color: isSelected ? branchColor : ArtboardColors.champagne,
-            width: isSelected ? 2 : 1,
-          ),
-          boxShadow: [
-            if (isRoot)
-              BoxShadow(
-                color: branchColor.withOpacity(0.2),
-                blurRadius: 20,
-                spreadRadius: 2,
-              ),
-            BoxShadow(
-              color: ArtboardColors.sienna.withOpacity(0.08),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            // Avatar
-            Container(
-              width: isRoot ? 64 : 48,
-              height: isRoot ? 64 : 48,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [branchColor.withOpacity(0.85), branchColor],
-                ),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: branchColor.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Center(
-                child: Text(
-                  person.firstName[0].toUpperCase(),
-                  style: GoogleFonts.playfairDisplay(
-                    fontSize: isRoot ? 26 : 20,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 14),
-            
-            // Name and info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      // Patriarch badge for root
-                      if (isRoot) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: branchColor,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.star_rounded, size: 12, color: Colors.white),
-                              const SizedBox(width: 4),
-                              Text(
-                                'PATRIARCH',
-                                style: GoogleFonts.cormorantGaramond(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white,
-                                  letterSpacing: 1,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                      ],
-                      
-                      // Generation badge
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: branchColor.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          'Gen $generation',
-                          style: GoogleFonts.cormorantGaramond(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: branchColor,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  
-                  // Name
-                  Text(
-                    person.fullName,
-                    style: GoogleFonts.playfairDisplay(
-                      fontSize: isRoot ? 22 : 16,
-                      fontWeight: FontWeight.w700,
-                      color: ArtboardColors.charcoal,
-                    ),
-                  ),
-                  
-                  // Lifespan
-                  if (person.lifespan.isNotEmpty)
-                    Text(
-                      person.lifespan,
-                      style: GoogleFonts.cormorantGaramond(
-                        fontSize: 12,
-                        color: ArtboardColors.warmGray,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  
-                  // Children count
-                  if (hasChildren)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text(
-                        '${_getDescendantCount(person)} descendants',
-                        style: GoogleFonts.cormorantGaramond(
-                          fontSize: 11,
-                          color: branchColor.withOpacity(0.8),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            
-            // Action buttons
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildCompactAction(
-                  Icons.edit_rounded,
-                  ArtboardColors.sage,
-                  () => _showEditDialog(person),
-                ),
-                const SizedBox(width: 6),
-                _buildCompactAction(
-                  Icons.person_add_alt_rounded,
-                  ArtboardColors.copper,
-                  () => _showUnifiedAddDialog(preSelectedParent: person),
-                ),
-                const SizedBox(width: 6),
-                _buildCompactAction(
-                  Icons.delete_outline_rounded,
-                  ArtboardColors.dustyRose,
-                  () => _confirmDelete(person),
-                ),
-                
-                // Collapse/Expand button
-                if (hasChildren) ...[
-                  const SizedBox(width: 10),
-                  GestureDetector(
-                    onTap: onToggleCollapse,
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: branchColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: branchColor.withOpacity(0.3)),
-                      ),
-                      child: Icon(
-                        isCollapsed 
-                            ? Icons.expand_more_rounded 
-                            : Icons.expand_less_rounded,
-                        size: 20,
-                        color: branchColor,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCompactAction(IconData icon, Color color, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Icon(icon, size: 16, color: color),
-      ),
-    );
-  }
 
   int _getDescendantCount(Person person) {
     final children = _persons.where((p) => 
@@ -2511,284 +1606,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
     );
   }
 
-  Widget _buildTreeNode(Person person, int depth) {
-    final children = _filteredPersons.where((p) => 
-      p.relationships.parentIds.contains(person.id)).toList();
-    final generation = depth + 1;
-    final branchColor = _getBranchColor(person);
-    final isRoot = depth == 0;
 
-    return Column(
-      children: [
-        // The person node - root gets special treatment
-        isRoot 
-            ? _buildRootPersonCard(person, branchColor)
-            : _buildTreePersonCard(person, generation, branchColor),
-        
-        // Connector line down if has children
-        if (children.isNotEmpty) ...[
-          // Vertical line from parent - TALL and solid with border
-          Container(
-            width: 8,
-            height: isRoot ? 100 : 80,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(4),
-              color: branchColor,
-              border: Border.all(
-                color: Colors.white,
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: branchColor.withOpacity(0.6),
-                  blurRadius: 12,
-                  spreadRadius: 3,
-                ),
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.15),
-                  blurRadius: 4,
-                  offset: const Offset(2, 2),
-                ),
-              ],
-            ),
-          ),
-          
-          // Horizontal connector bar for multiple children
-          if (children.length > 1)
-            Container(
-              height: 8,
-              width: (children.length * 210.0) + 30,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(4),
-                color: ArtboardColors.charcoal,
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.5),
-                  width: 1,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: ArtboardColors.charcoal.withOpacity(0.4),
-                    blurRadius: 10,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
-            ),
-          
-          // Children row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: children.map((child) {
-              final childColor = _getBranchColor(child);
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 5),
-                child: Column(
-                  children: [
-                    // Vertical drop line to each child - SOLID and VISIBLE
-                    Container(
-                      width: 8,
-                      height: 70,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(4),
-                        color: childColor,
-                        border: Border.all(
-                          color: Colors.white,
-                          width: 1,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: childColor.withOpacity(0.6),
-                            blurRadius: 12,
-                            spreadRadius: 2,
-                          ),
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
-                            blurRadius: 4,
-                            offset: const Offset(2, 2),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    _buildTreeNode(child, depth + 1),
-                  ],
-                ),
-              );
-            }).toList(),
-          ),
-        ],
-        
-        // Extra spacing after each node
-        SizedBox(height: isRoot ? 40 : 30),
-      ],
-    );
-  }
-
-  Widget _buildTreePersonCard(Person person, int generation, Color branchColor) {
-    final isSelected = _selectedPerson?.id == person.id;
-    
-    return GestureDetector(
-      onTap: () => setState(() => _selectedPerson = person),
-      child: Container(
-        width: 200,
-        margin: const EdgeInsets.symmetric(horizontal: 10),
-        child: Stack(
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: ArtboardColors.warmWhite,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: isSelected ? branchColor : ArtboardColors.champagne,
-                  width: isSelected ? 2.5 : 1,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: isSelected 
-                        ? branchColor.withOpacity(0.25)
-                        : ArtboardColors.sienna.withOpacity(0.1),
-                    blurRadius: isSelected ? 20 : 12,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Generation badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: branchColor.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      'Gen $generation',
-                      style: GoogleFonts.cormorantGaramond(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: branchColor,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  
-                  // Avatar
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [branchColor.withOpacity(0.85), branchColor],
-                      ),
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: branchColor.withOpacity(0.3),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Center(
-                      child: Text(
-                        person.firstName[0].toUpperCase(),
-                        style: GoogleFonts.playfairDisplay(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  
-                  // Name
-                  Text(
-                    person.firstName,
-                    style: GoogleFonts.playfairDisplay(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: ArtboardColors.charcoal,
-                    ),
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    person.lastName,
-                    style: GoogleFonts.cormorantGaramond(
-                      fontSize: 12,
-                      color: ArtboardColors.warmGray,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                  
-                  // Lifespan
-                  if (person.lifespan.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      person.lifespan,
-                      style: GoogleFonts.cormorantGaramond(
-                        fontSize: 11,
-                        color: ArtboardColors.warmGray.withOpacity(0.8),
-                      ),
-                    ),
-                  ],
-                  
-                  const SizedBox(height: 12),
-                  
-                  // Edit and Add buttons only
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _buildMiniAction(
-                        Icons.edit_rounded,
-                        ArtboardColors.sage,
-                        () => _showEditDialog(person),
-                      ),
-                      const SizedBox(width: 8),
-                      _buildMiniAction(
-                        Icons.person_add_alt_rounded,
-                        ArtboardColors.copper,
-                        () => _showUnifiedAddDialog(preSelectedParent: person),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            // Delete button at top right - commented out for now
-            // Positioned(
-            //   top: 8,
-            //   right: 8,
-            //   child: GestureDetector(
-            //     onTap: () => _confirmDelete(person),
-            //     child: Container(
-            //       padding: const EdgeInsets.all(6),
-            //       decoration: BoxDecoration(
-            //         color: ArtboardColors.dustyRose.withOpacity(0.15),
-            //         borderRadius: BorderRadius.circular(8),
-            //       ),
-            //       child: Icon(
-            //         Icons.close_rounded,
-            //         size: 14,
-            //         color: ArtboardColors.dustyRose,
-            //       ),
-            //     ),
-            //   ),
-            // ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildMiniAction(IconData icon, Color color, VoidCallback onTap) {
     return GestureDetector(
@@ -2822,7 +1640,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
             width: 200,
             height: 250,
             decoration: BoxDecoration(
-              color: ArtboardColors.warmWhite,
+              color: _cardSurface(context),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(color: branchColor, width: 2),
             ),
@@ -2910,7 +1728,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
         transform: Matrix4.identity()
           ..scale(isSelected ? 1.02 : 1.0),
         decoration: BoxDecoration(
-          color: ArtboardColors.warmWhite,
+          color: _cardSurface(context),
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
             color: isSelected ? branchColor : ArtboardColors.champagne,
@@ -3061,12 +1879,6 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                         ArtboardColors.sage,
                         () => _showEditDialog(person),
                       ),
-                      const SizedBox(width: 8),
-                      _buildCardAction(
-                        Icons.person_add_alt_rounded,
-                        ArtboardColors.copper,
-                        () => _showUnifiedAddDialog(preSelectedParent: person),
-                      ),
                       const Spacer(),
                       _buildCardAction(
                         Icons.delete_outline_rounded,
@@ -3112,7 +1924,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
         onTap: () {}, // Prevent tap through
         child: Container(
           decoration: BoxDecoration(
-            color: ArtboardColors.warmWhite,
+            color: _cardSurface(context),
             borderRadius: const BorderRadius.only(
               topLeft: Radius.circular(32),
               bottomLeft: Radius.circular(32),
@@ -3445,68 +2257,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
     );
   }
 
-  Widget _buildElegantButton({required IconData icon, required VoidCallback onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: ArtboardColors.warmWhite,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: ArtboardColors.champagne),
-          boxShadow: [
-            BoxShadow(
-              color: ArtboardColors.sienna.withOpacity(0.08),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Icon(
-          icon,
-          color: ArtboardColors.charcoal,
-          size: 22,
-        ),
-      ),
-    );
-  }
 
-  Widget _buildAddButton() {
-    return GestureDetector(
-      onTap: _showAddPersonDialog,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [ArtboardColors.terracotta, ArtboardColors.rust],
-          ),
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: ArtboardColors.terracotta.withOpacity(0.4),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.person_add_rounded, color: Colors.white),
-            const SizedBox(width: 12),
-            Text(
-              'Add Family Member',
-              style: GoogleFonts.cormorantGaramond(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildLoadingState() {
     return Center(
@@ -3535,24 +2286,11 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
     );
   }
 
-  Color _getGenerationColor(int generation) {
-    switch (generation) {
-      case 1: return ArtboardColors.gold;
-      case 2: return ArtboardColors.terracotta;
-      case 3: return ArtboardColors.sage;
-      case 4: return ArtboardColors.copper;
-      case 5: return ArtboardColors.dustyRose;
-      default: return ArtboardColors.warmGray;
-    }
-  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // UNIFIED ADD MEMBER DIALOG - Clean, Single Dialog for All Cases
   // ═══════════════════════════════════════════════════════════════════════════
   
-  void _showAddPersonDialog() {
-    _showUnifiedAddDialog();
-  }
 
   void _showUnifiedAddDialog({Person? preSelectedParent}) {
     final firstNameController = TextEditingController();
@@ -3562,6 +2300,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
     Person? selectedParent = preSelectedParent;
     final bool canAddAsRoot = _persons.isEmpty;
     bool addAsRoot = canAddAsRoot;
+    int selectedOrder = 1; // Birth order (1 = first child, 2 = second, etc.)
     
     // Pre-fill father name
     if (selectedParent != null) {
@@ -3686,6 +2425,79 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                   ),
                   const SizedBox(height: 16),
                   
+                  // Birth Order Selection (only for children, not roots)
+                  if (!addAsRoot && selectedParent != null) ...[ 
+                    Builder(
+                      builder: (context) {
+                        // Get current siblings (children of selected parent)
+                        final siblings = _persons.where((p) => 
+                          p.relationships.parentIds.contains(selectedParent!.id)).toList();
+                        final siblingCount = siblings.length;
+                        final maxOrder = siblingCount + 1; // New child can be 1st to (n+1)th
+                        
+                        // Ensure selectedOrder is valid
+                        if (selectedOrder > maxOrder) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            setDialogState(() => selectedOrder = maxOrder);
+                          });
+                        }
+                        
+                        return Row(
+                          children: [
+                            Icon(Icons.format_list_numbered, color: accentColor, size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Birth Order',
+                              style: GoogleFonts.cormorantGaramond(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: ArtboardColors.charcoal,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '(${siblingCount} existing)',
+                              style: GoogleFonts.cormorantGaramond(
+                                fontSize: 12,
+                                color: ArtboardColors.warmGray,
+                              ),
+                            ),
+                            const Spacer(),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: accentColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: DropdownButton<int>(
+                                value: selectedOrder.clamp(1, maxOrder),
+                                underline: const SizedBox(),
+                                style: GoogleFonts.cormorantGaramond(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: accentColor,
+                                ),
+                                dropdownColor: ArtboardColors.warmWhite,
+                                items: List.generate(maxOrder, (i) => i + 1).map((n) => 
+                                  DropdownMenuItem(
+                                    value: n,
+                                    child: Text(
+                                      n == 1 ? '1st' : 
+                                      n == 2 ? '2nd' : 
+                                      n == 3 ? '3rd' : '${n}th',
+                                    ),
+                                  ),
+                                ).toList(),
+                                onChanged: (val) => setDialogState(() => selectedOrder = val ?? 1),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  
                   // Gender Selection - Simple buttons
                   Row(
                     children: [
@@ -3775,6 +2587,34 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                   
                   setDialogState(() => isLoading = true);
                   
+                  // Use user-selected order for children, auto-calculate for roots
+                  int newDisplayOrder = selectedOrder;
+                  if (addAsRoot) {
+                    // For roots, calculate based on existing roots
+                    final roots = _persons.where((p) => p.relationships.parentIds.isEmpty).toList();
+                    if (roots.isNotEmpty) {
+                      final maxOrder = roots.map((s) => s.displayOrder).reduce((a, b) => a > b ? a : b);
+                      newDisplayOrder = maxOrder + 1;
+                    } else {
+                      newDisplayOrder = 1;
+                    }
+                  } else if (selectedParent != null) {
+                    // Shift existing siblings at or above selectedOrder up by 1
+                    final siblings = _persons.where((p) => 
+                      p.relationships.parentIds.contains(selectedParent!.id) &&
+                      p.displayOrder >= selectedOrder
+                    ).toList();
+                    
+                    // Sort by order descending so we shift from top to bottom
+                    siblings.sort((a, b) => b.displayOrder.compareTo(a.displayOrder));
+                    
+                    for (final sibling in siblings) {
+                      await _adminRepo.updatePerson(
+                        sibling.copyWith(displayOrder: sibling.displayOrder + 1)
+                      );
+                    }
+                  }
+                  
                   final newPerson = Person(
                     id: '',
                     familyTreeId: 'main-family-tree',
@@ -3784,6 +2624,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                     relationships: Relationships(
                       parentIds: addAsRoot ? [] : [selectedParent!.id],
                     ),
+                    displayOrder: newDisplayOrder,
                     createdAt: DateTime.now(),
                     updatedAt: DateTime.now(),
                   );
@@ -3827,74 +2668,48 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
     );
   }
   
-  Widget _buildModeChip(String title, String subtitle, IconData icon, bool selected, Color color, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: selected ? color.withOpacity(0.12) : ArtboardColors.cream,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: selected ? color : ArtboardColors.champagne,
-            width: selected ? 2 : 1,
-          ),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: selected ? color : ArtboardColors.warmGray, size: 28),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              style: GoogleFonts.playfairDisplay(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: selected ? color : ArtboardColors.charcoal,
-              ),
-            ),
-            Text(
-              subtitle,
-              style: GoogleFonts.cormorantGaramond(
-                fontSize: 11,
-                color: ArtboardColors.warmGray,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildSectionHeader(String title, IconData icon) {
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: ArtboardColors.terracotta),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: GoogleFonts.playfairDisplay(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-            color: ArtboardColors.charcoal,
-          ),
-        ),
-      ],
-    );
-  }
   
-  // Drag-drop swap method
+  // Drag-drop swap method - swaps displayOrder to change sibling order
   void _swapPersons(Person draggedPerson, Person targetPerson) async {
-    final tempTime = draggedPerson.createdAt;
+    final tempOrder = draggedPerson.displayOrder;
     
-    await _personRepo.updatePerson(
-      draggedPerson.copyWith(createdAt: targetPerson.createdAt),
-    );
-    await _personRepo.updatePerson(
-      targetPerson.copyWith(createdAt: tempTime),
-    );
+    // Create updated persons with swapped displayOrder
+    final updatedDragged = draggedPerson.copyWith(displayOrder: targetPerson.displayOrder);
+    final updatedTarget = targetPerson.copyWith(displayOrder: tempOrder);
     
-    _loadData();
+    // Immediately update local state for instant visual feedback
+    setState(() {
+      final draggedIndex = _persons.indexWhere((p) => p.id == draggedPerson.id);
+      final targetIndex = _persons.indexWhere((p) => p.id == targetPerson.id);
+      
+      if (draggedIndex >= 0) {
+        _persons[draggedIndex] = updatedDragged;
+      }
+      if (targetIndex >= 0) {
+        _persons[targetIndex] = updatedTarget;
+      }
+      
+      // Also update filtered list
+      final draggedFilteredIndex = _filteredPersons.indexWhere((p) => p.id == draggedPerson.id);
+      final targetFilteredIndex = _filteredPersons.indexWhere((p) => p.id == targetPerson.id);
+      
+      if (draggedFilteredIndex >= 0) {
+        _filteredPersons[draggedFilteredIndex] = updatedDragged;
+      }
+      if (targetFilteredIndex >= 0) {
+        _filteredPersons[targetFilteredIndex] = updatedTarget;
+      }
+    });
+    
+    // Persist to backend (async, no await needed for UI)
+    try {
+      await _personRepo.updatePerson(updatedDragged);
+      await _personRepo.updatePerson(updatedTarget);
+    } catch (e) {
+      // If backend fails, reload data to restore correct state
+      _loadData();
+    }
   }
 
   void _showEditDialog(Person person) {
@@ -3904,6 +2719,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
     final deathYearController = TextEditingController(text: person.deathDate?.year.toString() ?? '');
     final bioController = TextEditingController(text: person.bio ?? '');
     String gender = person.gender ?? 'male';
+    int displayOrder = person.displayOrder > 0 ? person.displayOrder : 1;
     bool isLoading = false;
     
     final color = _getBranchColor(person);
@@ -3989,6 +2805,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                         ),
                       ),
                       IconButton(
+                        tooltip: 'Close',
                         onPressed: () => Navigator.pop(context),
                         icon: Icon(Icons.close, color: ArtboardColors.warmGray),
                       ),
@@ -4016,6 +2833,103 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                         const SizedBox(height: 12),
                         _buildGenderSelector(gender, (val) => setDialogState(() => gender = val)),
                         const SizedBox(height: 12),
+                        // Birth Order (only for non-roots)
+                        if (!isRoot) ...[
+                          Builder(
+                            builder: (context) {
+                              // Get siblings (children of same parent, excluding self)
+                              final siblings = _persons.where((p) =>
+                                p.id != person.id &&
+                                p.relationships.parentIds.any((pid) => 
+                                  person.relationships.parentIds.contains(pid))
+                              ).toList();
+                              final siblingCount = siblings.length + 1; // Including self
+                              
+                              // Get current order label
+                              final currentOrderLabel = person.displayOrder == 1 ? '1st' :
+                                person.displayOrder == 2 ? '2nd' :
+                                person.displayOrder == 3 ? '3rd' : '${person.displayOrder}th';
+                              
+                              return Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: color.withOpacity(0.08),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(Icons.format_list_numbered, color: color, size: 20),
+                                        const SizedBox(width: 10),
+                                        Text(
+                                          'Current: $currentOrderLabel child',
+                                          style: GoogleFonts.cormorantGaramond(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.bold,
+                                            color: ArtboardColors.charcoal,
+                                          ),
+                                        ),
+                                        Text(
+                                          ' (of $siblingCount siblings)',
+                                          style: GoogleFonts.cormorantGaramond(
+                                            fontSize: 12,
+                                            color: ArtboardColors.warmGray,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Row(
+                                      children: [
+                                        Text(
+                                          'Change to:',
+                                          style: GoogleFonts.cormorantGaramond(
+                                            fontSize: 13,
+                                            color: ArtboardColors.warmGray,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(8),
+                                            border: Border.all(color: color.withOpacity(0.3)),
+                                          ),
+                                          child: DropdownButton<int>(
+                                            value: displayOrder.clamp(1, siblingCount),
+                                            underline: const SizedBox(),
+                                            isDense: true,
+                                            style: GoogleFonts.cormorantGaramond(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.bold,
+                                              color: color,
+                                            ),
+                                            dropdownColor: ArtboardColors.warmWhite,
+                                            items: List.generate(siblingCount, (i) => i + 1).map((n) => 
+                                              DropdownMenuItem(
+                                                value: n,
+                                                child: Text(
+                                                  n == 1 ? '1st' : 
+                                                  n == 2 ? '2nd' : 
+                                                  n == 3 ? '3rd' : '${n}th',
+                                                ),
+                                              ),
+                                            ).toList(),
+                                            onChanged: (val) => setDialogState(() => displayOrder = val ?? 1),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                        ],
                         _buildTextField(bioController, 'Biography', Icons.notes, 3),
                       ],
                     ),
@@ -4061,17 +2975,41 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                             deathDate = DateTime(int.tryParse(deathYearController.text) ?? 2000);
                           }
                           
-                          final updated = person.copyWith(
-                            firstName: firstNameController.text.trim(),
-                            lastName: lastNameController.text.trim(),
-                            gender: gender,
-                            birthDate: birthDate,
-                            deathDate: deathDate,
-                            bio: bioController.text.trim().isEmpty ? null : bioController.text.trim(),
-                            updatedAt: DateTime.now(),
-                          );
-                          
                           try {
+                            // If displayOrder changed, swap with the sibling who has that order
+                            if (displayOrder != person.displayOrder && !isRoot) {
+                              // Find siblings (children of same parent)
+                              final siblings = _persons.where((p) =>
+                                p.id != person.id &&
+                                p.relationships.parentIds.any((pid) => 
+                                  person.relationships.parentIds.contains(pid))
+                              ).toList();
+                              
+                              // Find sibling with the target order
+                              final siblingToSwap = siblings.firstWhere(
+                                (s) => s.displayOrder == displayOrder,
+                                orElse: () => person, // No swap needed if no one has that order
+                              );
+                              
+                              if (siblingToSwap.id != person.id) {
+                                // Swap: give sibling the current person's old order
+                                await _adminRepo.updatePerson(
+                                  siblingToSwap.copyWith(displayOrder: person.displayOrder)
+                                );
+                              }
+                            }
+                            
+                            final updated = person.copyWith(
+                              firstName: firstNameController.text.trim(),
+                              lastName: lastNameController.text.trim(),
+                              gender: gender,
+                              birthDate: birthDate,
+                              deathDate: deathDate,
+                              bio: bioController.text.trim().isEmpty ? null : bioController.text.trim(),
+                              displayOrder: displayOrder,
+                              updatedAt: DateTime.now(),
+                            );
+                          
                             await _adminRepo.updatePerson(updated);
                             Navigator.pop(context);
                             _loadData();
@@ -4114,18 +3052,6 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
   }
 
   // Get ancestry chain for a person
-  List<Person> _getAncestryChain(Person person) {
-    final chain = <Person>[person];
-    var current = person;
-    while (current.relationships.parentIds.isNotEmpty) {
-      final parentId = current.relationships.parentIds.first;
-      final parent = _persons.firstWhere((p) => p.id == parentId, orElse: () => current);
-      if (parent.id == current.id) break;
-      chain.insert(0, parent);
-      current = parent;
-    }
-    return chain;
-  }
 
   /// Get all descendants of a person (children, grandchildren, etc.)
   List<Person> _getAllDescendants(Person person) {
@@ -4252,353 +3178,8 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
   }
   
   /// Show dialog to add multiple children at once
-  void _showBatchAddDialog() {
-    final parentController = TextEditingController();
-    Person? selectedParent;
-    int childCount = 2;
-    final childControllers = <Map<String, TextEditingController>>[];
-    
-    // Initialize controllers for children
-    for (int i = 0; i < childCount; i++) {
-      childControllers.add({
-        'firstName': TextEditingController(),
-        'lastName': TextEditingController(),
-      });
-    }
-    
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: ArtboardColors.warmWhite,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          title: Text(
-            'Add Multiple Children',
-            style: GoogleFonts.playfairDisplay(
-              color: ArtboardColors.charcoal,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          content: SizedBox(
-            width: 400,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Parent selector
-                  Text(
-                    'Select Parent:',
-                    style: GoogleFonts.cormorantGaramond(
-                      fontWeight: FontWeight.w700,
-                      color: ArtboardColors.charcoal,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<Person>(
-                    decoration: InputDecoration(
-                      filled: true,
-                      fillColor: ArtboardColors.cream,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: ArtboardColors.champagne),
-                      ),
-                    ),
-                    hint: Text('Choose a parent', style: GoogleFonts.cormorantGaramond()),
-                    value: selectedParent,
-                    items: _persons.map((p) => DropdownMenuItem(
-                      value: p,
-                      child: Text(p.fullName, style: GoogleFonts.cormorantGaramond()),
-                    )).toList(),
-                    onChanged: (person) => setDialogState(() => selectedParent = person),
-                  ),
-                  
-                  const SizedBox(height: 16),
-                  
-                  // Number of children
-                  Row(
-                    children: [
-                      Text(
-                        'Number of children:',
-                        style: GoogleFonts.cormorantGaramond(
-                          fontWeight: FontWeight.w700,
-                          color: ArtboardColors.charcoal,
-                        ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        icon: Icon(Icons.remove_circle_outline, color: ArtboardColors.warmGray),
-                        onPressed: childCount > 1 ? () {
-                          setDialogState(() {
-                            childCount--;
-                            childControllers.removeLast();
-                          });
-                        } : null,
-                      ),
-                      Text(
-                        '$childCount',
-                        style: GoogleFonts.inter(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                          color: ArtboardColors.charcoal,
-                        ),
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.add_circle_outline, color: ArtboardColors.terracotta),
-                        onPressed: childCount < 10 ? () {
-                          setDialogState(() {
-                            childCount++;
-                            childControllers.add({
-                              'firstName': TextEditingController(),
-                              'lastName': TextEditingController(),
-                            });
-                          });
-                        } : null,
-                      ),
-                    ],
-                  ),
-                  
-                  const SizedBox(height: 16),
-                  
-                  // Child fields
-                  ...List.generate(childCount, (index) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: ArtboardColors.cream,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: ArtboardColors.champagne),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Child ${index + 1}',
-                            style: GoogleFonts.cormorantGaramond(
-                              fontWeight: FontWeight.w700,
-                              color: ArtboardColors.terracotta,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: childControllers[index]['firstName'],
-                                  style: GoogleFonts.cormorantGaramond(color: ArtboardColors.charcoal),
-                                  decoration: InputDecoration(
-                                    hintText: 'First Name',
-                                    hintStyle: GoogleFonts.cormorantGaramond(color: ArtboardColors.warmGray),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide: BorderSide(color: ArtboardColors.champagne),
-                                    ),
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: TextField(
-                                  controller: childControllers[index]['lastName'],
-                                  style: GoogleFonts.cormorantGaramond(color: ArtboardColors.charcoal),
-                                  decoration: InputDecoration(
-                                    hintText: 'Last Name',
-                                    hintStyle: GoogleFonts.cormorantGaramond(color: ArtboardColors.warmGray),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide: BorderSide(color: ArtboardColors.champagne),
-                                    ),
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  )),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                'Cancel',
-                style: GoogleFonts.cormorantGaramond(color: ArtboardColors.warmGray),
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: ArtboardColors.terracotta,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              onPressed: selectedParent == null ? null : () async {
-                Navigator.pop(context);
-                
-                int addedCount = 0;
-                for (final controllers in childControllers) {
-                  final firstName = controllers['firstName']!.text.trim();
-                  final lastName = controllers['lastName']!.text.trim();
-                  
-                  if (firstName.isNotEmpty) {
-                    final now = DateTime.now();
-                    final newPerson = Person(
-                      id: '',
-                      familyTreeId: 'main-family-tree',
-                      firstName: firstName,
-                      lastName: lastName.isNotEmpty ? lastName : selectedParent!.lastName,
-                      relationships: Relationships(
-                        parentIds: [selectedParent!.id],
-                      ),
-                      createdAt: now,
-                      updatedAt: now,
-                    );
-                    
-                    try {
-                      await _adminRepo.addPerson(newPerson);
-                      addedCount++;
-                    } catch (e) {
-                      // Continue with others
-                    }
-                  }
-                }
-                
-                _loadData();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Added $addedCount children to ${selectedParent!.firstName}'),
-                    backgroundColor: ArtboardColors.sage,
-                  ),
-                );
-              },
-              child: Text(
-                'Add All',
-                style: GoogleFonts.cormorantGaramond(
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   /// Batch delete selected persons with cascade
-  void _confirmBatchDelete() {
-    if (_selectedPersonIds.isEmpty) return;
-    
-    // Get all selected persons and their descendants
-    final personsToDelete = <Person>{};
-    for (final id in _selectedPersonIds) {
-      final person = _persons.firstWhere((p) => p.id == id, orElse: () => _persons.first);
-      personsToDelete.add(person);
-      personsToDelete.addAll(_getAllDescendants(person));
-    }
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: ArtboardColors.warmWhite,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text(
-          'Delete ${_selectedPersonIds.length} Selected?',
-          style: GoogleFonts.playfairDisplay(
-            color: ArtboardColors.charcoal,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'This will delete the selected members and all their descendants.',
-              style: GoogleFonts.cormorantGaramond(
-                fontSize: 15,
-                color: ArtboardColors.warmGray,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: ArtboardColors.rust.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                'Total to delete: ${personsToDelete.length} family member${personsToDelete.length > 1 ? 's' : ''}',
-                style: GoogleFonts.cormorantGaramond(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: ArtboardColors.rust,
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: GoogleFonts.cormorantGaramond(color: ArtboardColors.warmGray),
-            ),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: ArtboardColors.rust,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            onPressed: () async {
-              Navigator.pop(context);
-              try {
-                // Sort by generation (deepest first) to avoid orphan issues
-                final sortedList = personsToDelete.toList()
-                  ..sort((a, b) => _getGenerationNumber(b).compareTo(_getGenerationNumber(a)));
-                
-                for (final person in sortedList) {
-                  await _adminRepo.deletePerson(person.id);
-                }
-                
-                setState(() {
-                  _selectedPersonIds.clear();
-                  _isMultiSelectMode = false;
-                  _selectedPerson = null;
-                  _focusStack.clear();
-                });
-                _loadData();
-                
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Deleted ${personsToDelete.length} family members'),
-                    backgroundColor: ArtboardColors.sage,
-                  ),
-                );
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error: $e')),
-                );
-              }
-            },
-            child: Text(
-              'Delete All (${personsToDelete.length})',
-              style: GoogleFonts.cormorantGaramond(
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildTextField(TextEditingController controller, String label, [IconData? icon, int maxLines = 1, bool isNumber = false]) {
     return TextField(

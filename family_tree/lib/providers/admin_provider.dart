@@ -93,21 +93,38 @@ final userRoleProvider = FutureProvider<AppUser?>((ref) async {
   final authState = ref.watch(authStateProvider);
   
   // Wait for auth state to load
-  if (authState.isLoading) return null;
+  if (authState.isLoading) {
+    print('userRoleProvider: Auth state is loading...');
+    return null;
+  }
   
   // If no user is logged in, return null
-  if (authState.value == null) return null;
+  if (authState.value == null) {
+    print('userRoleProvider: No user logged in');
+    return null;
+  }
+  
+  print('userRoleProvider: User logged in with UID: ${authState.value?.uid}');
+  print('userRoleProvider: User email: ${authState.value?.email}');
   
   // Fetch user from backend
   final api = ref.watch(apiServiceProvider);
   try {
+    print('userRoleProvider: Fetching /api/me...');
     final response = await api.get('/api/me');
+    print('userRoleProvider: Response status: ${response.statusCode}');
+    print('userRoleProvider: Response body: ${response.body}');
+    
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      return AppUser.fromJson(data);
+      final user = AppUser.fromJson(data);
+      print('userRoleProvider: Parsed user - email: ${user.email}, role: ${user.role}, isAdmin: ${user.isAdmin}');
+      return user;
+    } else {
+      print('userRoleProvider: Non-200 response: ${response.statusCode}');
     }
   } catch (e) {
-    print('Error fetching user role: $e');
+    print('userRoleProvider: Error fetching user role: $e');
   }
   
   return null;

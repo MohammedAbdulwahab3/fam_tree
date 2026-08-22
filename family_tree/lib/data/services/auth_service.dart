@@ -1,216 +1,361 @@
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+import 'dart:async';
+import 'dart:convert';
 
-/// Service for handling Firebase Authentication
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'package:family_tree/data/models/app_user.dart';
+
+/// Thrown for any auth failure so the UI can show the backend's message.
+class AuthException implements Exception {
+  final String message;
+  AuthException(this.message);
+  @override
+  String toString() => message;
+}
+
+/// Email + password authentication against the Go backend.
+///
+/// The backend issues a JWT from `/login` and `/register`; that token is the
+/// only credential the app stores, and every authenticated request carries it
+/// as `Authorization: Bearer <token>`.
 class AuthService {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  
-  // Initialize GoogleSignIn with OAuth client ID
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: ['email'],
-    clientId: '216305526466-4anm45ujfhvuirp0gvtsc6bjk7ktr552.apps.googleusercontent.com',
-  );
+  static const String baseUrl = 'http://localhost:5000';
+  static const String _tokenKey = 'auth_token';
+  static const String _userKey = 'auth_user';
 
-  /// Get current user
-  User? get currentUser => _auth.currentUser;
+  static final AuthService _instance = AuthService._internal();
+  factory AuthService() => _instance;
+  AuthService._internal();
 
-  /// Stream of auth state changes
-  Stream<User?> get authStateChanges => _auth.authStateChanges();
+  final StreamController<AppUser?> _authStateController =
+      StreamController<AppUser?>.broadcast();
 
-  /// Sign in with Email and Password
-  Future<UserCredential> signInWithEmail({
+  AppUser? _currentUser;
+  String? _token;
+
+  AppUser? get currentUser => _currentUser;
+  String? get token => _token;
+  bool get isSignedIn => _token != null && _currentUser != null;
+
+  /// Emits the signed-in user, or null when signed out.
+  Stream<AppUser?> get authStateChanges => _authStateController.stream;
+
+  /// Restore a previous session from disk. Safe to call more than once.
+  Future<AppUser?> init() async {
+    final prefs = await SharedPreferences.getInstance();
+    _token = prefs.getString(_tokenKey);
+
+    if (_token == null) {
+      _emit(null);
+      return null;
+    }
+
+    final cached = prefs.getString(_userKey);
+    if (cached != null) {
+      try {
+        _currentUser = AppUser.fromJson(
+          jsonDecode(cached) as Map<String, dynamic>,
+        );
+      } catch (_) {
+        // Corrupt cache — the server response below is authoritative anyway.
+      }
+    }
+
+    // Confirm the stored token is still valid and refresh the role.
+    final refreshed = await _fetchMe();
+    if (refreshed == null) {
+      await signOut();
+      return null;
+    }
+
+    _currentUser = refreshed;
+    await _persistUser(refreshed);
+    _emit(refreshed);
+    return refreshed;
+  }
+
+  Future<AppUser> signInWithEmail({
     required String email,
     required String password,
-  }) async {
-    try {
-      return await _auth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'user-not-found') {
-        throw Exception('No user found with this email');
-      } else if (e.code == 'wrong-password') {
-        throw Exception('Incorrect password');
-      } else if (e.code == 'invalid-email') {
-        throw Exception('Invalid email address');
-      }
-      throw Exception(e.message ?? 'Failed to sign in');
-    }
+  }) {
+    return _authenticate('/login', {
+      'email': email.trim(),
+      'password': password,
+    });
   }
 
-  /// Sign up with Email and Password
-  Future<UserCredential> signUpWithEmail({
+  Future<AppUser> signUpWithEmail({
     required String email,
     required String password,
-  }) async {
-    try {
-      return await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'weak-password') {
-        throw Exception('Password is too weak');
-      } else if (e.code == 'email-already-in-use') {
-        throw Exception('An account already exists with this email');
-      } else if (e.code == 'invalid-email') {
-        throw Exception('Invalid email address');
-      }
-      throw Exception(e.message ?? 'Failed to create account');
-    }
+    required String name,
+  }) {
+    return _authenticate('/register', {
+      'email': email.trim(),
+      'password': password,
+      'name': name.trim(),
+    });
   }
 
-  /// Sign in with Google
-  Future<UserCredential> signInWithGoogle() async {
-    try {
-      // Trigger the authentication flow
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      
-      if (googleUser == null) {
-        throw Exception('Google sign-in was cancelled');
-      }
-
-      // Obtain the auth details from the request
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-
-      // Create a new credential
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      // Sign in to Firebase with the Google credential
-      return await _auth.signInWithCredential(credential);
-    } catch (e) {
-      throw Exception('Failed to sign in with Google: ${e.toString()}');
-    }
+  Future<void> signOut() async {
+    _token = null;
+    _currentUser = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_tokenKey);
+    await prefs.remove(_userKey);
+    _emit(null);
   }
 
-  /// Verify phone number and send SMS code
-  Future<String> verifyPhoneNumber({
-    required String phoneNumber,
-    required void Function(String verificationId) onCodeSent,
-    required void Function(String error) onError,
-    void Function(PhoneAuthCredential credential)? onAutoVerified,
-  }) async {
-    await _auth.verifyPhoneNumber(
-      phoneNumber: phoneNumber,
-      timeout: const Duration(seconds: 60),
-      verificationCompleted: (PhoneAuthCredential credential) async {
-        // Auto-verification on Android
-        if (onAutoVerified != null) {
-          onAutoVerified(credential);
-        } else {
-          await _auth.signInWithCredential(credential);
-        }
+  /// Re-read the current user from the backend (picks up role changes).
+  Future<AppUser?> reloadUser() async {
+    if (_token == null) return null;
+    final user = await _fetchMe();
+    if (user != null) {
+      _currentUser = user;
+      await _persistUser(user);
+      _emit(user);
+    }
+    return user;
+  }
+
+  /// Update the signed-in user's display name.
+  Future<AppUser> updateDisplayName(String name) =>
+      updateProfile(name: name);
+
+  /// Update the signed-in user's profile photo.
+  Future<AppUser> updatePhotoUrl(String photoUrl) =>
+      updateProfile(photoUrl: photoUrl);
+
+  /// Update the signed-in user's profile. Omitted fields are left unchanged.
+  Future<AppUser> updateProfile({String? name, String? photoUrl}) async {
+    if (_token == null) {
+      throw AuthException('You must be signed in to update your profile.');
+    }
+    final response = await http.put(
+      Uri.parse('$baseUrl/api/me'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $_token',
       },
-      verificationFailed: (FirebaseAuthException e) {
-        String errorMessage = 'Verification failed';
-        if (e.code == 'invalid-phone-number') {
-          errorMessage = 'Invalid phone number format';
-        } else if (e.code == 'too-many-requests') {
-          errorMessage = 'Too many requests. Please try again later.';
-        } else if (e.message != null) {
-          errorMessage = e.message!;
-        }
-        onError(errorMessage);
-      },
-      codeSent: (String verificationId, int? resendToken) {
-        onCodeSent(verificationId);
-      },
-      codeAutoRetrievalTimeout: (String verificationId) {
-        // Timeout for auto-retrieval
-      },
+      body: jsonEncode({
+        if (name != null) 'name': name.trim(),
+        if (photoUrl != null) 'profilePhotoUrl': photoUrl,
+      }),
     );
 
-    return phoneNumber;
+    final decoded = _decode(response.body);
+    if (response.statusCode != 200 || decoded == null) {
+      throw AuthException(_errorMessage(decoded, response.statusCode));
+    }
+
+    _currentUser = AppUser.fromJson(decoded);
+    await _persistUser(_currentUser!);
+    _emit(_currentUser);
+    return _currentUser!;
   }
 
-  /// Verify SMS code and sign in
-  Future<UserCredential> verifySMSCode({
-    required String verificationId,
-    required String smsCode,
+  /// Set a new password using a code an admin issued, and sign in with it.
+  ///
+  /// There is no mail server, so the code reaches the member however the admin
+  /// normally reaches them — a phone call, a message. It is the admin
+  /// recognising a relative that stands in for a verification email.
+  Future<AppUser> resetPasswordWithCode({
+    required String email,
+    required String code,
+    required String newPassword,
   }) async {
+    late final http.Response response;
     try {
-      final credential = PhoneAuthProvider.credential(
-        verificationId: verificationId,
-        smsCode: smsCode,
+      response = await http.post(
+        Uri.parse('$baseUrl/reset-password'),
+        headers: const {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email.trim(),
+          'code': code.trim(),
+          'newPassword': newPassword,
+        }),
       );
-      return await _auth.signInWithCredential(credential);
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'invalid-verification-code') {
-        throw Exception('Invalid verification code. Please try again.');
-      } else if (e.code == 'session-expired') {
-        throw Exception('Verification code expired. Please request a new code.');
-      }
-      throw Exception(e.message ?? 'Failed to verify code');
+    } catch (_) {
+      throw AuthException(
+        'Could not reach the server. Check that the backend is running.',
+      );
+    }
+
+    final decoded = _decode(response.body);
+    if (response.statusCode != 200 || decoded == null) {
+      throw AuthException(_errorMessage(decoded, response.statusCode));
+    }
+
+    final token = decoded['token'] as String?;
+    final userJson = decoded['user'] as Map<String, dynamic>?;
+    if (token == null || userJson == null) {
+      // The password did change; only the auto sign-in did not happen.
+      throw AuthException(
+        'Password changed. Sign in with your new password.',
+      );
+    }
+
+    _token = token;
+    _currentUser = AppUser.fromJson(userJson);
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_tokenKey, token);
+    await _persistUser(_currentUser!);
+
+    _emit(_currentUser);
+    return _currentUser!;
+  }
+
+  /// Change the password of the signed-in user.
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    if (_token == null) {
+      throw AuthException('You must be signed in to change your password.');
+    }
+
+    final response = await http.put(
+      Uri.parse('$baseUrl/api/me/password'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $_token',
+      },
+      body: jsonEncode({
+        'currentPassword': currentPassword,
+        'newPassword': newPassword,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      throw AuthException(
+        _errorMessage(_decode(response.body), response.statusCode),
+      );
     }
   }
 
-  /// Sign out
-  Future<void> signOut() async {
-    await Future.wait([
-      _auth.signOut(),
-      _googleSignIn.signOut(),
-    ]);
+  /// Permanently delete the signed-in user's account, then sign out.
+  ///
+  /// Their person record stays in the tree and becomes unclaimed — it belongs
+  /// to the family's history, not to the login.
+  Future<void> deleteAccount({required String password}) async {
+    if (_token == null) {
+      throw AuthException('You must be signed in to delete your account.');
+    }
+
+    final response = await http.delete(
+      Uri.parse('$baseUrl/api/me'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $_token',
+      },
+      body: jsonEncode({'password': password}),
+    );
+
+    if (response.statusCode != 200) {
+      throw AuthException(
+        _errorMessage(_decode(response.body), response.statusCode),
+      );
+    }
+
+    await signOut();
   }
 
-  /// Send password reset email
-  Future<void> sendPasswordResetEmail({required String email}) async {
+  Future<AppUser> _authenticate(
+    String endpoint,
+    Map<String, String> body,
+  ) async {
+    late final http.Response response;
     try {
-      await _auth.sendPasswordResetEmail(email: email);
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'user-not-found') {
-        throw Exception('No user found with this email');
-      } else if (e.code == 'invalid-email') {
-        throw Exception('Invalid email address');
-      }
-      throw Exception(e.message ?? 'Failed to send reset email');
+      response = await http.post(
+        Uri.parse('$baseUrl$endpoint'),
+        headers: const {'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      );
+    } catch (_) {
+      throw AuthException(
+        'Could not reach the server. Check that the backend is running.',
+      );
     }
+
+    final decoded = _decode(response.body);
+
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw AuthException(_errorMessage(decoded, response.statusCode));
+    }
+
+    final token = decoded?['token'] as String?;
+    final userJson = decoded?['user'] as Map<String, dynamic>?;
+    if (token == null || userJson == null) {
+      throw AuthException('Unexpected response from server.');
+    }
+
+    _token = token;
+    _currentUser = AppUser.fromJson(userJson);
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_tokenKey, token);
+    await _persistUser(_currentUser!);
+
+    _emit(_currentUser);
+    return _currentUser!;
   }
 
-  /// Send email verification to current user
-  Future<void> sendEmailVerification() async {
-    final user = _auth.currentUser;
-    if (user == null) {
-      throw Exception('No user is signed in');
-    }
-    if (user.emailVerified) {
-      throw Exception('Email is already verified');
-    }
+  Future<AppUser?> _fetchMe() async {
     try {
-      await user.sendEmailVerification();
-    } on FirebaseAuthException catch (e) {
-      throw Exception(e.message ?? 'Failed to send verification email');
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/me'),
+        headers: {'Authorization': 'Bearer $_token'},
+      );
+      if (response.statusCode != 200) return null;
+      final decoded = _decode(response.body);
+      if (decoded == null) return null;
+      return AppUser.fromJson(decoded);
+    } catch (_) {
+      return null;
     }
   }
 
-  /// Check if current user's email is verified
-  bool get isEmailVerified => _auth.currentUser?.emailVerified ?? false;
-
-  /// Reload current user to get latest data
-  Future<void> reloadUser() async {
-    await _auth.currentUser?.reload();
+  Future<void> _persistUser(AppUser user) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_userKey, jsonEncode(user.toJson()));
   }
 
-  /// Sign in with Apple
-  Future<UserCredential> signInWithApple() async {
+  Map<String, dynamic>? _decode(String body) {
+    if (body.isEmpty) return null;
     try {
-      // Create and configure an OAuthProvider for Sign In With Apple
-      final appleProvider = OAuthProvider('apple.com')
-        ..addScope('email')
-        ..addScope('name');
+      final decoded = jsonDecode(body);
+      return decoded is Map<String, dynamic> ? decoded : null;
+    } catch (_) {
+      return null;
+    }
+  }
 
-      // Sign in with popup on web, or native on mobile
-      return await _auth.signInWithProvider(appleProvider);
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'account-exists-with-different-credential') {
-        throw Exception('An account already exists with a different sign-in method');
+  String _errorMessage(Map<String, dynamic>? decoded, int statusCode) {
+    final error = decoded?['error'];
+    if (error is String && error.isNotEmpty) {
+      // Surface the friendly version of the binding-validation messages.
+      if (error.contains('min') && error.contains('Password')) {
+        return 'Password must be at least 6 characters.';
       }
-      throw Exception(e.message ?? 'Failed to sign in with Apple');
-    } catch (e) {
-      throw Exception('Apple Sign In failed: ${e.toString()}');
+      if (error.contains('email') && error.contains('required')) {
+        return 'Please enter a valid email address.';
+      }
+      return error;
+    }
+    switch (statusCode) {
+      case 401:
+        return 'Incorrect email or password.';
+      case 409:
+        return 'That email is already registered.';
+      default:
+        return 'Something went wrong (HTTP $statusCode).';
+    }
+  }
+
+  void _emit(AppUser? user) {
+    if (!_authStateController.isClosed) {
+      _authStateController.add(user);
     }
   }
 }

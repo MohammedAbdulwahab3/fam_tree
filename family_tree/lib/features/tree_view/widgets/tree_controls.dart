@@ -435,6 +435,7 @@ class _TreeControlsState extends State<TreeControls> {
                   ),
                 ),
                 IconButton(
+                  tooltip: 'Close search',
                   icon: const Icon(Icons.close, size: 20),
                   onPressed: () {
                     _searchController.clear();

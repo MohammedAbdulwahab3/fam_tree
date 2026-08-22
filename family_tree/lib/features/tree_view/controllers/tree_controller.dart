@@ -65,6 +65,10 @@ class TreeController extends StateNotifier<TreeState> {
   void _init() {
     // Watch for person changes from Go backend
     _repository.watchFamilyMembers(familyTreeId).listen((persons) {
+      // The repository hands back the very same list when a poll found nothing
+      // new. Skipping the state write there means no rebuild at all, rather
+      // than a rebuild that happens to change nothing.
+      if (identical(persons, state.persons) && !state.isLoading) return;
       state = state.copyWith(persons: persons, isLoading: false);
     }, onError: (error) {
       String errorMessage = error.toString();
@@ -84,6 +88,8 @@ class TreeController extends StateNotifier<TreeState> {
   Future<void> refresh() async {
     state = state.copyWith(isLoading: true);
     try {
+      // An explicit refresh means "ignore what you think you know".
+      PersonRepository.invalidate();
       final persons = await _repository.getFamilyMembers(familyTreeId);
       state = state.copyWith(persons: persons, isLoading: false);
     } catch (e) {
@@ -127,11 +133,17 @@ class TreeController extends StateNotifier<TreeState> {
     }
   }
 
+  /// Persists an edited person and rethrows on failure.
+  ///
+  /// The error also lands in state for anything rendering the tree, but a
+  /// caller that owns a form needs to know the save failed so it can keep the
+  /// user's input on screen instead of closing over lost work.
   Future<void> updatePerson(Person person) async {
     try {
       await _repository.updatePerson(person);
     } catch (e) {
       state = state.copyWith(error: e.toString());
+      rethrow;
     }
   }
 

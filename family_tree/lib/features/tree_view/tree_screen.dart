@@ -2,30 +2,40 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:family_tree/core/layout/breakpoints.dart';
 import 'package:family_tree/core/theme/app_theme.dart';
+import 'package:family_tree/core/theme/app_colors.dart';
 import 'package:family_tree/core/theme/elegant_theme.dart';
 import 'package:family_tree/data/models/person.dart';
 import 'package:family_tree/features/tree_view/controllers/tree_controller.dart';
 import 'package:family_tree/features/tree_view/tree_canvas.dart';
 import 'package:family_tree/features/tree_view/widgets/person_details_dialog.dart';
+import 'package:family_tree/features/tree_view/widgets/profile_drawer.dart';
+import 'package:family_tree/features/tree_view/widgets/link_account_sheet.dart';
+import 'package:family_tree/data/services/link_service.dart';
+import 'package:family_tree/providers/link_provider.dart';
+import 'package:family_tree/features/profile/my_profile_editor.dart';
 import 'package:family_tree/features/auth/providers/auth_provider.dart';
 import 'package:family_tree/providers/admin_provider.dart';
 import 'package:family_tree/core/widgets/theme_toggle_button.dart';
+import 'package:family_tree/core/widgets/locale_menu_button.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:family_tree/data/services/storage_service.dart';
 import 'package:family_tree/data/services/family_export_service.dart';
 import 'package:family_tree/data/services/web_download_helper.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:printing/printing.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
-/// View mode for family tree
+/// Which slice of the tree the canvas draws.
 enum FamilyViewMode {
-  descendants, // My family - me and all my children/grandchildren
-  ancestors,   // My lineage - me and all my parents/grandparents
-  all,         // Full tree (demo mode)
+  /// Everyone — what a signed-out visitor sees, and the default for everyone.
+  all,
+
+  /// The signed-in member's own line: every ancestor above them and every
+  /// descendant below, drawn together on one canvas.
+  lineage,
 }
 
 /// Main screen for the family tree view
@@ -33,10 +43,15 @@ class TreeScreen extends ConsumerStatefulWidget {
   final String familyTreeId;
   final bool isDemo;
 
+  /// Set on the first visit after signing up. Opens the "find yourself in the
+  /// tree" sheet once the tree has loaded.
+  final bool promptToLink;
+
   const TreeScreen({
     Key? key,
     required this.familyTreeId,
     this.isDemo = false,
+    this.promptToLink = false,
   }) : super(key: key);
 
   @override
@@ -45,9 +60,17 @@ class TreeScreen extends ConsumerStatefulWidget {
 
 class _TreeScreenState extends ConsumerState<TreeScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  FamilyViewMode _viewMode = FamilyViewMode.descendants;
+  final GlobalKey<TreeCanvasState> _treeCanvasKey = GlobalKey<TreeCanvasState>();
+  /// Signing in used to drop you into your own descendants in a drill-down
+  /// view. The tree is the point of the app, so it now opens the same way for
+  /// everyone and "My lineage" is an opt-in.
+  FamilyViewMode _viewMode = FamilyViewMode.all;
   String? _linkedPersonId;
   bool _initialized = false;
+
+  /// Guards the welcome prompt so it opens once per arrival, not on every
+  /// rebuild the polling tree triggers.
+  bool _linkPromptShown = false;
   
   /// Get the logged-in user's linked person
   Person? _getLinkedPerson(List<Person> allPersons, String? authUserId) {
@@ -55,55 +78,59 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
     return allPersons.where((p) => p.authUserId == authUserId).firstOrNull;
   }
   
-  /// Get filtered persons based on view mode
+  /// The people the canvas should draw for the current view mode.
+  ///
+  /// Lineage means the member's whole vertical line in one go — every
+  /// generation above them and every generation below — plus the spouses of
+  /// everyone on it, so couples still render as couples instead of a single
+  /// parent appearing to have children alone.
   List<Person> _getFilteredPersons(List<Person> allPersons, String? authUserId) {
-    if (authUserId == null || widget.isDemo) {
+    if (_viewMode == FamilyViewMode.all || widget.isDemo) {
       return allPersons;
     }
-    
+
     final linkedPerson = _getLinkedPerson(allPersons, authUserId);
-    
-    if (linkedPerson == null) {
-      return allPersons;
-    }
-    
-    final Set<String> includedIds = {linkedPerson.id};
-    
-    if (_viewMode == FamilyViewMode.descendants) {
-      void addDescendants(String personId) {
-        for (final person in allPersons) {
-          if (person.relationships.parentIds.contains(personId)) {
-            if (!includedIds.contains(person.id)) {
-              includedIds.add(person.id);
-              addDescendants(person.id);
-            }
-          }
-        }
+    if (linkedPerson == null) return allPersons;
+
+    final byId = {for (final p in allPersons) p.id: p};
+    final childrenOf = <String, List<String>>{};
+    for (final person in allPersons) {
+      for (final parentId in person.relationships.parentIds) {
+        (childrenOf[parentId] ??= <String>[]).add(person.id);
       }
-      addDescendants(linkedPerson.id);
-    } else if (_viewMode == FamilyViewMode.ancestors) {
-      void addAncestors(String personId) {
-        final person = allPersons.where((p) => p.id == personId).firstOrNull;
-        if (person == null) return;
-        
-        for (final parentId in person.relationships.parentIds) {
-          if (!includedIds.contains(parentId)) {
-            includedIds.add(parentId);
-            addAncestors(parentId);
-          }
-        }
-      }
-      addAncestors(linkedPerson.id);
     }
-    
-    return allPersons.where((p) => includedIds.contains(p.id)).toList();
+
+    final included = <String>{linkedPerson.id};
+
+    void walkUp(String id) {
+      for (final parentId in byId[id]?.relationships.parentIds ?? const []) {
+        if (included.add(parentId)) walkUp(parentId);
+      }
+    }
+
+    void walkDown(String id) {
+      for (final childId in childrenOf[id] ?? const <String>[]) {
+        if (included.add(childId)) walkDown(childId);
+      }
+    }
+
+    walkUp(linkedPerson.id);
+    walkDown(linkedPerson.id);
+
+    // Spouses come last so marrying into the line does not drag their whole
+    // family in with them.
+    for (final id in included.toList()) {
+      included.addAll(byId[id]?.relationships.spouseIds ?? const []);
+    }
+
+    return allPersons.where((p) => included.contains(p.id)).toList();
   }
 
   /// Show photo upload options (camera or gallery)
   void _showPhotoUploadOptions(BuildContext context, bool isDark) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: isDark ? AppTheme.cardDark : ElegantColors.warmWhite,
+      backgroundColor: context.colors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -126,7 +153,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
               style: GoogleFonts.playfairDisplay(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : ElegantColors.charcoal,
+                color: context.colors.ink,
               ),
             ),
             const SizedBox(height: 20),
@@ -134,18 +161,18 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
               leading: Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: (isDark ? AppTheme.primaryLight : ElegantColors.terracotta).withOpacity(0.1),
+                  color: (context.colors.accent).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
                   Icons.camera_alt_rounded,
-                  color: isDark ? AppTheme.primaryLight : ElegantColors.terracotta,
+                  color: context.colors.accent,
                 ),
               ),
               title: Text(
                 'Take Photo',
                 style: GoogleFonts.inter(
-                  color: isDark ? Colors.white : ElegantColors.charcoal,
+                  color: context.colors.ink,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -158,18 +185,18 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
               leading: Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: (isDark ? AppTheme.accentTeal : ElegantColors.sage).withOpacity(0.1),
+                  color: (context.colors.secondary).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
                   Icons.photo_library_rounded,
-                  color: isDark ? AppTheme.accentTeal : ElegantColors.sage,
+                  color: context.colors.secondary,
                 ),
               ),
               title: Text(
                 'Choose from Gallery',
                 style: GoogleFonts.inter(
-                  color: isDark ? Colors.white : ElegantColors.charcoal,
+                  color: context.colors.ink,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -181,6 +208,239 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
             const SizedBox(height: 20),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showUserProfileEditDialog(BuildContext context, bool isDark) {
+    final user = ref.read(authStateProvider).value;
+    final nameController = TextEditingController(text: user?.displayName ?? '');
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: context.colors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: (context.colors.accent).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                Icons.person_rounded,
+                color: context.colors.accent,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Edit Profile',
+              style: GoogleFonts.playfairDisplay(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: context.colors.ink,
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Profile photo section
+              Center(
+                child: GestureDetector(
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showPhotoUploadOptions(context, isDark);
+                  },
+                  child: Stack(
+                    children: [
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: context.colors.brandGradient,
+                          border: Border.all(
+                            color: context.colors.accent,
+                            width: 2,
+                          ),
+                          image: user?.photoURL != null
+                              ? DecorationImage(
+                                  image: NetworkImage(user!.photoURL!),
+                                  fit: BoxFit.cover,
+                                )
+                              : null,
+                        ),
+                        child: user?.photoURL == null
+                            ? const Icon(Icons.person_rounded, color: Colors.white, size: 40)
+                            : null,
+                      ),
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: context.colors.accent,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                          child: const Icon(
+                            Icons.camera_alt_rounded,
+                            color: Colors.white,
+                            size: 14,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Center(
+                child: Text(
+                  'Tap to change photo',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: context.colors.inkMuted,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              
+              // Name field
+              Text(
+                'Display Name',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: context.colors.inkSoft,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: nameController,
+                style: GoogleFonts.inter(
+                  color: context.colors.ink,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Enter your name',
+                  hintStyle: GoogleFonts.inter(
+                    color: context.colors.inkMuted,
+                  ),
+                  filled: true,
+                  fillColor: isDark 
+                      ? Colors.white.withOpacity(0.05)
+                      : ElegantColors.cream,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  prefixIcon: Icon(
+                    Icons.badge_rounded,
+                    color: context.colors.inkMuted,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              
+              // Email (read-only)
+              Text(
+                'Email',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: context.colors.inkSoft,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: isDark 
+                      ? Colors.white.withOpacity(0.03)
+                      : Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.email_rounded,
+                      color: context.colors.inkMuted,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      user?.email ?? 'Not set',
+                      style: GoogleFonts.inter(
+                        color: context.colors.inkMuted,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(
+                color: context.colors.inkMuted,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newName = nameController.text.trim();
+              if (newName.isNotEmpty && user != null) {
+                try {
+                  await ref.read(authServiceProvider).updateDisplayName(newName);
+                  ref.invalidate(authStateProvider);
+                  if (mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Profile updated!'),
+                        backgroundColor: AppTheme.success,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error: $e'),
+                        backgroundColor: AppTheme.error,
+                      ),
+                    );
+                  }
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: context.colors.accent,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
+            child: Text(
+              'Save',
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -225,11 +485,9 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
       final storageService = StorageService();
       final downloadUrl = await storageService.uploadProfilePhoto(bytes, pickedFile.name);
 
-      // Update Firebase user profile
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        await user.updatePhotoURL(downloadUrl);
-        await user.reload();
+      // Persist the new photo on the backend user record
+      if (downloadUrl != null) {
+        await ref.read(authServiceProvider).updatePhotoUrl(downloadUrl);
       }
 
       // Hide loading and show success
@@ -258,161 +516,44 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
   }
 
   /// Show edit profile dialog for linked users
+  /// Open the full self-profile editor for the record this account owns.
+  ///
+  /// Replaces the old three-field dialog, which stored the spouse's name in
+  /// the `bio` column — so a member's biography and their marriage were the
+  /// same field and neither could be shown properly.
   void _showEditProfileDialog(BuildContext context, Person person, bool isDark) {
-    final firstNameController = TextEditingController(text: person.firstName);
-    final lastNameController = TextEditingController(text: person.lastName);
-    // Store spouse in bio field (private to user)
-    final spouseController = TextEditingController(text: person.bio ?? '');
-    
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: isDark ? AppTheme.cardDark : ElegantColors.warmWhite,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Icon(
-              Icons.edit_rounded,
-              color: isDark ? AppTheme.primaryLight : ElegantColors.terracotta,
-            ),
-            const SizedBox(width: 12),
-            Text(
-              'Edit My Profile',
-              style: GoogleFonts.playfairDisplay(
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : ElegantColors.charcoal,
-              ),
-            ),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // First Name
-              TextField(
-                controller: firstNameController,
-                decoration: InputDecoration(
-                  labelText: 'First Name',
-                  labelStyle: TextStyle(color: isDark ? AppTheme.textSecondary : ElegantColors.warmGray),
-                  prefixIcon: Icon(Icons.person_outline, color: isDark ? AppTheme.primaryLight : ElegantColors.terracotta),
-                ),
-                style: TextStyle(color: isDark ? Colors.white : ElegantColors.charcoal),
-              ),
-              const SizedBox(height: 16),
-              
-              // Last Name
-              TextField(
-                controller: lastNameController,
-                decoration: InputDecoration(
-                  labelText: 'Last Name',
-                  labelStyle: TextStyle(color: isDark ? AppTheme.textSecondary : ElegantColors.warmGray),
-                  prefixIcon: Icon(Icons.person_outline, color: isDark ? AppTheme.primaryLight : ElegantColors.terracotta),
-                ),
-                style: TextStyle(color: isDark ? Colors.white : ElegantColors.charcoal),
-              ),
-              const SizedBox(height: 24),
-              
-              // Spouse section (private - only visible to user)
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: (isDark ? AppTheme.accentGold : ElegantColors.gold).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: (isDark ? AppTheme.accentGold : ElegantColors.gold).withOpacity(0.3),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.favorite_rounded,
-                          size: 16,
-                          color: isDark ? AppTheme.accentGold : ElegantColors.gold,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Spouse (Private)',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: isDark ? AppTheme.accentGold : ElegantColors.gold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'This is only visible to you and not shown in the family tree.',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: isDark ? AppTheme.textMuted : ElegantColors.warmGray,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: spouseController,
-                      decoration: InputDecoration(
-                        hintText: 'Enter spouse name',
-                        hintStyle: TextStyle(color: isDark ? AppTheme.textMuted : ElegantColors.warmGray),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(color: (isDark ? AppTheme.accentGold : ElegantColors.gold).withOpacity(0.3)),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      ),
-                      style: TextStyle(color: isDark ? Colors.white : ElegantColors.charcoal),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(
-              'Cancel',
-              style: TextStyle(color: isDark ? AppTheme.textMuted : ElegantColors.warmGray),
+    final controller =
+        ref.read(treeControllerProvider(widget.familyTreeId).notifier);
+    final all = ref.read(treeControllerProvider(widget.familyTreeId)).persons;
+    final spouses = all
+        .where((p) => person.relationships.spouseIds.contains(p.id))
+        .toList();
+
+    MyProfileEditor.show(
+      context,
+      person: person,
+      spouses: spouses,
+      isAdmin: ref.read(userRoleProvider).value?.isAdmin ?? false,
+      onSave: (updated) async {
+        await controller.updatePerson(updated);
+        await controller.refresh();
+      },
+    ).then((saved) {
+      if (saved == true && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Your profile is updated'),
+            backgroundColor: ElegantColors.sage,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
             ),
           ),
-          ElevatedButton(
-            onPressed: () async {
-              // Update person data - store spouse in bio field (private)
-              final updatedPerson = person.copyWith(
-                firstName: firstNameController.text.trim(),
-                lastName: lastNameController.text.trim(),
-                bio: spouseController.text.trim().isEmpty ? null : spouseController.text.trim(),
-              );
-              
-              // Call API to update
-              final controller = ref.read(treeControllerProvider(widget.familyTreeId).notifier);
-              await controller.updatePerson(updatedPerson);
-              
-              if (dialogContext.mounted) {
-                Navigator.pop(dialogContext);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Profile updated successfully!'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: isDark ? AppTheme.primaryLight : ElegantColors.terracotta,
-            ),
-            child: const Text('Save Changes'),
-          ),
-        ],
-      ),
-    );
+        );
+      }
+    });
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -425,14 +566,34 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
     final authUser = ref.watch(authStateProvider).value;
     final authUserId = authUser?.uid;
     final isSignedIn = authUser != null;
-    final isAdmin = ref.watch(isAdminProvider);
+    
+    // Use userRoleProvider for consistent admin check
+    final userRoleAsync = ref.watch(userRoleProvider);
+    final isAdmin = userRoleAsync.value?.isAdmin ?? false;
     
     // Get linked person for display
     final linkedPerson = _getLinkedPerson(state.persons, authUserId);
     
+    // A new member who has not claimed a record yet: show them how, once the
+    // tree has actually loaded so the sheet has people to search.
+    if (widget.promptToLink &&
+        !_linkPromptShown &&
+        isSignedIn &&
+        !widget.isDemo &&
+        linkedPerson == null &&
+        state.persons.isNotEmpty) {
+      _linkPromptShown = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _maybePromptToLink(state.persons);
+      });
+    }
+
     // Auto-select linked person and set focus mode on first load
     if (!_initialized && linkedPerson != null && !widget.isDemo) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ref.invalidate(userRoleProvider);
         controller.selectPerson(linkedPerson.id);
         controller.setLayoutMode(LayoutMode.focus);
         setState(() {
@@ -476,11 +637,8 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
             child: Column(
               children: [
                 // Custom Top Bar with navigation buttons
-                _buildTopBar(context, isDark, isMobile, isSignedIn, isAdmin),
-                
-                // View Mode Toggle (only for authenticated users)
-                if (!widget.isDemo && linkedPerson != null && isSignedIn)
-                  _buildViewModeToggle(isDark),
+                _buildTopBar(context, isDark, isMobile, isSignedIn, isAdmin,
+                    linkedPerson != null),
                 
                 // Tree Canvas
                 Expanded(
@@ -491,6 +649,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                           : filteredPersons.isEmpty
                               ? _buildEmptyState(context, controller, ref)
                               : TreeCanvas(
+                                  key: _treeCanvasKey,
                                   persons: filteredPersons,
                                   selectedPersonId: state.selectedPersonId,
                                   focusedSubtreeRoot: state.focusedSubtreeRoot,
@@ -533,14 +692,28 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
             ),
           ),
           
-          // Floating Action Buttons at bottom - REMOVED as per request
-          // _buildFloatingButtons(context, isDark, isMobile, isSignedIn, isAdmin, controller),
         ],
       ),
     );
   }
 
-  Widget _buildTopBar(BuildContext context, bool isDark, bool isMobile, bool isSignedIn, bool isAdmin) {
+  /// Opens the claim sheet for a member who has never asked to be linked.
+  ///
+  /// Someone with a claim already pending or previously rejected is left alone
+  /// — they know about the flow, and reopening it would only let them file a
+  /// duplicate the backend would refuse.
+  Future<void> _maybePromptToLink(List<Person> members) async {
+    final status = await ref.read(linkStatusProvider.future).catchError(
+          (_) => LinkStatus(isVerified: false, status: 'unknown'),
+        );
+    if (!mounted || !status.canClaim || status.isRejected) return;
+
+    await LinkAccountSheet.show(context, familyMembers: members);
+    if (mounted) ref.invalidate(linkStatusProvider);
+  }
+
+  Widget _buildTopBar(BuildContext context, bool isDark, bool isMobile,
+      bool isSignedIn, bool isAdmin, bool hasLineage) {
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: isMobile ? 12 : 20,
@@ -565,14 +738,19 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
               style: GoogleFonts.playfairDisplay(
                 fontSize: isMobile ? 20 : 24,
                 fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : ElegantColors.charcoal,
+                color: context.colors.ink,
               ),
             ),
           ),
           
+          // Language (EN / አማ) toggle — switches the tree to Amharic names
+          const LocaleMenuButton(),
+
+          const SizedBox(width: 8),
+
           // Theme Toggle
           ThemeToggleIcon(
-            color: isDark ? Colors.white : ElegantColors.charcoal,
+            color: context.colors.ink,
           ),
           
           const SizedBox(width: 8),
@@ -587,74 +765,79 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
           
           const SizedBox(width: 8),
 
-          // Layout mode dropdown
-          PopupMenuButton<LayoutMode>(
-            icon: Tooltip(
-              message: 'Layout',
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: isDark ? Colors.white.withOpacity(0.08) : ElegantColors.warmWhite,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: isDark ? Colors.white.withOpacity(0.1) : ElegantColors.champagne,
+          // Focus/Full Tree Toggle Button - responsive
+          Builder(
+            builder: (context) {
+              final state = ref.watch(treeControllerProvider(widget.familyTreeId));
+              final controller = ref.read(treeControllerProvider(widget.familyTreeId).notifier);
+              final isFocusMode = state.layoutMode == LayoutMode.focus;
+              
+              return GestureDetector(
+                onTap: () {
+                  // Toggle between focus and tree modes
+                  controller.setLayoutMode(
+                    isFocusMode ? LayoutMode.tree : LayoutMode.focus
+                  );
+                },
+                child: Tooltip(
+                  message: isFocusMode ? 'Focus Mode' : 'Full Tree',
+                  child: Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 10 : 14, 
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isFocusMode 
+                          ? (context.colors.accent)
+                          : (isDark ? Colors.white.withOpacity(0.08) : ElegantColors.warmWhite),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isFocusMode 
+                            ? Colors.transparent
+                            : (isDark ? Colors.white.withOpacity(0.1) : ElegantColors.champagne),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isFocusMode ? Icons.center_focus_strong_rounded : Icons.account_tree_rounded,
+                          color: isFocusMode 
+                              ? Colors.white 
+                              : (context.colors.inkSoft),
+                          size: 18,
+                        ),
+                        // Only show text on larger screens
+                        if (!isMobile) ...[
+                          const SizedBox(width: 6),
+                          Text(
+                            isFocusMode ? 'Focus' : 'Full Tree',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: isFocusMode 
+                                  ? Colors.white 
+                                  : (context.colors.inkSoft),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 ),
-                child: Icon(
-                  Icons.view_module_rounded,
-                  color: isDark ? Colors.white70 : ElegantColors.charcoal,
-                  size: 22,
-                ),
-              ),
-            ),
-            offset: const Offset(0, 50),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            color: isDark ? AppTheme.cardDark : Colors.white,
-            onSelected: (mode) {
-              final controller = ref.read(treeControllerProvider(widget.familyTreeId).notifier);
-              controller.setLayoutMode(mode);
+              );
             },
-            itemBuilder: (context) => [
-              _buildLayoutMenuItem(
-                context,
-                icon: Icons.account_tree_rounded,
-                label: 'Tree View',
-                mode: LayoutMode.tree,
-                isDark: isDark,
-              ),
-              _buildLayoutMenuItem(
-                context,
-                icon: Icons.radio_button_checked_rounded,
-                label: 'Radial View',
-                mode: LayoutMode.radial,
-                isDark: isDark,
-              ),
-              _buildLayoutMenuItem(
-                context,
-                icon: Icons.list_rounded,
-                label: 'List View',
-                mode: LayoutMode.list,
-                isDark: isDark,
-              ),
-              _buildLayoutMenuItem(
-                context,
-                icon: Icons.center_focus_strong_rounded,
-                label: 'Focus View',
-                mode: LayoutMode.focus,
-                isDark: isDark,
-              ),
-            ],
           ),
           
           const SizedBox(width: 8),
           
-          // Sign In / Profile button
+          // Sign In / Profile button - icon-only for cleaner mobile UI
           if (!isSignedIn)
-            _buildPillButton(
-              label: 'Sign In',
-              icon: Icons.login_rounded,
+            _buildIconButton(
+              icon: Icons.account_circle_rounded,
               onTap: () => context.go('/login'),
               isDark: isDark,
+              tooltip: 'Sign In',
               isPrimary: true,
             )
           else
@@ -669,46 +852,6 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
       ),
     );
   }
-
-  Widget _buildViewModeToggle(bool isDark) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: isDark 
-            ? Colors.white.withOpacity(0.08) 
-            : ElegantColors.warmWhite,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isDark 
-              ? Colors.white.withOpacity(0.1) 
-              : ElegantColors.champagne,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildViewModeButton(
-            icon: Icons.arrow_downward_rounded,
-            label: 'Lineage Tree',
-            isSelected: _viewMode == FamilyViewMode.descendants,
-            onTap: () => setState(() => _viewMode = FamilyViewMode.descendants),
-            isDark: isDark,
-          ),
-          const SizedBox(width: 4),
-          _buildViewModeButton(
-            icon: Icons.arrow_upward_rounded,
-            label: 'My Lineage',
-            isSelected: _viewMode == FamilyViewMode.ancestors,
-            onTap: () => setState(() => _viewMode = FamilyViewMode.ancestors),
-            isDark: isDark,
-          ),
-        ],
-      ),
-    );
-  }
-
-
 
   Widget _buildIconButton({
     required IconData icon,
@@ -766,149 +909,29 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
     );
   }
 
-  Widget _buildPillButton({
-    required String label,
-    required IconData icon,
-    required VoidCallback onTap,
-    required bool isDark,
-    bool isPrimary = false,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            gradient: isPrimary ? AppTheme.primaryGradient : null,
-            color: isPrimary 
-                ? null 
-                : isDark 
-                    ? Colors.white.withOpacity(0.08) 
-                    : ElegantColors.warmWhite,
-            borderRadius: BorderRadius.circular(14),
-            border: isPrimary 
-                ? null 
-                : Border.all(
-                    color: isDark 
-                        ? Colors.white.withOpacity(0.1) 
-                        : ElegantColors.champagne,
-                  ),
-            boxShadow: isPrimary 
-                ? [
-                    BoxShadow(
-                      color: AppTheme.primaryLight.withOpacity(0.3),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ] 
-                : null,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                color: isPrimary 
-                    ? Colors.white 
-                    : isDark 
-                        ? Colors.white70 
-                        : ElegantColors.charcoal,
-                size: 18,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: isPrimary 
-                      ? Colors.white 
-                      : isDark 
-                          ? Colors.white70 
-                          : ElegantColors.charcoal,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-  
   String _getViewTitle() {
     switch (_viewMode) {
-      case FamilyViewMode.descendants:
-        return 'Lineage Tree';
-      case FamilyViewMode.ancestors:
-        return 'My Lineage';
       case FamilyViewMode.all:
         return 'Family Tree';
+      case FamilyViewMode.lineage:
+        return 'My Lineage';
     }
-  }
-  
-  Widget _buildViewModeButton({
-    required IconData icon,
-    required String label,
-    required bool isSelected,
-    required VoidCallback onTap,
-    required bool isDark,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          gradient: isSelected ? AppTheme.primaryGradient : null,
-          color: isSelected ? null : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: isSelected 
-              ? [
-                  BoxShadow(
-                    color: AppTheme.primaryLight.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ] 
-              : null,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 16,
-              color: isSelected 
-                  ? Colors.white
-                  : (isDark ? Colors.white60 : ElegantColors.warmGray),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: isSelected 
-                    ? Colors.white
-                    : (isDark ? Colors.white60 : ElegantColors.warmGray),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   /// Show export dialog with multiple format options
   void _showExportDialog(BuildContext context, bool isDark) {
-    final familyMembers = ref.read(treeControllerProvider(widget.familyTreeId)).persons;
+    // Get focused subtree if in focus mode, otherwise all members
+    final allMembers = ref.read(treeControllerProvider(widget.familyTreeId)).persons;
+    final canvasState = _treeCanvasKey.currentState;
+    final familyMembers = canvasState?.getFocusedSubtreePersons() ?? allMembers;
+    final focusedPersonName = canvasState?.getFocusedPersonName();
+    final isSubtree = focusedPersonName != null;
+    final exportTitle = isSubtree ? "$focusedPersonName's Family" : "Mamaduu's Lineage";
     
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: isDark ? AppTheme.cardDark : Colors.white,
+        backgroundColor: context.colors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
@@ -926,18 +949,20 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Download Family Tree',
+                    isSubtree ? 'Download Subtree' : 'Download Family Tree',
                     style: GoogleFonts.playfairDisplay(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white : ElegantColors.charcoal,
+                      color: context.colors.ink,
                     ),
                   ),
                   Text(
-                    '${familyMembers.length} members',
+                    isSubtree 
+                      ? '${familyMembers.length} members (${focusedPersonName}\'s branch)'
+                      : '${familyMembers.length} members',
                     style: GoogleFonts.inter(
                       fontSize: 12,
-                      color: isDark ? Colors.white54 : ElegantColors.warmGray,
+                      color: context.colors.inkMuted,
                     ),
                   ),
                 ],
@@ -946,81 +971,133 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
           ],
         ),
         content: SizedBox(
-          width: 400,
+          // Was a hard 400, which is wider than a small phone's dialog once
+          // insets are taken off — the content overflowed the right edge.
+          width: context.dialogWidth(),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               _buildExportOption(
                 context: context,
                 icon: Icons.picture_as_pdf_rounded,
-                title: 'Save as PDF',
-                subtitle: kIsWeb ? 'Opens in new tab for printing' : 'Share or save PDF',
+                title: 'Download Family Tree',
+                subtitle: kIsWeb ? 'Download as scrollable HTML file' : 'Share or save PDF',
                 color: ElegantColors.terracotta,
                 isDark: isDark,
                 onTap: () async {
                   Navigator.pop(context);
                   if (kIsWeb) {
-                    // Web: open HTML in new tab with print dialog
-                    final htmlContent = FamilyExportService.exportAsHtmlTree(familyMembers, "Mamaduu's Lineage");
-                    WebDownloadHelper.openAndPrint(htmlContent);
-                    _showDownloadSuccess(context, 'Print dialog opened - Select "Save as PDF"');
+                    // Web: download as HTML file (scrollable in any browser)
+                    final htmlContent = FamilyExportService.exportAsHtmlTree(familyMembers, exportTitle);
+                    WebDownloadHelper.downloadFile(htmlContent, '${exportTitle.replaceAll(' ', '_')}_family_tree.html', 'text/html');
+                    _showDownloadSuccess(context, 'Family Tree HTML downloaded - open in browser to scroll!');
                   } else {
                     // Mobile: use printing package to share/print PDF
                     _showDownloadSuccess(context, 'Generating PDF...');
-                    // A0 landscape: 1189mm x 841mm (in points: 3370 x 2384)
-                    const a0Landscape = PdfPageFormat(1189 * PdfPageFormat.mm, 841 * PdfPageFormat.mm);
                     await Printing.layoutPdf(
                       onLayout: (format) async {
                         final doc = pw.Document();
                         doc.addPage(
                           pw.MultiPage(
-                            pageFormat: a0Landscape,
-                            margin: const pw.EdgeInsets.all(20),
-                            build: (context) => [
-                              pw.Header(
-                                level: 0,
-                                child: pw.Text("Mamaduu's Lineage - Family Tree",
-                                  style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
-                              ),
-                              pw.SizedBox(height: 20),
-                              pw.Text('Total Members: ${familyMembers.length}'),
-                              pw.SizedBox(height: 10),
-                              pw.Text('Generated: ${DateTime.now().toString().split('.')[0]}'),
-                              pw.SizedBox(height: 30),
-                              ...familyMembers.map((p) => pw.Container(
-                                margin: const pw.EdgeInsets.only(bottom: 10),
-                                padding: const pw.EdgeInsets.all(10),
-                                decoration: pw.BoxDecoration(
-                                  border: pw.Border.all(color: PdfColors.amber),
-                                  borderRadius: pw.BorderRadius.circular(8),
-                                ),
-                                child: pw.Row(
+                            pageFormat: PdfPageFormat.a4.landscape,
+                            margin: const pw.EdgeInsets.all(32),
+                            header: (context) => pw.Column(
+                              crossAxisAlignment: pw.CrossAxisAlignment.start,
+                              children: [
+                                pw.Row(
+                                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                                   children: [
-                                    pw.Container(
-                                      width: 40,
-                                      height: 40,
-                                      decoration: pw.BoxDecoration(
-                                        color: PdfColors.amber,
-                                        shape: pw.BoxShape.circle,
-                                      ),
-                                      child: pw.Center(
-                                        child: pw.Text(p.firstName[0].toUpperCase(),
-                                          style: pw.TextStyle(color: PdfColors.white, fontWeight: pw.FontWeight.bold)),
-                                      ),
-                                    ),
-                                    pw.SizedBox(width: 15),
-                                    pw.Expanded(
-                                      child: pw.Column(
-                                        crossAxisAlignment: pw.CrossAxisAlignment.start,
-                                        children: [
-                                          pw.Text(p.fullName, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                                          pw.Text('${p.gender == 'male' || p.gender == 'Male' ? '♂ Male' : '♀ Female'}'),
-                                        ],
-                                      ),
-                                    ),
+                                    pw.Text("$exportTitle - Family Tree",
+                                      style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
+                                    pw.Text('Page ${context.pageNumber} of ${context.pagesCount}',
+                                      style: const pw.TextStyle(fontSize: 12, color: PdfColors.grey600)),
                                   ],
                                 ),
-                              )),
+                                pw.SizedBox(height: 4),
+                                pw.Text('Total Members: ${familyMembers.length} | Generated: ${DateTime.now().toString().split('.')[0]}',
+                                  style: const pw.TextStyle(fontSize: 12, color: PdfColors.grey700)),
+                                pw.Divider(thickness: 1, color: PdfColors.amber),
+                                pw.SizedBox(height: 8),
+                              ],
+                            ),
+                            footer: (context) => pw.Container(
+                              alignment: pw.Alignment.centerRight,
+                              margin: const pw.EdgeInsets.only(top: 10),
+                              child: pw.Text('Family Tree App',
+                                style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey500)),
+                            ),
+                            build: (context) => [
+                              ...familyMembers.map((p) {
+                                final spouseNames = familyMembers
+                                    .where((s) => p.relationships.spouseIds.contains(s.id))
+                                    .map((s) => s.fullName)
+                                    .toList();
+                                final childNames = familyMembers
+                                    .where((c) => p.relationships.childrenIds.contains(c.id))
+                                    .map((c) => c.fullName)
+                                    .toList();
+                                final parentNames = familyMembers
+                                    .where((pr) => p.relationships.parentIds.contains(pr.id))
+                                    .map((pr) => pr.fullName)
+                                    .toList();
+                                    
+                                return pw.Container(
+                                  margin: const pw.EdgeInsets.only(bottom: 10),
+                                  padding: const pw.EdgeInsets.all(12),
+                                  decoration: pw.BoxDecoration(
+                                    border: pw.Border.all(color: PdfColors.amber200),
+                                    borderRadius: pw.BorderRadius.circular(8),
+                                    color: PdfColors.amber50,
+                                  ),
+                                  child: pw.Row(
+                                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                                    children: [
+                                      pw.Container(
+                                        width: 40,
+                                        height: 40,
+                                        decoration: pw.BoxDecoration(
+                                          color: p.gender == 'male' || p.gender == 'Male' ? PdfColors.blue300 : PdfColors.pink300,
+                                          shape: pw.BoxShape.circle,
+                                        ),
+                                        child: pw.Center(
+                                          child: pw.Text(p.firstName[0].toUpperCase(),
+                                            style: pw.TextStyle(color: PdfColors.white, fontWeight: pw.FontWeight.bold, fontSize: 16)),
+                                        ),
+                                      ),
+                                      pw.SizedBox(width: 15),
+                                      pw.Expanded(
+                                        child: pw.Column(
+                                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                                          children: [
+                                            pw.Text(p.fullName, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
+                                            pw.SizedBox(height: 2),
+                                            pw.Text(
+                                              '${p.gender == 'male' || p.gender == 'Male' ? '♂ Male' : '♀ Female'}'
+                                              '${(p.bio ?? '').isNotEmpty ? ' • ${p.bio}' : ''}',
+                                              style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
+                                            ),
+                                            if (parentNames.isNotEmpty) ...[
+                                              pw.SizedBox(height: 2),
+                                              pw.Text('Parents: ${parentNames.join(', ')}',
+                                                style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
+                                            ],
+                                            if (spouseNames.isNotEmpty) ...[
+                                              pw.SizedBox(height: 2),
+                                              pw.Text('Spouse: ${spouseNames.join(', ')}',
+                                                style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
+                                            ],
+                                            if (childNames.isNotEmpty) ...[
+                                              pw.SizedBox(height: 2),
+                                              pw.Text('Children: ${childNames.join(', ')}',
+                                                style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
                             ],
                           ),
                         );
@@ -1041,47 +1118,11 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                 onTap: () {
                   Navigator.pop(context);
                   _downloadFile(
-                    FamilyExportService.exportAsMemberList(familyMembers, "Mamaduu's Lineage"),
+                    FamilyExportService.exportAsMemberList(familyMembers, exportTitle),
                     'family_members.html',
                     'text/html',
                   );
                   _showDownloadSuccess(context, 'Member Directory');
-                },
-              ),
-              const SizedBox(height: 12),
-              _buildExportOption(
-                context: context,
-                icon: Icons.code_rounded,
-                title: 'JSON Data',
-                subtitle: 'Complete data for developers',
-                color: AppTheme.accentTeal,
-                isDark: isDark,
-                onTap: () {
-                  Navigator.pop(context);
-                  _downloadFile(
-                    FamilyExportService.exportAsJson(familyMembers),
-                    'family_tree.json',
-                    'application/json',
-                  );
-                  _showDownloadSuccess(context, 'JSON Data');
-                },
-              ),
-              const SizedBox(height: 12),
-              _buildExportOption(
-                context: context,
-                icon: Icons.table_chart_rounded,
-                title: 'CSV Spreadsheet',
-                subtitle: 'Open in Excel or Google Sheets',
-                color: ElegantColors.gold,
-                isDark: isDark,
-                onTap: () {
-                  Navigator.pop(context);
-                  _downloadFile(
-                    FamilyExportService.exportAsCsv(familyMembers),
-                    'family_tree.csv',
-                    'text/csv',
-                  );
-                  _showDownloadSuccess(context, 'CSV File');
                 },
               ),
             ],
@@ -1092,7 +1133,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
             onPressed: () => Navigator.pop(context),
             child: Text(
               'Cancel',
-              style: TextStyle(color: isDark ? Colors.white54 : ElegantColors.warmGray),
+              style: TextStyle(color: context.colors.inkMuted),
             ),
           ),
         ],
@@ -1143,7 +1184,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                       style: GoogleFonts.inter(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.white : ElegantColors.charcoal,
+                        color: context.colors.ink,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -1151,7 +1192,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                       subtitle,
                       style: GoogleFonts.inter(
                         fontSize: 12,
-                        color: isDark ? Colors.white54 : ElegantColors.warmGray,
+                        color: context.colors.inkMuted,
                       ),
                     ),
                   ],
@@ -1160,7 +1201,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
               Icon(
                 Icons.arrow_forward_ios_rounded,
                 size: 16,
-                color: isDark ? Colors.white38 : ElegantColors.warmGray,
+                color: context.colors.inkMuted,
               ),
             ],
           ),
@@ -1196,443 +1237,22 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
     _scaffoldKey.currentState?.openEndDrawer();
   }
 
+  /// The profile side panel. All of its presentation lives in [ProfileDrawer];
+  /// this screen only supplies the tree data and the dialogs the panel opens.
   Widget _buildProfileSidebar(BuildContext context, bool isDark) {
-    final authUser = ref.watch(authStateProvider).value;
-    final isAdmin = ref.watch(userRoleProvider).value?.isAdmin ?? false;
-    final familyMembers = ref.watch(treeControllerProvider(widget.familyTreeId)).persons;
-    
-    // Check if user is linked to a family member
-    final linkedPerson = _getLinkedPerson(familyMembers, authUser?.uid);
-    final isLinked = linkedPerson != null;
-    
-    // Calculate stats
-    final generations = _calculateGenerations(familyMembers);
-    final descendants = familyMembers.length;
-    
-    return Drawer(
-      width: 320,
-      backgroundColor: Colors.transparent,
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: isDark
-              ? LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    AppTheme.backgroundDark,
-                    AppTheme.primaryDeep.withValues(alpha: 0.3),
-                  ],
-                )
-              : const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    ElegantColors.warmWhite,
-                    ElegantColors.cream,
-                  ],
-                ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.2),
-              blurRadius: 20,
-              offset: const Offset(-5, 0),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Header with close button
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  children: [
-                    Text(
-                      'Profile',
-                      style: GoogleFonts.playfairDisplay(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
-                        color: isDark ? Colors.white : ElegantColors.charcoal,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: Icon(
-                        Icons.close_rounded,
-                        color: isDark ? Colors.white70 : ElegantColors.warmGray,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              
-              // Profile section
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 20),
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: isDark ? AppTheme.primaryGradient : ElegantColors.warmGradient,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: (isDark ? AppTheme.primaryLight : ElegantColors.terracotta).withValues(alpha: 0.3),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    // Avatar with photo upload
-                    GestureDetector(
-                      onTap: () => _showPhotoUploadOptions(context, isDark),
-                      child: Stack(
-                        children: [
-                          Container(
-                            width: 70,
-                            height: 70,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.white.withValues(alpha: 0.2),
-                              border: Border.all(color: Colors.white, width: 2),
-                              image: authUser?.photoURL != null
-                                  ? DecorationImage(
-                                      image: NetworkImage(authUser!.photoURL!),
-                                      fit: BoxFit.cover,
-                                    )
-                                  : null,
-                            ),
-                            child: authUser?.photoURL == null
-                                ? const Icon(Icons.person_rounded, color: Colors.white, size: 35)
-                                : null,
-                          ),
-                          // Camera icon overlay
-                          Positioned(
-                            bottom: 0,
-                            right: 0,
-                            child: Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                color: isDark ? AppTheme.primaryLight : ElegantColors.terracotta,
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 2),
-                              ),
-                              child: const Icon(
-                                Icons.camera_alt_rounded,
-                                color: Colors.white,
-                                size: 14,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      authUser?.displayName ?? authUser?.email?.split('@').first ?? 'User',
-                      style: GoogleFonts.playfairDisplay(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      authUser?.email ?? '',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: Colors.white.withValues(alpha: 0.8),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              
-              const SizedBox(height: 24),
-              
-              // Stats row
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _buildSidebarStat(
-                        icon: Icons.account_tree_rounded,
-                        value: '$generations',
-                        label: 'Generations',
-                        color: isDark ? AppTheme.primaryLight : ElegantColors.sage,
-                        isDark: isDark,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildSidebarStat(
-                        icon: Icons.people_alt_rounded,
-                        value: '$descendants',
-                        label: 'Members',
-                        color: isDark ? AppTheme.accentGold : ElegantColors.gold,
-                        isDark: isDark,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              
-              const SizedBox(height: 24),
-              
-              // Quick actions
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Quick Actions',
-                        style: GoogleFonts.cormorantGaramond(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: isDark ? Colors.white60 : ElegantColors.warmGray,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      _buildSidebarAction(
-                        icon: Icons.groups_rounded,
-                        label: 'Family Group',
-                        subtitle: 'Chat & events',
-                        color: ElegantColors.sage,
-                        isDark: isDark,
-                        onTap: () {
-                          Navigator.pop(context);
-                          context.go('/group');
-                        },
-                      ),
-                      if (isAdmin) ...[
-                        const SizedBox(height: 8),
-                        _buildSidebarAction(
-                          icon: Icons.admin_panel_settings_rounded,
-                          label: 'Admin Panel',
-                          subtitle: 'Manage family tree',
-                          color: ElegantColors.gold,
-                          isDark: isDark,
-                          onTap: () {
-                            Navigator.pop(context);
-                            context.go('/admin');
-                          },
-                        ),
-                      ],
-                      const SizedBox(height: 8),
-                      // Show Edit Profile if linked, otherwise show Link Profile
-                      if (isLinked)
-                        _buildSidebarAction(
-                          icon: Icons.edit_rounded,
-                          label: 'Edit My Profile',
-                          subtitle: 'Update your info & spouse',
-                          color: isDark ? AppTheme.accentTeal : ElegantColors.sage,
-                          isDark: isDark,
-                          onTap: () {
-                            Navigator.pop(context);
-                            _showEditProfileDialog(context, linkedPerson!, isDark);
-                          },
-                        ),
-                      // Link Profile - commented out for now
-                      // else
-                      //   _buildSidebarAction(
-                      //     icon: Icons.link_rounded,
-                      //     label: 'Link Profile',
-                      //     subtitle: 'Connect to family member',
-                      //     color: isDark ? AppTheme.primaryLight : ElegantColors.terracotta,
-                      //     isDark: isDark,
-                      //     onTap: () {
-                      //       Navigator.pop(context);
-                      //       context.go('/group?tab=3'); // Go to Members tab with linking
-                      //     },
-                      //   ),
-                    ],
-                  ),
-                ),
-              ),
-              
-              // Sign out button
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () async {
-                      final authController = ref.read(authControllerProvider.notifier);
-                      await authController.signOut();
-                      if (context.mounted) {
-                        Navigator.pop(context);
-                        context.go('/');
-                      }
-                    },
-                    icon: const Icon(Icons.logout_rounded, size: 18),
-                    label: const Text('Sign Out'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red.shade400,
-                      side: BorderSide(color: Colors.red.shade300),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+    final state = ref.watch(treeControllerProvider(widget.familyTreeId));
+    final authUserId = ref.watch(authStateProvider).value?.uid;
 
-  int _calculateGenerations(List<Person> members) {
-    if (members.isEmpty) return 0;
-    final roots = members.where((p) => p.relationships.parentIds.isEmpty).toList();
-    if (roots.isEmpty) return 1;
-    int maxDepth = 0;
-    for (final root in roots) {
-      final depth = _getPersonDepth(root.id, members, {});
-      if (depth > maxDepth) maxDepth = depth;
-    }
-    return maxDepth;
-  }
-
-  int _getPersonDepth(String personId, List<Person> members, Set<String> visited) {
-    if (visited.contains(personId)) return 0;
-    visited.add(personId);
-    final person = members.firstWhere((p) => p.id == personId, orElse: () => members.first);
-    if (person.relationships.childrenIds.isEmpty) return 1;
-    int maxChildDepth = 0;
-    for (final childId in person.relationships.childrenIds) {
-      final childDepth = _getPersonDepth(childId, members, visited);
-      if (childDepth > maxChildDepth) maxChildDepth = childDepth;
-    }
-    return maxChildDepth + 1;
-  }
-
-  Widget _buildSidebarStat({
-    required IconData icon,
-    required String value,
-    required String label,
-    required Color color,
-    required bool isDark,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: isDark ? Colors.white.withValues(alpha: 0.05) : ElegantColors.warmWhite,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isDark ? Colors.white.withValues(alpha: 0.1) : ElegantColors.champagne,
-        ),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 22),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: GoogleFonts.playfairDisplay(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              color: isDark ? Colors.white : ElegantColors.charcoal,
-            ),
-          ),
-          Text(
-            label,
-            style: GoogleFonts.cormorantGaramond(
-              fontSize: 12,
-              color: isDark ? Colors.white60 : ElegantColors.warmGray,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSidebarAction({
-    required IconData icon,
-    required String label,
-    required String subtitle,
-    required Color color,
-    required bool isDark,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: isDark ? Colors.white.withValues(alpha: 0.05) : ElegantColors.warmWhite,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: isDark ? Colors.white.withValues(alpha: 0.1) : ElegantColors.champagne,
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: color, size: 20),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      label,
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.white : ElegantColors.charcoal,
-                      ),
-                    ),
-                    Text(
-                      subtitle,
-                      style: GoogleFonts.cormorantGaramond(
-                        fontSize: 12,
-                        color: isDark ? Colors.white60 : ElegantColors.warmGray,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: isDark ? Colors.white30 : ElegantColors.warmGray,
-                size: 20,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProfileOption({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    required bool isDark,
-  }) {
-    return _buildSidebarAction(
-      icon: icon,
-      label: label,
-      subtitle: '',
-      color: AppTheme.primaryLight,
-      isDark: isDark,
-      onTap: onTap,
+    return ProfileDrawer(
+      familyMembers: state.persons,
+      linkedPerson: _getLinkedPerson(state.persons, authUserId),
+      onChangePhoto: () => _showPhotoUploadOptions(context, isDark),
+      onEditLinkedProfile: () {
+        final person = _getLinkedPerson(state.persons, authUserId);
+        if (person != null) {
+          _showEditProfileDialog(context, person, isDark);
+        }
+      },
     );
   }
 
@@ -1674,7 +1294,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
             child: Icon(
               Icons.family_restroom_rounded,
               size: 64,
-              color: isDark ? Colors.white54 : ElegantColors.warmGray,
+              color: context.colors.inkMuted,
             ),
           ),
           const SizedBox(height: 24),
@@ -1683,7 +1303,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
             style: GoogleFonts.playfairDisplay(
               fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : ElegantColors.charcoal,
+              color: context.colors.ink,
             ),
           ),
           const SizedBox(height: 12),
@@ -1691,7 +1311,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
             'The family tree is empty.\nUse the Admin Panel to add members.',
             style: GoogleFonts.inter(
               fontSize: 15,
-              color: isDark ? Colors.white60 : ElegantColors.warmGray,
+              color: context.colors.inkMuted,
             ),
             textAlign: TextAlign.center,
           ),
@@ -1714,14 +1334,14 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
           Icon(
             icon,
             size: 20,
-            color: isDark ? Colors.white70 : ElegantColors.charcoal,
+            color: context.colors.inkSoft,
           ),
           const SizedBox(width: 12),
           Text(
             label,
             style: GoogleFonts.inter(
               fontWeight: FontWeight.w500,
-              color: isDark ? Colors.white : ElegantColors.charcoal,
+              color: context.colors.ink,
             ),
           ),
         ],

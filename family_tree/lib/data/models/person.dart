@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Represents a person in the family tree
 class Person {
@@ -7,14 +6,39 @@ class Person {
   final String? authUserId; // Firebase Auth UID of the user who owns this record
   final String firstName;
   final String lastName;
+  /// Names per locale tag (e.g. 'am'), served by the backend
+  final Map<String, LocalizedPersonName> localizedNames;
   final DateTime? birthDate;
   final DateTime? deathDate;
   final String? gender; // 'male', 'female', 'other'
   final String? bio;
   final String? profilePhotoUrl;
+
+  /// Self-authored detail. A linked member writes these about themselves and
+  /// everyone browsing the tree reads them on the person's card.
+  final String? occupation;
+  final String? birthPlace;
+  final String? currentResidence;
+  final String? education;
+  final String? contactEmail;
+  final String? contactPhone;
+  final List<String> interests;
+
+  /// 'single' | 'married' | 'divorced' | 'widowed', or empty when unstated.
+  final String? maritalStatus;
+
+  /// Free text, for a spouse with no record of their own in the tree. A spouse
+  /// who *is* in the tree lives in [relationships].
+  final String? spouseName;
+
+  /// Set by an admin. Kept separate from [deathDate] because a family often
+  /// knows someone has died long before anyone can name the date.
+  final bool isDeceasedFlag;
+
   final List<String> photos;
   final List<LifeEvent> lifeEvents;
   final Relationships relationships;
+  final int displayOrder;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -24,14 +48,26 @@ class Person {
     this.authUserId,
     required this.firstName,
     required this.lastName,
+    this.localizedNames = const {},
     this.birthDate,
     this.deathDate,
     this.gender,
     this.bio,
     this.profilePhotoUrl,
+    this.occupation,
+    this.birthPlace,
+    this.currentResidence,
+    this.education,
+    this.contactEmail,
+    this.contactPhone,
+    this.interests = const [],
+    this.maritalStatus,
+    this.spouseName,
+    this.isDeceasedFlag = false,
     this.photos = const [],
     this.lifeEvents = const [],
     required this.relationships,
+    this.displayOrder = 0,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -54,7 +90,10 @@ class Person {
     return '$birth - $death';
   }
   
-  bool get isDeceased => deathDate != null;
+  /// Either an explicit admin flag or a recorded death date. A family often
+  /// knows someone has passed before the date is known, so the flag alone is
+  /// enough.
+  bool get isDeceased => isDeceasedFlag || deathDate != null;
   
   int? get age {
     if (birthDate == null) return null;
@@ -62,59 +101,67 @@ class Person {
     return end.year - birthDate!.year;
   }
 
+
+  /// Resolve the best localized name for a locale tag ('am', 'am-ET', ...)
+  LocalizedPersonName? _localizedNameForLocaleTag(String? localeTag) {
+    if (localeTag == null || localeTag.isEmpty || localizedNames.isEmpty) {
+      return null;
+    }
+    final normalized = localeTag.replaceAll('_', '-').toLowerCase();
+    final exact = localizedNames[normalized];
+    if (exact != null && exact.hasAnyValue) return exact;
+    final language = normalized.split('-').first;
+    final match = localizedNames[language];
+    if (match != null && match.hasAnyValue) return match;
+    return null;
+  }
+
+  String fullNameForLocaleTag(String? localeTag) {
+    final localized = _localizedNameForLocaleTag(localeTag);
+    if (localized != null && localized.fullName.isNotEmpty) {
+      return localized.fullName;
+    }
+    return fullName;
+  }
+
+  String shortNameForLocaleTag(String? localeTag) {
+    final localized = _localizedNameForLocaleTag(localeTag);
+    if (localized != null && localized.firstName.isNotEmpty) {
+      return localized.firstName;
+    }
+    return shortName;
+  }
+
+  String initialsForLocaleTag(String? localeTag) {
+    final localized = _localizedNameForLocaleTag(localeTag);
+    final first = localized?.firstName.trim() ?? firstName.trim();
+    final last = localized?.lastName.trim() ?? lastName.trim();
+    if (first.isEmpty && last.isEmpty) return '?';
+    final buffer = StringBuffer();
+    if (first.isNotEmpty) buffer.write(first.substring(0, 1));
+    if (last.isNotEmpty) buffer.write(last.substring(0, 1));
+    return buffer.toString();
+  }
+
+  /// Every name this person can be matched against, across locales
+  Iterable<String> get searchableNames sync* {
+    if (firstName.isNotEmpty) yield firstName;
+    if (lastName.isNotEmpty) yield lastName;
+    if (fullName.isNotEmpty) yield fullName;
+    for (final localized in localizedNames.values) {
+      if (localized.firstName.isNotEmpty) yield localized.firstName;
+      if (localized.lastName.isNotEmpty) yield localized.lastName;
+      if (localized.fullName.isNotEmpty) yield localized.fullName;
+    }
+  }
+
+  bool matchesNameQuery(String query) {
+    final normalized = query.trim().toLowerCase();
+    if (normalized.isEmpty) return true;
+    return searchableNames.any((n) => n.toLowerCase().contains(normalized));
+  }
+
   String _formatYear(DateTime date) => date.year.toString();
-
-  // Factory from Firestore document
-  factory Person.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    
-    return Person(
-      id: doc.id,
-      familyTreeId: data['familyTreeId'] ?? '',
-      authUserId: data['authUserId'],
-      firstName: data['firstName'] ?? '',
-      lastName: data['lastName'] ?? '',
-      birthDate: data['birthDate'] != null
-          ? (data['birthDate'] as Timestamp).toDate()
-          : null,
-      deathDate: data['deathDate'] != null
-          ? (data['deathDate'] as Timestamp).toDate()
-          : null,
-      gender: data['gender'],
-      bio: data['bio'],
-      profilePhotoUrl: data['profilePhotoUrl'],
-      photos: List<String>.from(data['photos'] ?? []),
-      lifeEvents: (data['lifeEvents'] as List<dynamic>?)
-              ?.map((e) => LifeEvent.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [],
-      relationships: Relationships.fromJson(
-        data['relationships'] as Map<String, dynamic>? ?? {},
-      ),
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-    );
-  }
-
-  // Convert to Firestore document
-  Map<String, dynamic> toFirestore() {
-    return {
-      'familyTreeId': familyTreeId,
-      'authUserId': authUserId,
-      'firstName': firstName,
-      'lastName': lastName,
-      'birthDate': birthDate != null ? Timestamp.fromDate(birthDate!) : null,
-      'deathDate': deathDate != null ? Timestamp.fromDate(deathDate!) : null,
-      'gender': gender,
-      'bio': bio,
-      'profilePhotoUrl': profilePhotoUrl,
-      'photos': photos,
-      'lifeEvents': lifeEvents.map((e) => e.toJson()).toList(),
-      'relationships': relationships.toJson(),
-      'createdAt': Timestamp.fromDate(createdAt),
-      'updatedAt': Timestamp.fromDate(updatedAt),
-    };
-  }
 
   Person copyWith({
     String? id,
@@ -122,16 +169,32 @@ class Person {
     String? authUserId,
     String? firstName,
     String? lastName,
+    Map<String, LocalizedPersonName>? localizedNames,
     DateTime? birthDate,
     DateTime? deathDate,
     String? gender,
     String? bio,
     String? profilePhotoUrl,
+    String? occupation,
+    String? birthPlace,
+    String? currentResidence,
+    String? education,
+    String? contactEmail,
+    String? contactPhone,
+    List<String>? interests,
+    String? maritalStatus,
+    String? spouseName,
+    bool? isDeceasedFlag,
     List<String>? photos,
     List<LifeEvent>? lifeEvents,
     Relationships? relationships,
+    int? displayOrder,
     DateTime? createdAt,
     DateTime? updatedAt,
+    // `??` can only ever set a date, never unset one. These let the editor
+    // clear a birth or death date the user removed.
+    bool clearBirthDate = false,
+    bool clearDeathDate = false,
   }) {
     return Person(
       id: id ?? this.id,
@@ -139,14 +202,26 @@ class Person {
       authUserId: authUserId ?? this.authUserId,
       firstName: firstName ?? this.firstName,
       lastName: lastName ?? this.lastName,
-      birthDate: birthDate ?? this.birthDate,
-      deathDate: deathDate ?? this.deathDate,
+      localizedNames: localizedNames ?? this.localizedNames,
+      birthDate: clearBirthDate ? null : (birthDate ?? this.birthDate),
+      deathDate: clearDeathDate ? null : (deathDate ?? this.deathDate),
       gender: gender ?? this.gender,
       bio: bio ?? this.bio,
       profilePhotoUrl: profilePhotoUrl ?? this.profilePhotoUrl,
+      occupation: occupation ?? this.occupation,
+      birthPlace: birthPlace ?? this.birthPlace,
+      currentResidence: currentResidence ?? this.currentResidence,
+      education: education ?? this.education,
+      contactEmail: contactEmail ?? this.contactEmail,
+      contactPhone: contactPhone ?? this.contactPhone,
+      interests: interests ?? this.interests,
+      maritalStatus: maritalStatus ?? this.maritalStatus,
+      spouseName: spouseName ?? this.spouseName,
+      isDeceasedFlag: isDeceasedFlag ?? this.isDeceasedFlag,
       photos: photos ?? this.photos,
       lifeEvents: lifeEvents ?? this.lifeEvents,
       relationships: relationships ?? this.relationships,
+      displayOrder: displayOrder ?? this.displayOrder,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -166,14 +241,27 @@ class Person {
       'authUserId': authUserId,
       'firstName': firstName,
       'lastName': lastName,
+      'localizedNames':
+          localizedNames.map((k, v) => MapEntry(k, v.toJson())),
       'birthDate': _toRfc3339(birthDate),
       'deathDate': _toRfc3339(deathDate),
       'gender': gender,
       'bio': bio,
       'profilePhotoUrl': profilePhotoUrl,
+      'occupation': occupation,
+      'birthPlace': birthPlace,
+      'currentResidence': currentResidence,
+      'education': education,
+      'contactEmail': contactEmail,
+      'contactPhone': contactPhone,
+      'interests': interests,
+      'maritalStatus': maritalStatus,
+      'spouseName': spouseName,
+      'isDeceased': isDeceasedFlag,
       'photos': photos,
       'lifeEvents': lifeEvents.map((e) => e.toJson()).toList(),
       'relationships': relationships.toJson(),
+      'displayOrder': displayOrder,
       'createdAt': _toRfc3339(createdAt),
       'updatedAt': _toRfc3339(updatedAt),
     };
@@ -187,11 +275,27 @@ class Person {
       authUserId: json['authUserId'],
       firstName: json['firstName'] ?? '',
       lastName: json['lastName'] ?? '',
+      localizedNames: (json['localizedNames'] as Map<String, dynamic>?)
+              ?.map((k, v) => MapEntry(
+                    k.toLowerCase(),
+                    LocalizedPersonName.fromJson(v as Map<String, dynamic>),
+                  )) ??
+          const {},
       birthDate: json['birthDate'] != null ? DateTime.parse(json['birthDate']) : null,
       deathDate: json['deathDate'] != null ? DateTime.parse(json['deathDate']) : null,
       gender: json['gender'] ?? '',
       bio: json['bio'] ?? '',
       profilePhotoUrl: json['profilePhotoUrl'] ?? '',
+      occupation: json['occupation'] ?? '',
+      birthPlace: json['birthPlace'] ?? '',
+      currentResidence: json['currentResidence'] ?? '',
+      education: json['education'] ?? '',
+      contactEmail: json['contactEmail'] ?? '',
+      contactPhone: json['contactPhone'] ?? '',
+      interests: List<String>.from(json['interests'] ?? []),
+      maritalStatus: json['maritalStatus'] ?? '',
+      spouseName: json['spouseName'] ?? '',
+      isDeceasedFlag: json['isDeceased'] ?? false,
       photos: List<String>.from(json['photos'] ?? []),
       lifeEvents: (json['lifeEvents'] as List<dynamic>?)
               ?.map((e) => LifeEvent.fromJson(e as Map<String, dynamic>))
@@ -200,8 +304,47 @@ class Person {
       relationships: json['relationships'] != null
           ? Relationships.fromJson(json['relationships'] as Map<String, dynamic>)
           : Relationships(),
+      displayOrder: json['displayOrder'] ?? 0,
       createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : DateTime.now(),
       updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : DateTime.now(),
+    );
+  }
+}
+
+/// A person's name in one specific locale
+class LocalizedPersonName {
+  final String firstName;
+  final String lastName;
+
+  const LocalizedPersonName({this.firstName = '', this.lastName = ''});
+
+  bool get hasAnyValue =>
+      firstName.trim().isNotEmpty || lastName.trim().isNotEmpty;
+
+  String get fullName {
+    final f = firstName.trim();
+    final l = lastName.trim();
+    if (f.isEmpty) return l;
+    if (l.isEmpty) return f;
+    return '$f $l';
+  }
+
+  LocalizedPersonName copyWith({String? firstName, String? lastName}) {
+    return LocalizedPersonName(
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'firstName': firstName,
+        'lastName': lastName,
+      };
+
+  factory LocalizedPersonName.fromJson(Map<String, dynamic> json) {
+    return LocalizedPersonName(
+      firstName: json['firstName'] as String? ?? '',
+      lastName: json['lastName'] as String? ?? '',
     );
   }
 }
@@ -295,11 +438,10 @@ class RelationshipConnection {
     };
   }
 
-  // Helper to parse date from either Timestamp or ISO8601 string
+  // Helper to parse an ISO8601 date string from the API
   static DateTime? _parseDate(dynamic date) {
     if (date == null) return null;
-    if (date is Timestamp) return date.toDate();
-    if (date is String) return DateTime.parse(date);
+    if (date is String) return DateTime.tryParse(date);
     return null;
   }
 }
@@ -365,11 +507,10 @@ class LifeEvent {
     };
   }
 
-  // Helper to parse date from either Timestamp or ISO8601 string
+  // Helper to parse an ISO8601 date string from the API
   static DateTime? _parseDate(dynamic date) {
     if (date == null) return null;
-    if (date is Timestamp) return date.toDate();
-    if (date is String) return DateTime.parse(date);
+    if (date is String) return DateTime.tryParse(date);
     return null;
   }
 }

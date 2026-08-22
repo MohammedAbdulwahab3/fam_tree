@@ -1,0 +1,97 @@
+{
+  "@@locale": "en",
+  "appTitle": "Family Tree",
+  "languageMenuTooltip": "Language",
+  "localeEnglish": "English",
+  "localeAmharic": "Amharic",
+  "themeDark": "Dark",
+  "themeLight": "Light",
+  "errorPrefix": "Error",
+  "emptyFamilyMembers": "No family members yet",
+  "addFirstPerson": "Add First Person",
+  "layoutFocus": "Focus",
+  "layoutTree": "Tree",
+  "layoutRadial": "Radial",
+  "layoutTimeline": "Timeline",
+  "layoutList": "List",
+  "viewDetails": "View Details",
+  "edit": "Edit",
+  "addChild": "Add Child",
+  "focusOnSubtree": "Focus on Subtree",
+  "delete": "Delete",
+  "deletePersonTitle": "Delete Person",
+  "deletePersonMessage": "Are you sure you want to delete {personName}? This will also remove their relationships.",
+  "@deletePersonMessage": {
+    "placeholders": {
+      "personName": {
+        "type": "String"
+      }
+    }
+  },
+  "cancel": "Cancel",
+  "addPersonTitle": "Add Person",
+  "editPersonTitle": "Edit Person",
+  "defaultNameSection": "Default Name",
+  "localizedAmharicNameSection": "Amharic Name (Optional)",
+  "firstNameLabel": "First Name",
+  "lastNameLabel": "Last Name",
+  "firstNameRequiredError": "First name is required.",
+  "genderLabel": "Gender",
+  "male": "Male",
+  "female": "Female",
+  "birthDateLabel": "Birth Date",
+  "deathDateLabel": "Death Date",
+  "stillAliveLabel": "Still alive",
+  "bioLabel": "Bio",
+  "saveChanges": "Save Changes",
+  "selectDate": "Select date",
+  "personSaveError": "Unable to save person: {error}",
+  "@personSaveError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "zoomIn": "Zoom In",
+  "zoomOut": "Zoom Out",
+  "fitAll": "Fit All",
+  "resetView": "Reset View",
+  "toggleMinimap": "Toggle Minimap",
+  "generations": "Generations",
+  "all": "All",
+  "searchFamily": "Search family...",
+  "backToFullTree": "Back to Full Tree",
+  "stopTour": "Stop Tour",
+  "startTour": "Start Tour",
+  "peopleCount": "{count} people",
+  "@peopleCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "noChildrenRecorded": "No children recorded",
+  "back": "Back",
+  "home": "Home",
+  "generationShort": "Gen {number}",
+  "@generationShort": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "overview": "Overview",
+  "bornLabel": "Born",
+  "diedLabel": "Died",
+  "lifeEventsLabel": "Life Events",
+  "presentLabel": "Present",
+  "unknownYearLabel": "?",
+  "relationshipBiological": "biological",
+  "relationshipMarriage": "marriage",
+  "relationshipAdoption": "adoption",
+  "relationshipStep": "step",
+  "relationshipPartnership": "partnership"
+}

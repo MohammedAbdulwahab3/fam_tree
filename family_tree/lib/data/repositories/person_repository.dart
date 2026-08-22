@@ -1,51 +1,125 @@
 import 'dart:convert';
 import 'package:family_tree/data/models/person.dart';
 import 'package:family_tree/data/services/api_service.dart';
+import 'package:family_tree/data/services/local_cache_service.dart';
 
 /// Repository for Person CRUD operations using Go backend
 class PersonRepository {
   final ApiService _api = ApiService();
+  final LocalCacheService _cache = LocalCacheService.instance;
 
-  /// Get all persons (watches not supported with REST, use polling if needed)
+  /// How often the tree checks for changes.
+  ///
+  /// This was three seconds. A family tree changes a few times a year, and each
+  /// poll re-downloaded every person, re-parsed them, rewrote the whole list to
+  /// disk, and handed the canvas a new list object that made it recompute the
+  /// layout of the entire tree — twenty times a minute, on a phone.
+  static const Duration pollInterval = Duration(seconds: 30);
+
+  /// The last response we saw, kept so an unchanged poll can hand back the very
+  /// same list object. Widgets compare by identity, so returning the same
+  /// instance is what stops a no-op poll from triggering a relayout.
+  static String? _lastEtag;
+  static List<Person>? _lastPersons;
+
+  /// Which tree [_lastPersons] was filtered for. The cached list is post-filter,
+  /// so reusing it for a different tree would show the wrong family.
+  static String? _lastTreeId;
+
+  /// Get all persons. Emits only when something has actually changed —
+  /// unchanged polls re-emit the identical list.
   Stream<List<Person>> watchFamilyMembers(String familyTreeId) async* {
     while (true) {
       try {
-        final persons = await getFamilyMembers(familyTreeId);
-        yield persons;
+        yield await getFamilyMembers(familyTreeId);
       } catch (e) {
         print('Error in watchFamilyMembers: $e');
-        yield [];
+        // Hold the last known tree rather than blanking the screen; a dropped
+        // connection should not look like a family with nobody in it.
+        yield (_lastTreeId == familyTreeId ? _lastPersons : null) ??
+            await _loadFromCache(familyTreeId);
       }
-      
-      // Poll every 3 seconds for updates
-      await Future.delayed(const Duration(seconds: 3));
+
+      await Future.delayed(pollInterval);
     }
   }
 
-  /// Get all persons in a family tree
+  /// Drop the cached response so the next read goes to the server.
+  ///
+  /// Call this after a write: the ETag we hold is for the version before the
+  /// change, and we want the new one immediately rather than at the next poll.
+  static void invalidate() {
+    _lastEtag = null;
+    _lastPersons = null;
+    _lastTreeId = null;
+  }
+
+  /// Get all persons in a family tree (with offline cache fallback)
   Future<List<Person>> getFamilyMembers(String familyTreeId) async {
     try {
-      // Try authenticated endpoint first, fall back to public
-      var response = await _api.get('/api/persons');
-      
+      // Ask the server whether anything changed since the version we hold. If
+      // not it answers 304 with no body, and we reuse what we already parsed.
+      final canReuse = _lastTreeId == familyTreeId && _lastPersons != null;
+      final conditional = <String, String>{
+        if (canReuse && _lastEtag != null) 'If-None-Match': _lastEtag!,
+      };
+
+      var response = await _api.get('/api/persons', headers: conditional);
+
       // If unauthorized, try public endpoint
       if (response.statusCode == 401) {
-        response = await _api.get('/public/persons', includeAuth: false);
+        response = await _api.get(
+          '/public/persons',
+          includeAuth: false,
+          headers: conditional,
+        );
       }
-      
+
+      if (response.statusCode == 304 && canReuse) {
+        return _lastPersons!;
+      }
+
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
-        return data
+        final persons = data
             .map((json) => Person.fromJson(json as Map<String, dynamic>))
             .where((p) => p.familyTreeId == familyTreeId)
-            .toList();
+            .toList(growable: false);
+
+        _lastEtag = response.headers['etag'];
+        _lastPersons = persons;
+        _lastTreeId = familyTreeId;
+
+        // Cache for offline access. Only on a real change — this writes the
+        // whole list to disk, which is not something to do on a timer.
+        await _cache.cachePersons(persons);
+
+        return persons;
       }
       print('API response status: ${response.statusCode}');
-      return [];
+
+      // API failed, try to load from cache
+      return (canReuse ? _lastPersons : null) ?? await _loadFromCache(familyTreeId);
     } catch (e) {
       print('Error fetching family members: $e');
-      return [];
+      // Network error - fall back to what we have
+      return (_lastTreeId == familyTreeId ? _lastPersons : null) ??
+          await _loadFromCache(familyTreeId);
     }
+  }
+  
+  /// Load persons from local cache
+  Future<List<Person>> _loadFromCache(String familyTreeId) async {
+    try {
+      final cachedPersons = await _cache.getCachedPersons();
+      if (cachedPersons.isNotEmpty) {
+        print('PersonRepository: Loaded ${cachedPersons.length} persons from cache');
+        return cachedPersons.where((p) => p.familyTreeId == familyTreeId).toList();
+      }
+    } catch (e) {
+      print('Error loading from cache: $e');
+    }
+    return [];
   }
 
   /// Get a single person
@@ -63,47 +137,39 @@ class PersonRepository {
     }
   }
 
-  /// Add a new person
+  /// Add a new person.
+  ///
+  /// Creating people is an admin action, so this posts to the admin route. It
+  /// used to post to `/api/persons`, which the backend does not serve, so the
+  /// call always 404'd.
   Future<String> addPerson(Person person) async {
-    try {
-      final json = person.toJson();
-      final response = await _api.post(
-        '/api/persons',
-        body: json,
-      );
-      if (response.statusCode == 201) {
-        final data = jsonDecode(response.body);
-        return data['id'];
-      }
-      throw Exception('Failed to create person');
-    } catch (e) {
-      print('Error adding person: $e');
-      rethrow;
-    }
+    final response = await _api.post(
+      '/api/admin/persons',
+      body: person.toJson(),
+    );
+    ApiService.ensureOk(response, whileDoing: 'adding the person');
+    invalidate();
+
+    final data = jsonDecode(response.body);
+    return data['id'];
   }
 
-  /// Update a person
+  /// Update a person. The backend allows this for the person's own linked
+  /// account, and for admins on anyone.
   Future<void> updatePerson(Person person) async {
-    try {
-      final json = person.toJson();
-      await _api.put(
-        '/api/persons/${person.id}',
-        body: json,
-      );
-    } catch (e) {
-      print('Error updating person: $e');
-      rethrow;
-    }
+    final response = await _api.put(
+      '/api/persons/${person.id}',
+      body: person.toJson(),
+    );
+    ApiService.ensureOk(response, whileDoing: 'saving the profile');
+    invalidate();
   }
 
-  /// Delete a person
+  /// Delete a person. Admin-only on the backend, hence the admin route.
   Future<void> deletePerson(String personId) async {
-    try {
-      await _api.delete('/api/persons/$personId');
-    } catch (e) {
-      print('Error deleting person: $e');
-      rethrow;
-    }
+    final response = await _api.delete('/api/admin/persons/$personId');
+    ApiService.ensureOk(response, whileDoing: 'removing the person');
+    invalidate();
   }
 
   /// Search persons by name

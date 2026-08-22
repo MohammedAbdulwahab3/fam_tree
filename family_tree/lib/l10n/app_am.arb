@@ -1,0 +1,97 @@
+{
+  "@@locale": "am",
+  "appTitle": "የቤተሰብ ዛፍ",
+  "languageMenuTooltip": "ቋንቋ",
+  "localeEnglish": "English",
+  "localeAmharic": "አማርኛ",
+  "themeDark": "ጨለማ",
+  "themeLight": "ብርሃን",
+  "errorPrefix": "ስህተት",
+  "emptyFamilyMembers": "እስካሁን ድረስ ምንም የቤተሰብ አባል የለም",
+  "addFirstPerson": "የመጀመሪያውን ሰው ጨምር",
+  "layoutFocus": "ትኩረት",
+  "layoutTree": "ዛፍ",
+  "layoutRadial": "ክብ",
+  "layoutTimeline": "የጊዜ መስመር",
+  "layoutList": "ዝርዝር",
+  "viewDetails": "ዝርዝር አሳይ",
+  "edit": "አርትዕ",
+  "addChild": "ልጅ ጨምር",
+  "focusOnSubtree": "በዚህ ቅርንጫፍ ላይ ትኩረት አድርግ",
+  "delete": "ሰርዝ",
+  "deletePersonTitle": "ሰው ሰርዝ",
+  "deletePersonMessage": "{personName} እንዲሰረዝ እርግጠኛ ነህ? ይህ ከእሱ ጋር ያሉ ግንኙነቶችንም ያስወግዳል።",
+  "@deletePersonMessage": {
+    "placeholders": {
+      "personName": {
+        "type": "String"
+      }
+    }
+  },
+  "cancel": "ይቅር",
+  "addPersonTitle": "ሰው ጨምር",
+  "editPersonTitle": "ሰው አርትዕ",
+  "defaultNameSection": "መደበኛ ስም",
+  "localizedAmharicNameSection": "የአማርኛ ስም (አማራጭ)",
+  "firstNameLabel": "የመጀመሪያ ስም",
+  "lastNameLabel": "የአባት/ቤተሰብ ስም",
+  "firstNameRequiredError": "የመጀመሪያ ስም ያስፈልጋል።",
+  "genderLabel": "ፆታ",
+  "male": "ወንድ",
+  "female": "ሴት",
+  "birthDateLabel": "የትውልድ ቀን",
+  "deathDateLabel": "የሞት ቀን",
+  "stillAliveLabel": "በሕይወት ነው",
+  "bioLabel": "አጭር መግለጫ",
+  "saveChanges": "ለውጦችን አስቀምጥ",
+  "selectDate": "ቀን ምረጥ",
+  "personSaveError": "ሰውን ማስቀመጥ አልተቻለም: {error}",
+  "@personSaveError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "zoomIn": "አሳድግ",
+  "zoomOut": "አሳንስ",
+  "fitAll": "ሁሉንም አስተካክል",
+  "resetView": "እይታን ዳግም አስጀምር",
+  "toggleMinimap": "ትንሽ ካርታን አሳይ/ደብቅ",
+  "generations": "ትውልዶች",
+  "all": "ሁሉም",
+  "searchFamily": "ቤተሰቡን ፈልግ...",
+  "backToFullTree": "ወደ ሙሉ ዛፉ ተመለስ",
+  "stopTour": "ጉብኝትን አቁም",
+  "startTour": "ጉብኝትን ጀምር",
+  "peopleCount": "{count} ሰዎች",
+  "@peopleCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "noChildrenRecorded": "ልጆች አልተመዘገቡም",
+  "back": "ተመለስ",
+  "home": "መነሻ",
+  "generationShort": "ት {number}",
+  "@generationShort": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "overview": "አጠቃላይ እይታ",
+  "bornLabel": "ተወለደ",
+  "diedLabel": "ሞተ",
+  "lifeEventsLabel": "የሕይወት ክስተቶች",
+  "presentLabel": "እስካሁን",
+  "unknownYearLabel": "?",
+  "relationshipBiological": "የደም",
+  "relationshipMarriage": "ጋብቻ",
+  "relationshipAdoption": "ጉዲፈቻ",
+  "relationshipStep": "የእንጀራ",
+  "relationshipPartnership": "አጋርነት"
+}

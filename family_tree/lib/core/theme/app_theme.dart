@@ -1,49 +1,70 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'app_colors.dart';
+
 /// Premium design system with warm gradients and glassmorphism
 /// Supports both dark and light themes for an emotionally rich experience
 class AppTheme {
   // ============ BRAND COLORS ============
   // Primary - Warm emerald to teal gradient
-  static const Color primaryDeep = Color(0xFF047857); // Emerald-700
-  static const Color primaryLight = Color(0xFF10B981); // Emerald-500
-  static const Color accentTeal = Color(0xFF14B8A6); // Teal-500
-  static const Color accentCyan = Color(0xFF06B6D4); // Cyan-500
-  static const Color accentGold = Color(0xFFF59E0B); // Amber-500
-  static const Color accentRose = Color(0xFFF43F5E); // Rose-500
+  // ============ BRAND ============
+  //
+  // One identity, two grounds. These used to be Tailwind emerald and teal
+  // while every light-mode screen painted itself terracotta and cream from
+  // ElegantColors — so `isDark ? AppTheme.primaryLight : ElegantColors.terracotta`,
+  // written 31 times across the app, produced a warm earthy design in light
+  // mode and a cold technical one in dark. They were not the same product with
+  // the lights off; they were two designs.
+  //
+  // These are now the dark-ground counterparts of the ElegantColors palette:
+  // the same hues, lifted for legibility on a dark surface.
+  static const Color primaryDeep = Color(0xFFC1543C); // Terracotta, deepened
+  static const Color primaryLight = Color(0xFFE07A5F); // Terracotta on dark
+  static const Color accentTeal = Color(0xFFA3B58F); // Sage on dark
+  static const Color accentCyan = Color(0xFF8FB0CC); // Soft blue on dark
+  static const Color accentGold = Color(0xFFE3C05C); // Gold on dark
+  static const Color accentRose = Color(0xFFE0AFAF); // Dusty rose on dark
   
   // ============ DARK MODE COLORS ============
-  static const Color backgroundDark = Color(0xFF0F172A); // Slate-900
-  static const Color surfaceDark = Color(0xFF1E293B); // Slate-800
-  static const Color cardDark = Color(0xFF334155); // Slate-700
-  static const Color borderDark = Color(0xFF475569); // Slate-600
+  // Warm-dark grounds. Slate is blue-grey and fought the terracotta sitting on
+  // top of it; these are the same charcoal the light theme uses for ink,
+  // opened up into surfaces.
+  static const Color backgroundDark = Color(0xFF1A1613);
+  static const Color surfaceDark = Color(0xFF241E1A);
+  static const Color cardDark = Color(0xFF2F2823);
+  static const Color borderDark = Color(0xFF3E352D);
   
   // Dark mode text
-  static const Color textPrimaryDark = Color(0xFFF8FAFC); // Slate-50
-  static const Color textSecondaryDark = Color(0xFFCBD5E1); // Slate-300
-  static const Color textMutedDark = Color(0xFF94A3B8); // Slate-400
+  static const Color textPrimaryDark = Color(0xFFF6F1E9);
+  static const Color textSecondaryDark = Color(0xFFD8CDC0);
+  static const Color textMutedDark = Color(0xFFA99A8A);
   
   // ============ LIGHT MODE COLORS ============
-  static const Color backgroundLight = Color(0xFFFAFAFA); // Neutral-50
-  static const Color surfaceLight = Color(0xFFFFFFFF); // White
-  static const Color cardLight = Color(0xFFF5F5F5); // Neutral-100
-  static const Color borderLight = Color(0xFFE5E5E5); // Neutral-200
+  // These match ElegantColors exactly, which is what the screens were already
+  // painting by hand. The theme said neutral grey; the app drew warm cream.
+  static const Color backgroundLight = Color(0xFFFAF7F2); // cream
+  static const Color surfaceLight = Color(0xFFFFFCF7); // warmWhite
+  static const Color cardLight = Color(0xFFF5F0E6); // parchment
+  static const Color borderLight = Color(0xFFE8DFD0);
   
   // Light mode text
-  static const Color textPrimaryLight = Color(0xFF171717); // Neutral-900
-  static const Color textSecondaryLight = Color(0xFF525252); // Neutral-600
-  static const Color textMutedLight = Color(0xFF737373); // Neutral-500
+  static const Color textPrimaryLight = Color(0xFF3D3833); // charcoal
+  static const Color textSecondaryLight = Color(0xFF6B6259);
+  static const Color textMutedLight = Color(0xFF8B8178); // warmGray
   
   // ============ GENERATION COLORS (Universal) ============
+  // Generations were saturated Tailwind primaries — a rainbow that read as a
+  // colour test rather than a family. These are the branch colours the
+  // artboard already uses, muted to sit under the warm palette.
   static const List<Color> generationColors = [
-    Color(0xFFDC2626), // Red-600 - Generation 1
-    Color(0xFFEA580C), // Orange-600 - Generation 2
-    Color(0xFFCA8A04), // Yellow-600 - Generation 3
-    Color(0xFF16A34A), // Green-600 - Generation 4
-    Color(0xFF2563EB), // Blue-600 - Generation 5
-    Color(0xFF9333EA), // Purple-600 - Generation 6
-    Color(0xFFDB2777), // Pink-600 - Generation 7
+    Color(0xFFCD5C45), // Terracotta
+    Color(0xFF7D9471), // Sage
+    Color(0xFFC9A227), // Ochre
+    Color(0xFF6B8CAE), // Soft blue
+    Color(0xFF8B7B9B), // Muted purple
+    Color(0xFFB87333), // Copper
+    Color(0xFF5B8C7B), // Sea green
   ];
   
   // ============ SEMANTIC COLORS ============
@@ -209,6 +230,7 @@ class AppTheme {
     ),
     scaffoldBackgroundColor: backgroundDark,
     textTheme: _buildTextTheme(isDark: true),
+    extensions: const [AppColors.dark],
     
     // Card theme
     cardTheme: CardThemeData(
@@ -317,6 +339,7 @@ class AppTheme {
     ),
     scaffoldBackgroundColor: backgroundLight,
     textTheme: _buildTextTheme(isDark: false),
+    extensions: const [AppColors.light],
     
     // Card theme
     cardTheme: CardThemeData(

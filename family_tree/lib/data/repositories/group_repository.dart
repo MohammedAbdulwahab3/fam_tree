@@ -72,32 +72,24 @@ class GroupRepository {
 
   /// Add a new post
   Future<String> addPost(Post post) async {
-    try {
-      final response = await _api.post('/api/posts', body: post.toJson());
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        // Invalidate cache to force refresh
-        _lastPostsFetch = null; 
-        return data['id'] ?? '';
-      }
-      print('Create post failed with status ${response.statusCode}: ${response.body}');
-      throw Exception('Failed to create post (${response.statusCode})');
-    } catch (e) {
-      print('Error adding post: $e');
-      rethrow;
-    }
+    final response = await _api.post('/api/posts', body: post.toJson());
+    ApiService.ensureOk(response, whileDoing: 'sharing your post');
+
+    final data = jsonDecode(response.body);
+    // Invalidate cache to force refresh
+    _lastPostsFetch = null;
+    return data['id'] ?? '';
   }
 
   /// Delete a post
   Future<void> deletePost(String postId) async {
-    try {
-      await _api.delete('/api/posts/$postId');
-      // Optimistic update
-      _cachedPosts?.removeWhere((p) => p.id == postId);
-    } catch (e) {
-      print('Error deleting post: $e');
-      rethrow;
-    }
+    final response = await _api.delete('/api/posts/$postId');
+    ApiService.ensureOk(response, whileDoing: 'deleting the post');
+
+    // Only drop it from the cache once the server has confirmed, so a refused
+    // delete no longer removes the post from the feed and then puts it back.
+    _cachedPosts?.removeWhere((p) => p.id == postId);
+    _lastPostsFetch = null;
   }
 
   // ===== MESSAGES =====
@@ -144,60 +136,52 @@ class GroupRepository {
 
   /// Send a message
   Future<String> sendMessage(Message message) async {
+    // Optimistic update - show the message in the thread immediately.
+    final tempMessage = Message(
+      id: 'temp-${DateTime.now().millisecondsSinceEpoch}',
+      familyTreeId: message.familyTreeId,
+      userId: message.userId,
+      userName: message.userName,
+      userPhoto: message.userPhoto,
+      text: message.text,
+      type: message.type,
+      mediaUrl: message.mediaUrl,
+      sentAt: DateTime.now(),
+    );
+    _cachedMessages = [...(_cachedMessages ?? []), tempMessage];
+
     try {
-      // Optimistic update - add message to cache immediately
-      final tempMessage = Message(
-        id: 'temp-${DateTime.now().millisecondsSinceEpoch}',
-        familyTreeId: message.familyTreeId,
-        userId: message.userId,
-        userName: message.userName,
-        userPhoto: message.userPhoto,
-        text: message.text,
-        type: message.type,
-        mediaUrl: message.mediaUrl,
-        sentAt: DateTime.now(),
-      );
-      _cachedMessages = [...(_cachedMessages ?? []), tempMessage];
-      
       final response = await _api.post('/api/messages', body: message.toJson());
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        _lastMessagesFetch = null; // Force refresh on next poll
-        return data['id'] ?? '';
-      }
-      // Remove temp message on failure
+      ApiService.ensureOk(response, whileDoing: 'sending your message');
+
+      final data = jsonDecode(response.body);
+      _lastMessagesFetch = null; // Force refresh on next poll
+      return data['id'] ?? '';
+    } catch (_) {
+      // However it failed, take the unsent message back out of the thread so
+      // it is not left looking delivered.
       _cachedMessages?.removeWhere((m) => m.id == tempMessage.id);
-      print('Send message failed with status ${response.statusCode}: ${response.body}');
-      throw Exception('Failed to send message (${response.statusCode})');
-    } catch (e) {
-      print('Error sending message: $e');
       rethrow;
     }
   }
 
   /// Update a message
   Future<void> updateMessage(Message message) async {
-    try {
-      await _api.put(
-        '/api/messages/${message.id}',
-        body: message.toJson(),
-      );
-      _lastMessagesFetch = null;
-    } catch (e) {
-      print('Error updating message: $e');
-      rethrow;
-    }
+    final response = await _api.put(
+      '/api/messages/${message.id}',
+      body: message.toJson(),
+    );
+    ApiService.ensureOk(response, whileDoing: 'editing the message');
+    _lastMessagesFetch = null;
   }
 
   /// Delete a message
   Future<void> deleteMessage(String messageId) async {
-    try {
-      await _api.delete('/api/messages/$messageId');
-      _cachedMessages?.removeWhere((m) => m.id == messageId);
-    } catch (e) {
-      print('Error deleting message: $e');
-      rethrow;
-    }
+    final response = await _api.delete('/api/messages/$messageId');
+    ApiService.ensureOk(response, whileDoing: 'deleting the message');
+
+    _cachedMessages?.removeWhere((m) => m.id == messageId);
+    _lastMessagesFetch = null;
   }
 
   // ===== EVENTS =====
@@ -247,52 +231,37 @@ class GroupRepository {
 
   /// Add a new event
   Future<String> addAppointment(Appointment appointment) async {
-    try {
-      final response = await _api.post('/api/events', body: appointment.toJson());
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        _lastEventsFetch = null;
-        return data['id'] ?? '';
-      }
-      print('Create event failed with status ${response.statusCode}: ${response.body}');
-      throw Exception('Failed to create event (${response.statusCode})');
-    } catch (e) {
-      print('Error adding event: $e');
-      rethrow;
-    }
+    final response = await _api.post('/api/events', body: appointment.toJson());
+    ApiService.ensureOk(response, whileDoing: 'creating the event');
+
+    final data = jsonDecode(response.body);
+    _lastEventsFetch = null;
+    return data['id'] ?? '';
   }
 
   /// Delete an event
   Future<void> deleteAppointment(String appointmentId) async {
-    try {
-      await _api.delete('/api/events/$appointmentId');
-      _cachedEvents?.removeWhere((e) => e.id == appointmentId);
-    } catch (e) {
-      print('Error deleting event: $e');
-      rethrow;
-    }
+    final response = await _api.delete('/api/events/$appointmentId');
+    ApiService.ensureOk(response, whileDoing: 'cancelling the event');
+
+    _cachedEvents?.removeWhere((e) => e.id == appointmentId);
+    _lastEventsFetch = null;
   }
 
   /// Toggle RSVP for an event with status (yes/maybe/no)
   Future<void> toggleRSVP(String eventId, String userId, [String status = 'yes']) async {
-    try {
-      await _api.post('/api/events/$eventId/rsvp', body: {'status': status});
-      _lastEventsFetch = null;
-    } catch (e) {
-      print('Error toggling RSVP: $e');
-      rethrow;
-    }
+    final response =
+        await _api.post('/api/events/$eventId/rsvp', body: {'status': status});
+    ApiService.ensureOk(response, whileDoing: 'saving your reply');
+    _lastEventsFetch = null;
   }
 
   /// Update an existing appointment
   Future<void> updateAppointment(Appointment appointment) async {
-    try {
-      await _api.put('/api/events/${appointment.id}', body: appointment.toJson());
-      _lastEventsFetch = null;
-    } catch (e) {
-      print('Error updating event: $e');
-      rethrow;
-    }
+    final response =
+        await _api.put('/api/events/${appointment.id}', body: appointment.toJson());
+    ApiService.ensureOk(response, whileDoing: 'updating the event');
+    _lastEventsFetch = null;
   }
 
   // ===== COMMENTS =====
@@ -328,55 +297,43 @@ class GroupRepository {
 
   /// Add a comment to a post
   Future<String> addComment(Comment comment) async {
-    try {
-      final response = await _api.post(
-        '/api/posts/${comment.postId}/comments',
-        body: comment.toJson(),
-      );
-      if (response.statusCode == 201) {
-        final data = jsonDecode(response.body);
-        return data['id'] ?? '';
-      }
-      throw Exception('Failed to add comment');
-    } catch (e) {
-      print('Error adding comment: $e');
-      rethrow;
-    }
+    final response = await _api.post(
+      '/api/posts/${comment.postId}/comments',
+      body: comment.toJson(),
+    );
+    ApiService.ensureOk(response, whileDoing: 'posting your comment');
+
+    final data = jsonDecode(response.body);
+    return data['id'] ?? '';
   }
 
   /// Delete a comment
   Future<void> deleteComment(String commentId) async {
-    try {
-      await _api.delete('/api/comments/$commentId');
-    } catch (e) {
-      print('Error deleting comment: $e');
-      rethrow;
-    }
+    final response = await _api.delete('/api/comments/$commentId');
+    ApiService.ensureOk(response, whileDoing: 'deleting the comment');
   }
 
   /// Update a comment
   Future<void> updateComment(Comment comment) async {
-    try {
-      await _api.put('/api/comments/${comment.id}', body: comment.toJson());
-    } catch (e) {
-      print('Error updating comment: $e');
-      rethrow;
-    }
+    final response =
+        await _api.put('/api/comments/${comment.id}', body: {'text': comment.text});
+    ApiService.ensureOk(response, whileDoing: 'saving your edit');
   }
 
   // ===== REACTIONS =====
 
   /// Toggle reaction on a post
   Future<void> toggleReaction(String postId, String userId, String emoji) async {
-    try {
-      await _api.post(
-        '/api/posts/$postId/reactions',
-        body: {'emoji': emoji, 'userId': userId},
-      );
-    } catch (e) {
-      print('Error toggling reaction: $e');
-      rethrow;
-    }
+    // userId is ignored by the server, which takes the reacting user from the
+    // token. The parameter stays for the existing call sites.
+    final response = await _api.post(
+      '/api/posts/$postId/reactions',
+      body: {'emoji': emoji},
+    );
+    ApiService.ensureOk(response, whileDoing: 'saving your reaction');
+
+    // Invalidate cache to force refresh with new reaction count
+    _lastPostsFetch = null;
   }
 
   // ===== HELPER =====

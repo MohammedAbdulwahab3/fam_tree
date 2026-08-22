@@ -3,7 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:family_tree/data/models/person.dart';
 import 'package:family_tree/data/repositories/person_repository.dart';
 import 'package:family_tree/features/auth/providers/auth_provider.dart';
+import 'package:family_tree/features/profile/my_profile_editor.dart';
+import 'package:family_tree/providers/admin_provider.dart';
+import 'package:family_tree/core/layout/breakpoints.dart';
 import 'package:family_tree/core/theme/app_theme.dart';
+import 'package:family_tree/core/theme/app_colors.dart';
 import 'dart:ui';
 import 'dart:math' as math;
 import 'package:intl/intl.dart';
@@ -105,11 +109,13 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
             child: Material(
               color: Colors.transparent,
               child: Container(
-                width: 400,
+                // The height was already responsive; the width was not, so on
+                // a narrow phone the card ran off both sides of the screen.
                 constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(context).size.height * 0.85,
+                  maxWidth: context.dialogWidth(max: 420),
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.85,
                 ),
-                margin: const EdgeInsets.all(24),
+                margin: EdgeInsets.all(context.isCompact ? 16 : 24),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(32),
                   child: BackdropFilter(
@@ -161,10 +167,22 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
+                                      if (widget.person.isDeceased) ...[
+                                        _buildMemorialBanner(isDark),
+                                        const SizedBox(height: 18),
+                                      ],
                                       _buildInfoCards(isDark, genColor),
                                       if (widget.person.bio != null && widget.person.bio!.isNotEmpty) ...[
                                         const SizedBox(height: 20),
                                         _buildBioSection(isDark),
+                                      ],
+                                      if (_hasProfileDetail) ...[
+                                        const SizedBox(height: 20),
+                                        _buildProfileDetails(isDark),
+                                      ],
+                                      if (widget.person.interests.isNotEmpty) ...[
+                                        const SizedBox(height: 20),
+                                        _buildInterests(isDark),
                                       ],
                                       if (widget.spouses.isNotEmpty) ...[
                                         const SizedBox(height: 20),
@@ -340,18 +358,23 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
                       height: 100,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: isDark ? AppTheme.surfaceDark : Colors.white,
+                        color: context.colors.surface,
                         border: Border.all(
-                          color: isDark ? AppTheme.surfaceDark : Colors.white,
+                          color: context.colors.surface,
                           width: 4,
                         ),
                       ),
                       child: ClipOval(
-                        child: widget.person.profilePhotoUrl != null
+                        child: (widget.person.profilePhotoUrl?.isNotEmpty ??
+                                false)
                             ? Image.network(
                                 widget.person.profilePhotoUrl!,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => _buildAvatarPlaceholder(isDark),
+                                width: 100,
+                                height: 100,
+                                alignment: const Alignment(0, -0.2),
+                                errorBuilder: (_, __, ___) =>
+                                    _buildAvatarPlaceholder(isDark),
                               )
                             : _buildAvatarPlaceholder(isDark),
                       ),
@@ -392,7 +415,7 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
       child: Icon(
         Icons.person_rounded,
         size: 50,
-        color: isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight,
+        color: context.colors.inkSoft,
       ),
     );
   }
@@ -427,17 +450,25 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
               children: [
                 Text(
                   widget.person.fullName,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 28,
+                    fontSize: context.isCompact ? 24 : 28,
                     fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : AppTheme.textPrimaryLight,
+                    color: context.colors.ink,
                     letterSpacing: -0.5,
                   ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                // Wrap, not Row: the age pill and the "Living" pill do not fit
+                // side by side on a narrow phone, and a Row would push them
+                // straight off the edge instead of stacking.
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -460,18 +491,17 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: isDark ? Colors.white70 : AppTheme.textSecondaryLight,
+                              color: context.colors.inkSoft,
                             ),
                           ),
                         ],
                       ),
                     ),
-                    if (isAlive) ...[
-                      const SizedBox(width: 8),
+                    if (isAlive)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: Colors.green.withValues(alpha: 0.2),
+                          color: AppTheme.success.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Row(
@@ -482,7 +512,7 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
                               height: 6,
                               decoration: const BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: Colors.green,
+                                color: AppTheme.success,
                               ),
                             ),
                             const SizedBox(width: 4),
@@ -491,13 +521,12 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
-                                color: Colors.green,
+                                color: AppTheme.success,
                               ),
                             ),
                           ],
                         ),
                       ),
-                    ],
                   ],
                 ),
               ],
@@ -567,12 +596,18 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
                 child: Icon(icon, size: 18, color: color),
               ),
               const SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: isDark ? Colors.white54 : AppTheme.textSecondaryLight,
+              // Expanded so a long label ellipsizes instead of shoving the
+              // row past the edge of the card.
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: isDark ? Colors.white54 : AppTheme.textSecondaryLight,
+                  ),
                 ),
               ),
             ],
@@ -580,10 +615,12 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
           const SizedBox(height: 8),
           Text(
             value,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: isDark ? Colors.white : AppTheme.textPrimaryLight,
+              color: context.colors.ink,
             ),
           ),
         ],
@@ -605,6 +642,220 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
       return 'Lived $age years';
     }
     return '$age years old';
+  }
+
+  /// Whether the person has filled in any of the self-authored detail.
+  bool get _hasProfileDetail =>
+      _detailRows.isNotEmpty;
+
+  /// The profile fields that actually have a value, as label/icon/value rows.
+  List<(IconData, String, String)> get _detailRows {
+    final p = widget.person;
+    final candidates = <(IconData, String, String?)>[
+      (Icons.favorite_outline_rounded, 'Status', _maritalLine(p)),
+      (Icons.work_outline_rounded, 'Occupation', p.occupation),
+      (Icons.school_outlined, 'Education', p.education),
+      (Icons.cake_outlined, 'Born in', p.birthPlace),
+      (Icons.home_outlined, 'Lives in', p.currentResidence),
+      (Icons.alternate_email_rounded, 'Email', p.contactEmail),
+      (Icons.phone_outlined, 'Phone', p.contactPhone),
+    ];
+    return [
+      for (final (icon, label, value) in candidates)
+        if (value != null && value.trim().isNotEmpty)
+          (icon, label, value.trim()),
+    ];
+  }
+
+  /// "Married to Amina" reads better than a bare status word, so the spouse's
+  /// name is folded in when there is one.
+  static String? _maritalLine(Person p) {
+    final status = p.maritalStatus?.trim() ?? '';
+    if (status.isEmpty) return null;
+    final label = status[0].toUpperCase() + status.substring(1);
+    final spouse = p.spouseName?.trim() ?? '';
+    if (status == 'married' && spouse.isNotEmpty) return 'Married to $spouse';
+    return label;
+  }
+
+  Widget _buildProfileDetails(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.03)
+            : Colors.black.withValues(alpha: 0.02),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.1)
+              : Colors.black.withValues(alpha: 0.05),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.badge_outlined,
+                  size: 18, color: AppTheme.primaryLight),
+              const SizedBox(width: 8),
+              Text(
+                'Details',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: context.colors.ink,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          for (final (icon, label, value) in _detailRows)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    icon,
+                    size: 15,
+                    color: isDark ? Colors.white38 : AppTheme.textMutedLight,
+                  ),
+                  const SizedBox(width: 10),
+                  SizedBox(
+                    width: 84,
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: isDark
+                            ? Colors.white60
+                            : AppTheme.textSecondaryLight,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: SelectableText(
+                      value,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        height: 1.35,
+                        color: isDark
+                            ? Colors.white
+                            : AppTheme.textPrimaryLight,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// A quiet line of remembrance, in the same warm stone the tree node uses.
+  Widget _buildMemorialBanner(bool isDark) {
+    const memorial = Color(0xFF9C8B7A);
+    final years = widget.person.lifespan;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            memorial.withValues(alpha: isDark ? 0.22 : 0.14),
+            memorial.withValues(alpha: isDark ? 0.08 : 0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: memorial.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.local_florist_rounded, size: 19, color: memorial),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'In loving memory',
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: context.colors.ink,
+                  ),
+                ),
+                if (years.isNotEmpty)
+                  Text(
+                    years,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color:
+                          isDark ? Colors.white60 : AppTheme.textSecondaryLight,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInterests(bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.interests_outlined,
+                size: 18, color: AppTheme.accentTeal),
+            const SizedBox(width: 8),
+            Text(
+              'Interests',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: context.colors.ink,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: widget.person.interests
+              .map((interest) => Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: AppTheme.accentTeal
+                          .withValues(alpha: isDark ? 0.16 : 0.10),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: AppTheme.accentTeal.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Text(
+                      interest,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: isDark
+                            ? Colors.white
+                            : AppTheme.textPrimaryLight,
+                      ),
+                    ),
+                  ))
+              .toList(),
+        ),
+      ],
+    );
   }
 
   Widget _buildBioSection(bool isDark) {
@@ -635,7 +886,7 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
-                  color: isDark ? Colors.white : AppTheme.textPrimaryLight,
+                  color: context.colors.ink,
                 ),
               ),
             ],
@@ -646,7 +897,7 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
             style: TextStyle(
               fontSize: 14,
               height: 1.6,
-              color: isDark ? Colors.white70 : AppTheme.textSecondaryLight,
+              color: context.colors.inkSoft,
             ),
           ),
         ],
@@ -667,7 +918,7 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : AppTheme.textPrimaryLight,
+                color: context.colors.ink,
               ),
             ),
             const SizedBox(width: 8),
@@ -746,13 +997,14 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
                   child: Container(
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: isDark ? AppTheme.surfaceDark : Colors.white,
+                      color: context.colors.surface,
                     ),
                     child: ClipOval(
-                      child: relative.profilePhotoUrl != null
+                      child: (relative.profilePhotoUrl?.isNotEmpty ?? false)
                           ? Image.network(
                               relative.profilePhotoUrl!,
                               fit: BoxFit.cover,
+                              alignment: const Alignment(0, -0.2),
                               errorBuilder: (_, __, ___) => Icon(
                                 Icons.person,
                                 size: 24,
@@ -778,7 +1030,7 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.white : AppTheme.textPrimaryLight,
+                        color: context.colors.ink,
                       ),
                     ),
                     if (relative.birthDate != null)
@@ -804,6 +1056,37 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
     );
   }
 
+  /// Opens the real profile editor.
+  ///
+  /// This button used to show a snackbar reading "Edit feature coming soon!"
+  /// while a complete editor sat one drawer tap away — offered, pointedly, only
+  /// to the person who was allowed to use it.
+  Future<void> _openProfileEditor() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final repository = PersonRepository();
+
+    final saved = await MyProfileEditor.show(
+      context,
+      person: widget.person,
+      spouses: widget.spouses,
+      isAdmin: ref.read(userRoleProvider).value?.isAdmin ?? false,
+      onSave: (updated) => repository.updatePerson(updated),
+    );
+
+    if (saved != true) return;
+
+    // The dialog is showing a snapshot taken before the edit, so close it
+    // rather than leave stale details on screen.
+    if (navigator.canPop()) navigator.pop();
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text('Profile updated'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   Widget _buildFooter(BuildContext context, bool canEdit, bool isDark, Color genColor) {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -819,11 +1102,7 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
           if (canEdit)
             Expanded(
               child: _buildGradientButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Edit feature coming soon!')),
-                  );
-                },
+                onPressed: _openProfileEditor,
                 icon: Icons.edit_rounded,
                 label: 'Edit Profile',
                 gradient: [genColor, AppTheme.primaryLight],
@@ -923,7 +1202,7 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: isDark ? Colors.white70 : AppTheme.textSecondaryLight,
+              color: context.colors.inkSoft,
             ),
           ),
         ),

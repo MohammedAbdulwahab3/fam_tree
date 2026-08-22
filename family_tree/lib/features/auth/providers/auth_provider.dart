@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+
+import 'package:family_tree/data/models/app_user.dart';
 import 'package:family_tree/data/models/auth_state.dart';
 import 'package:family_tree/data/services/auth_service.dart';
 
@@ -8,10 +9,17 @@ final authServiceProvider = Provider<AuthService>((ref) {
   return AuthService();
 });
 
-/// Provider for auth state stream
-final authStateProvider = StreamProvider<User?>((ref) {
+/// The signed-in user, or null. Emits on every sign-in / sign-out.
+///
+/// Seeded with the service's current user so widgets built before the first
+/// stream event still see an already-restored session.
+final authStateProvider = StreamProvider<AppUser?>((ref) async* {
   final authService = ref.watch(authServiceProvider);
-  return authService.authStateChanges;
+  // AuthService.init() runs before ProviderScope exists, and its broadcast
+  // stream drops events that have no listener yet — so emit the already
+  // restored session first, then follow the stream.
+  yield authService.currentUser;
+  yield* authService.authStateChanges;
 });
 
 /// Controller for authentication
@@ -23,105 +31,33 @@ class AuthController extends StateNotifier<AuthState> {
   /// Sign in with email and password
   Future<void> signInWithEmail(String email, String password) async {
     state = state.copyWith(isLoading: true, clearError: true);
-    
     try {
       await _authService.signInWithEmail(email: email, password: password);
       state = state.copyWith(isLoading: false);
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: e.toString().replaceAll('Exception: ', ''),
-      );
+      state = state.copyWith(isLoading: false, error: _message(e));
     }
   }
 
-  /// Sign up with email and password
-  Future<void> signUpWithEmail(String email, String password) async {
+  /// Register a new account. The backend requires a display name.
+  Future<void> signUpWithEmail(
+    String email,
+    String password, {
+    String? name,
+  }) async {
     state = state.copyWith(isLoading: true, clearError: true);
-    
     try {
-      await _authService.signUpWithEmail(email: email, password: password);
+      final resolvedName = (name == null || name.trim().isEmpty)
+          ? email.split('@').first
+          : name.trim();
+      await _authService.signUpWithEmail(
+        email: email,
+        password: password,
+        name: resolvedName,
+      );
       state = state.copyWith(isLoading: false);
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: e.toString().replaceAll('Exception: ', ''),
-      );
-    }
-  }
-
-  /// Sign in with Google
-  Future<void> signInWithGoogle() async {
-    state = state.copyWith(isLoading: true, clearError: true);
-    
-    try {
-      await _authService.signInWithGoogle();
-      state = state.copyWith(isLoading: false);
-    } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: e.toString().replaceAll('Exception: ', ''),
-      );
-    }
-  }
-
-  /// Start phone verification
-  Future<void> verifyPhoneNumber(String phoneNumber) async {
-    state = state.copyWith(isLoading: true, clearError: true);
-
-    try {
-      await _authService.verifyPhoneNumber(
-        phoneNumber: phoneNumber,
-        onCodeSent: (verificationId) {
-          state = state.copyWith(
-            isLoading: false,
-            verificationId: verificationId,
-            phoneNumber: phoneNumber,
-          );
-        },
-        onError: (error) {
-          state = state.copyWith(
-            isLoading: false,
-            error: error,
-          );
-        },
-        onAutoVerified: (credential) async {
-          // Handle auto-verification (Android only)
-          state = state.copyWith(isLoading: false);
-        },
-      );
-    } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: e.toString(),
-      );
-    }
-  }
-
-  /// Verify SMS code
-  Future<void> verifySMSCode(String smsCode) async {
-    if (state.verificationId == null) {
-      state = state.copyWith(error: 'No verification in progress');
-      return;
-    }
-
-    state = state.copyWith(isLoading: true, clearError: true);
-
-    try {
-      await _authService.verifySMSCode(
-        verificationId: state.verificationId!,
-        smsCode: smsCode,
-      );
-      
-      state = state.copyWith(
-        isLoading: false,
-        clearVerificationId: true,
-      );
-    } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: e.toString().replaceAll('Exception: ', ''),
-      );
+      state = state.copyWith(isLoading: false, error: _message(e));
     }
   }
 
@@ -137,58 +73,13 @@ class AuthController extends StateNotifier<AuthState> {
     state = state.copyWith(clearError: true);
   }
 
-  /// Send password reset email
-  Future<void> sendPasswordResetEmail(String email) async {
-    state = state.copyWith(isLoading: true, clearError: true);
-    
-    try {
-      await _authService.sendPasswordResetEmail(email: email);
-      state = state.copyWith(isLoading: false);
-    } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: e.toString().replaceAll('Exception: ', ''),
-      );
-    }
-  }
-
-  /// Send email verification
-  Future<void> sendEmailVerification() async {
-    state = state.copyWith(isLoading: true, clearError: true);
-    
-    try {
-      await _authService.sendEmailVerification();
-      state = state.copyWith(isLoading: false);
-    } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: e.toString().replaceAll('Exception: ', ''),
-      );
-    }
-  }
-
-  /// Check if email is verified
-  bool get isEmailVerified => _authService.isEmailVerified;
-
-  /// Reload user to get latest verification status
+  /// Re-read the current user from the backend (picks up role changes).
   Future<void> reloadUser() async {
     await _authService.reloadUser();
   }
 
-  /// Sign in with Apple
-  Future<void> signInWithApple() async {
-    state = state.copyWith(isLoading: true, clearError: true);
-    
-    try {
-      await _authService.signInWithApple();
-      state = state.copyWith(isLoading: false);
-    } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: e.toString().replaceAll('Exception: ', ''),
-      );
-    }
-  }
+  String _message(Object e) =>
+      e.toString().replaceAll('Exception: ', '').replaceAll('AuthException: ', '');
 }
 
 /// Provider for AuthController

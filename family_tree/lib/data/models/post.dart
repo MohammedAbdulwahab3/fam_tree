@@ -9,8 +9,9 @@ class Post {
   final List<String> photos;
   final List<String> videos;
   final List<String> files; // Document attachments (PDFs, etc.)
+  final String? audioUrl; // Voice message URL
   final DateTime createdAt;
-  final Map<String, List<String>> reactions; // emoji -> [userId1, userId2...]
+  final Map<String, String> reactions; // userId -> emoji
 
   Post({
     required this.id,
@@ -22,6 +23,7 @@ class Post {
     this.photos = const [],
     this.videos = const [],
     this.files = const [],
+    this.audioUrl,
     required this.createdAt,
     this.reactions = const {},
   });
@@ -29,12 +31,28 @@ class Post {
   /// Create from JSON (Go backend response)
   factory Post.fromJson(Map<String, dynamic> json) {
     // Convert reactions from JSON format
-    Map<String, List<String>> reactionsMap = {};
+    // Backend returns: [{id, postId, userId, emoji}, ...]
+    // We convert to: {userId: emoji, ...} for easy lookup
+    Map<String, String> reactionsMap = {};
     if (json['reactions'] != null) {
-      final reactionsData = json['reactions'] as Map<String, dynamic>;
-      reactionsData.forEach((emoji, users) {
-        reactionsMap[emoji] = List<String>.from(users as List);
-      });
+      if (json['reactions'] is List) {
+        // New format: array of reaction objects
+        for (final reaction in json['reactions']) {
+          if (reaction is Map<String, dynamic>) {
+            final userId = reaction['userId'] as String?;
+            final emoji = reaction['emoji'] as String? ?? '❤️';
+            if (userId != null) {
+              reactionsMap[userId] = emoji;
+            }
+          }
+        }
+      } else if (json['reactions'] is Map) {
+        // Legacy format: {userId: emoji}
+        final reactionsData = json['reactions'] as Map<String, dynamic>;
+        reactionsData.forEach((key, value) {
+          reactionsMap[key] = value.toString();
+        });
+      }
     }
     
     return Post(
@@ -47,6 +65,7 @@ class Post {
       photos: List<String>.from(json['photos'] ?? []),
       videos: List<String>.from(json['videos'] ?? []),
       files: List<String>.from(json['files'] ?? []),
+      audioUrl: json['audioUrl'],
       createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : DateTime.now(),
       reactions: reactionsMap,
     );
@@ -64,6 +83,7 @@ class Post {
       'photos': photos,
       'videos': videos,
       'files': files,
+      'audioUrl': audioUrl,
       'createdAt': createdAt.toUtc().toIso8601String(),
       'reactions': reactions,
     };
@@ -79,8 +99,9 @@ class Post {
     List<String>? photos,
     List<String>? videos,
     List<String>? files,
+    String? audioUrl,
     DateTime? createdAt,
-    Map<String, List<String>>? reactions,
+    Map<String, String>? reactions,
   }) {
     return Post(
       id: id ?? this.id,
@@ -92,26 +113,16 @@ class Post {
       photos: photos ?? this.photos,
       videos: videos ?? this.videos,
       files: files ?? this.files,
+      audioUrl: audioUrl ?? this.audioUrl,
       createdAt: createdAt ?? this.createdAt,
       reactions: reactions ?? this.reactions,
     );
   }
 
   // Helper methods for reactions
-  int get totalReactions {
-    return reactions.values.fold(0, (sum, users) => sum + users.length);
-  }
+  int get totalReactions => reactions.length;
 
-  bool hasUserReacted(String userId) {
-    return reactions.values.any((users) => users.contains(userId));
-  }
+  bool hasUserReacted(String userId) => reactions.containsKey(userId);
 
-  String? getUserReaction(String userId) {
-    for (var entry in reactions.entries) {
-      if (entry.value.contains(userId)) {
-        return entry.key;
-      }
-    }
-    return null;
-  }
+  String? getUserReaction(String userId) => reactions[userId];
 }

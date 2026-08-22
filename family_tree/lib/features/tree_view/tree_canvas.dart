@@ -1,7 +1,9 @@
 import 'dart:ui' as ui;
 import 'dart:math' as math;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:family_tree/core/theme/app_theme.dart';
+import 'package:family_tree/core/theme/app_colors.dart';
 import 'package:family_tree/data/models/person.dart';
 import 'package:family_tree/features/tree_view/widgets/person_node.dart';
 import 'package:family_tree/features/tree_view/widgets/tree_minimap.dart';
@@ -45,10 +47,10 @@ class TreeCanvas extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  State<TreeCanvas> createState() => _TreeCanvasState();
+  State<TreeCanvas> createState() => TreeCanvasState();
 }
 
-class _TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateMixin {
+class TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateMixin {
   final TransformationController _transformationController =
       TransformationController();
   late AnimationController _tourController;
@@ -76,6 +78,19 @@ class _TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateM
   
   // Focus mode state
   List<String> _focusStack = [];
+  String? _selectedFocusChildId;
+  final ScrollController _focusScrollController = ScrollController();
+
+  // Node dimensions follow the active variant: the timeline layout uses the
+  // wide parchment plaque, every other layout uses the classic portrait card.
+  double get _nodeWidth => widget.layoutMode == LayoutMode.timeline
+      ? PersonNode.treePlaqueWidth
+      : PersonNode.classicWidth;
+  double get _nodeHeight => widget.layoutMode == LayoutMode.timeline
+      ? PersonNode.treePlaqueHeight
+      : PersonNode.classicHeight;
+  double get _nodeHalfWidth => _nodeWidth / 2;
+  double get _nodeHalfHeight => _nodeHeight / 2;
 
   @override
   void initState() {
@@ -128,7 +143,54 @@ class _TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateM
     _transformationController.removeListener(_onTransformChanged);
     _tourController.dispose();
     _transformationController.dispose();
+    _focusScrollController.dispose();
     super.dispose();
+  }
+  
+  /// Get the currently focused subtree persons for export.
+  /// In focus mode, returns the focused person and all their descendants.
+  /// Otherwise returns all persons.
+  List<Person> getFocusedSubtreePersons() {
+    if (widget.layoutMode != LayoutMode.focus || _focusStack.isEmpty) {
+      return widget.persons;
+    }
+    
+    // Get the currently focused person
+    final focusedPersonId = _focusStack.last;
+    final focusedPerson = widget.persons.firstWhere(
+      (p) => p.id == focusedPersonId,
+      orElse: () => widget.persons.first,
+    );
+    
+    // Collect all descendants recursively
+    final Set<String> includedIds = {focusedPerson.id};
+    
+    void addDescendants(String personId) {
+      for (final person in widget.persons) {
+        if (person.relationships.parentIds.contains(personId)) {
+          if (!includedIds.contains(person.id)) {
+            includedIds.add(person.id);
+            addDescendants(person.id);
+          }
+        }
+      }
+    }
+    
+    addDescendants(focusedPerson.id);
+    
+    return widget.persons.where((p) => includedIds.contains(p.id)).toList();
+  }
+  
+  /// Get the name of the currently focused person (for export title)
+  String? getFocusedPersonName() {
+    if (widget.layoutMode != LayoutMode.focus || _focusStack.isEmpty) {
+      return null;
+    }
+    final focusedPerson = widget.persons.firstWhere(
+      (p) => p.id == _focusStack.last,
+      orElse: () => widget.persons.first,
+    );
+    return focusedPerson.fullName;
   }
   
   // ============ ZOOM CONTROLS ============
@@ -558,13 +620,8 @@ class _TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateM
         .where((p) => p.relationships.parentIds.contains(node.id))
         .toList();
     
-    // Sort children by birth date (Oldest first)
-    children.sort((a, b) {
-      if (a.birthDate == null && b.birthDate == null) return 0;
-      if (a.birthDate == null) return 1;
-      if (b.birthDate == null) return -1;
-      return a.createdAt.compareTo(b.createdAt);
-    });
+    // Sort children by order added (createdAt)
+    children.sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
         
     for (final child in children) {
       _dfsTraversal(child, path, visited);
@@ -742,13 +799,8 @@ class _TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateM
       
       if (children.isEmpty) return;
 
-      // Sort children by birth date for consistent ordering
-      children.sort((a, b) {
-        if (a.birthDate == null && b.birthDate == null) return 0;
-        if (a.birthDate == null) return 1;
-        if (b.birthDate == null) return -1;
-        return a.createdAt.compareTo(b.createdAt);
-      });
+      // Sort children by order added (createdAt)
+      children.sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
 
       final radius = baseRadius + (generation * radiusStep);
       final angleRange = endAngle - startAngle;
@@ -797,13 +849,8 @@ class _TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateM
       roots.add(widget.persons.first);
     }
 
-    // Sort roots by birth date
-    roots.sort((a, b) {
-      if (a.birthDate == null && b.birthDate == null) return 0;
-      if (a.birthDate == null) return 1;
-      if (b.birthDate == null) return -1;
-      return a.createdAt.compareTo(b.createdAt);
-    });
+    // Sort roots by order added (createdAt)
+    roots.sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
 
     // Layout settings
     const startX = 150.0;
@@ -836,12 +883,8 @@ class _TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateM
           .where((p) => p.relationships.parentIds.contains(parent.id))
           .toList();
       
-      children.sort((a, b) {
-        if (a.birthDate == null && b.birthDate == null) return 0;
-        if (a.birthDate == null) return 1;
-        if (b.birthDate == null) return -1;
-        return a.createdAt.compareTo(b.createdAt);
-      });
+      // Sort by order added
+      children.sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
 
       // Place ALL children of this parent first (in order)
       for (final child in children) {
@@ -864,12 +907,8 @@ class _TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateM
             .where((p) => p.relationships.parentIds.contains(child.id))
             .toList();
         
-        grandchildren.sort((a, b) {
-          if (a.birthDate == null && b.birthDate == null) return 0;
-          if (a.birthDate == null) return 1;
-          if (b.birthDate == null) return -1;
-          return a.createdAt.compareTo(b.createdAt);
-        });
+        // Sort by order added
+        grandchildren.sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
 
         for (final grandchild in grandchildren) {
           layoutFamily(grandchild, generation + 2);
@@ -969,17 +1008,13 @@ class _TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateM
       _cachedGenerations[person.id] = depth;
       currentY += verticalSpacing;
 
-      // Get children and sort by birth date
+      // Get children and sort by order added
       final children = widget.persons
           .where((p) => p.relationships.parentIds.contains(person.id))
           .toList();
       
-      children.sort((a, b) {
-        if (a.birthDate == null && b.birthDate == null) return 0;
-        if (a.birthDate == null) return 1;
-        if (b.birthDate == null) return -1;
-        return a.createdAt.compareTo(b.createdAt);
-      });
+      // Sort by order added
+      children.sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
 
       for (final child in children) {
         layoutNode(child, depth + 1);
@@ -1044,6 +1079,8 @@ class _TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateM
                     selectedGeneration: _selectedGeneration,
                     isDark: isDark,
                     layoutMode: widget.layoutMode,
+                    nodeWidth: _nodeWidth,
+                    nodeHeight: _nodeHeight,
                   ),
                   child: Stack(
                     children: [
@@ -1168,78 +1205,320 @@ class _TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateM
     );
   }
 
-  // Focus layout methods
+  // Focus layout methods - uses tree visual style with focus navigation
   Widget _buildFocusLayout(BuildContext context, bool isDark) {
     if (widget.persons.isEmpty) return const SizedBox();
     
+    // Find patriarch (root of tree)
     final patriarch = widget.persons.firstWhere(
       (p) => p.relationships.parentIds.isEmpty, orElse: () => widget.persons.first);
     
+    // Get current focused person from stack
     Person currentPerson = _focusStack.isEmpty ? patriarch : widget.persons.firstWhere(
       (p) => p.id == _focusStack.last, orElse: () => patriarch);
     
+    // Get children of focused person
     final children = widget.persons.where((p) => 
       p.relationships.parentIds.contains(currentPerson.id)).toList()
-      ..sort((a, b) => (a.createdAt).compareTo(b.createdAt));
+      ..sort((a, b) => (a.displayOrder).compareTo(b.displayOrder));
     
     final isRoot = _focusStack.isEmpty;
     final gen = _getPersonGeneration(currentPerson);
     final color = AppTheme.generationColors[gen % AppTheme.generationColors.length];
-    final childCount = children.length;
+    
+    // Calculate positions for tree-style layout
+    final Map<String, Offset> focusPositions = {};
+    final Map<String, int> focusGenerations = {};
+    
+    // Screen dimensions for centering
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    
+    // Node dimensions - use same level spacing as full tree for proportional lines
+    const nodeWidth = 140.0;
+    const nodeHeight = 160.0;
+    const levelSpacing = 350.0; // Match full tree height spacing
+    
+    // Position parent at top center
+    final parentX = screenWidth / 2;
+    const parentY = 140.0;
+    focusPositions[currentPerson.id] = Offset(parentX, parentY);
+    focusGenerations[currentPerson.id] = gen;
+    
+    // Position children in a row below
+    if (children.isNotEmpty) {
+      final childSpacing = math.min(180.0, (screenWidth - 80) / children.length);
+      final totalChildWidth = (children.length - 1) * childSpacing;
+      final startX = (screenWidth - totalChildWidth) / 2;
+      final childY = parentY + levelSpacing;
+      
+      for (var i = 0; i < children.length; i++) {
+        final child = children[i];
+        focusPositions[child.id] = Offset(startX + (i * childSpacing), childY);
+        focusGenerations[child.id] = gen + 1;
+      }
+    }
+    
+    // Calculate canvas size
+    double maxY = parentY + levelSpacing + nodeHeight;
+    final canvasHeight = math.max(maxY + 100, screenHeight - 200);
+    
+    // Build persons list for rendering (parent + children only)
+    final focusPersons = [currentPerson, ...children];
     
     return Container(
       color: isDark ? AppTheme.backgroundDark : const Color(0xFFFAF8F5),
       child: Column(
         children: [
+          // Navigation header with back button and breadcrumb
           if (!isRoot) _buildFocusNav(currentPerson, color, isDark),
+          
+          // Tree visualization area - fixed vertically, horizontally scrollable if many children
           Expanded(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildFocusPersonCard(currentPerson, color, gen, isRoot, isDark, childCount),
-                    if (children.isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      Container(width: 3, height: 20, decoration: BoxDecoration(
-                        color: color.withOpacity(0.4), borderRadius: BorderRadius.circular(2))),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: isDark ? AppTheme.surfaceDark : Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: color.withOpacity(0.2))),
-                        child: Text('${children.length} ${children.length == 1 ? 'Child' : 'Children'}',
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // Recalculate positions based on actual available height
+                final availableHeight = constraints.maxHeight;
+                final availableWidth = constraints.maxWidth;
+                
+                // Adjust positions to fit within available space
+                final adjustedParentY = availableHeight * 0.2; // 20% from top
+                final adjustedChildY = availableHeight * 0.7; // 70% from top
+                
+                // Calculate if horizontal scroll is needed based on actual content width
+                // Each child needs ~150px spacing, plus 80px margin
+                const fixedChildSpacing = 150.0;
+                final requiredWidth = (children.length * fixedChildSpacing) + 100;
+                final needsHorizontalScroll = requiredWidth > availableWidth;
+                
+                // Calculate canvas width
+                final canvasWidth = needsHorizontalScroll 
+                    ? requiredWidth
+                    : availableWidth;
+                
+                // Update parent position (centered in canvas)
+                focusPositions[currentPerson.id] = Offset(canvasWidth / 2, adjustedParentY);
+                
+                if (children.isNotEmpty) {
+                  final childSpacing = needsHorizontalScroll 
+                      ? fixedChildSpacing 
+                      : math.min(150.0, (availableWidth - 80) / children.length);
+                  final totalChildWidth = (children.length - 1) * childSpacing;
+                  final startX = (canvasWidth - totalChildWidth) / 2;
+                  
+                  for (var i = 0; i < children.length; i++) {
+                    final child = children[i];
+                    focusPositions[child.id] = Offset(startX + (i * childSpacing), adjustedChildY);
+                  }
+                }
+                
+                Widget treeWidget = GestureDetector(
+                  onTap: () => setState(() => _selectedFocusChildId = null), // Clear selection on background tap
+                  child: SizedBox(
+                    width: canvasWidth,
+                    height: availableHeight,
+                    child: CustomPaint(
+                      painter: _FocusConnectionsPainter(
+                        parent: currentPerson,
+                        children: children,
+                        positions: focusPositions,
+                        color: color,
+                        isDark: isDark,
+                        selectedChildId: _selectedFocusChildId,
                       ),
-                      const SizedBox(height: 16),
-                      LayoutBuilder(builder: (context, constraints) {
-                        return Wrap(
-                          spacing: _getCardSpacing(childCount),
-                          runSpacing: _getCardSpacing(childCount),
-                          alignment: WrapAlignment.center,
-                          children: children.asMap().entries.map((e) => 
-                            _buildFocusChildCard(e.value, e.key, isDark, childCount)).toList(),
-                        );
-                      }),
-                    ] else ...[
-                      const SizedBox(height: 32),
-                      Icon(Icons.family_restroom_rounded, size: 36, color: Colors.grey.withOpacity(0.25)),
-                      const SizedBox(height: 8),
-                      Text('No children recorded', style: TextStyle(fontSize: 13, color: Colors.grey.withOpacity(0.6))),
-                    ],
-                  ],
-                ),
-              ),
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                        // Parent node
+                        Positioned(
+                          left: focusPositions[currentPerson.id]!.dx - (nodeWidth / 2),
+                          top: focusPositions[currentPerson.id]!.dy - (nodeHeight / 2),
+                          child: GestureDetector(
+                            onDoubleTap: () => widget.onPersonDoubleTapped(currentPerson.id),
+                            child: PersonNode(
+                              person: currentPerson,
+                              generation: gen,
+                              isSelected: true,
+                              isFocused: true,
+                              isDimmed: false,
+                              color: color,
+                              onTap: () => widget.onPersonTapped(currentPerson.id),
+                              onDoubleTap: () => widget.onPersonDoubleTapped(currentPerson.id),
+                              onLongPress: () {},
+                            ),
+                          ),
+                        ),
+                        
+                        // Child nodes (tappable to drill down)
+                        ...children.map((child) {
+                          final childGen = gen + 1;
+                          final childColor = AppTheme.generationColors[childGen % AppTheme.generationColors.length];
+                          final hasGrandchildren = widget.persons.any((p) => 
+                            p.relationships.parentIds.contains(child.id));
+                          
+                          return Positioned(
+                            left: focusPositions[child.id]!.dx - (nodeWidth / 2),
+                            top: focusPositions[child.id]!.dy - (nodeHeight / 2),
+                            child: GestureDetector(
+                              onTap: () {
+                                // Drill down into this child's family
+                                setState(() => _focusStack.add(child.id));
+                              },
+                              onDoubleTap: () => widget.onPersonDoubleTapped(child.id),
+                              child: Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  PersonNode(
+                                    person: child,
+                                    generation: childGen,
+                                    isSelected: _selectedFocusChildId == child.id,
+                                    isFocused: true,
+                                    isDimmed: false,
+                                    color: childColor,
+                                    onTap: () {
+                                      setState(() {
+                                        if (_selectedFocusChildId == child.id) {
+                                          // If already selected, drill down
+                                          _focusStack.add(child.id);
+                                          _selectedFocusChildId = null;
+                                        } else {
+                                          // First tap selects
+                                          _selectedFocusChildId = child.id;
+                                        }
+                                      });
+                                    },
+                                    onDoubleTap: () => widget.onPersonDoubleTapped(child.id),
+                                    onLongPress: () {},
+                                  ),
+                                   // Count badge at TOP - shows number of direct children
+                                  if (hasGrandchildren)
+                                    Positioned(
+                                      top: -8,
+                                      right: -8,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: childColor,
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(color: Colors.white, width: 2),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withOpacity(0.2),
+                                              blurRadius: 4,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: Text(
+                                          '${widget.persons.where((p) => p.relationships.parentIds.contains(child.id)).length}',
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w800,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  // Simple tap button at BOTTOM
+                                  if (hasGrandchildren)
+                                    Positioned(
+                                      bottom: -18,
+                                      left: 0,
+                                      right: 0,
+                                      child: Center(
+                                        child: GestureDetector(
+                                          behavior: HitTestBehavior.opaque,
+                                          onTap: () => setState(() {
+                                            _focusStack.add(child.id);
+                                            _selectedFocusChildId = null;
+                                          }),
+                                          child: Container(
+                                            width: 44,
+                                            height: 44,
+                                            decoration: BoxDecoration(
+                                              color: childColor,
+                                              shape: BoxShape.circle,
+                                              border: Border.all(color: Colors.white, width: 2.5),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black26,
+                                                  blurRadius: 4,
+                                                  offset: const Offset(0, 2),
+                                                ),
+                                              ],
+                                            ),
+                                            child: const Icon(
+                                              Icons.expand_more_rounded,
+                                              color: Colors.white,
+                                              size: 28,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                        
+                        // Empty state
+                        if (children.isEmpty)
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            top: adjustedParentY + 120,
+                            child: Column(
+                              children: [
+                                Icon(Icons.family_restroom_rounded, size: 48, color: Colors.grey.withOpacity(0.3)),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'No children recorded',
+                                  style: TextStyle(fontSize: 14, color: Colors.grey.withOpacity(0.6)),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                      ),
+                    ),
+                  ),
+                );
+                
+                // Wrap in horizontal scroll if many children
+                if (needsHorizontalScroll) {
+                  return ScrollConfiguration(
+                    behavior: ScrollConfiguration.of(context).copyWith(
+                      dragDevices: {
+                        PointerDeviceKind.touch,
+                        PointerDeviceKind.mouse,
+                        PointerDeviceKind.trackpad,
+                      },
+                    ),
+                    child: Scrollbar(
+                      controller: _focusScrollController,
+                      thumbVisibility: true,
+                      child: SingleChildScrollView(
+                        controller: _focusScrollController,
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
+                        child: treeWidget,
+                      ),
+                    ),
+                  );
+                }
+                return treeWidget;
+              },
             ),
           ),
-          if (!isRoot) _buildFocusFooterNav(currentPerson, isDark),
+          
+          // Footer navigation (back to parent, sibling navigation)
+          // Footer navigation removed as per user request
         ],
       ),
     );
   }
+
   
   double _getCardSpacing(int count) {
     if (count <= 3) return 16;
@@ -1273,7 +1552,7 @@ class _TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateM
   Widget _buildFocusNav(Person person, Color color, bool isDark) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(color: isDark ? AppTheme.surfaceDark : Colors.white, border: Border(bottom: BorderSide(color: color.withOpacity(0.2)))),
+      decoration: BoxDecoration(color: context.colors.surface, border: Border(bottom: BorderSide(color: color.withOpacity(0.2)))),
       child: Row(children: [
         GestureDetector(
           onTap: () => setState(() { if (_focusStack.isNotEmpty) _focusStack.removeLast(); }),
@@ -1281,9 +1560,9 @@ class _TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateM
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(color: isDark ? AppTheme.backgroundDark : const Color(0xFFF5F0E8), borderRadius: BorderRadius.circular(8)),
             child: Row(children: [
-              Icon(Icons.arrow_back, size: 16, color: isDark ? Colors.white : Colors.black87),
+              Icon(Icons.arrow_back, size: 16, color: context.colors.ink.withValues(alpha: 0.87)),
               const SizedBox(width: 6),
-              Text('Back', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
+              Text('Back', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.colors.ink.withValues(alpha: 0.87))),
             ]),
           ),
         ),
@@ -1298,7 +1577,7 @@ class _TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateM
               Padding(padding: const EdgeInsets.symmetric(horizontal: 6), child: Icon(Icons.chevron_right, size: 14, color: Colors.grey)),
               GestureDetector(
                 onTap: isLast ? null : () => setState(() => _focusStack = _focusStack.sublist(0, _focusStack.indexOf(id) + 1)),
-                child: Text(p.firstName, style: TextStyle(fontSize: 13, fontWeight: isLast ? FontWeight.w700 : FontWeight.w500, color: isLast ? (isDark ? Colors.white : Colors.black87) : Colors.grey)),
+                child: Text(p.firstName, style: TextStyle(fontSize: 13, fontWeight: isLast ? FontWeight.w700 : FontWeight.w500, color: isLast ? (context.colors.ink.withValues(alpha: 0.87)) : Colors.grey)),
               ),
             ]);
           }),
@@ -1323,7 +1602,7 @@ class _TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateM
       constraints: BoxConstraints(maxWidth: childCount > 6 ? 360 : 400),
       padding: EdgeInsets.all(padding),
       decoration: BoxDecoration(
-        color: isDark ? AppTheme.surfaceDark : Colors.white,
+        color: context.colors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: color.withOpacity(0.3)),
         boxShadow: [BoxShadow(color: color.withOpacity(0.1), blurRadius: 12, offset: const Offset(0, 4))]),
@@ -1337,7 +1616,7 @@ class _TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateM
             decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(8)),
             child: Text(isRoot ? '★ PATRIARCH' : 'GEN $gen', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 1))),
           const SizedBox(height: 5),
-          Text(person.fullName, style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
+          Text(person.fullName, style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.bold, color: context.colors.ink.withValues(alpha: 0.87))),
           if (person.lifespan.isNotEmpty) Text(person.lifespan, style: const TextStyle(fontSize: 11, color: Colors.grey)),
           const SizedBox(height: 3),
           Text('$descCount descendants', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color)),
@@ -1364,7 +1643,7 @@ class _TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateM
         width: cardWidth,
         padding: EdgeInsets.all(padding),
         decoration: BoxDecoration(
-          color: isDark ? AppTheme.surfaceDark : Colors.white,
+          color: context.colors.surface,
           borderRadius: BorderRadius.circular(isCompact ? 12 : 14),
           border: Border.all(color: color.withOpacity(0.3)),
           boxShadow: [BoxShadow(color: color.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 3))]),
@@ -1373,7 +1652,7 @@ class _TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateM
             decoration: BoxDecoration(gradient: LinearGradient(colors: [color.withOpacity(0.8), color]), shape: BoxShape.circle),
             child: Center(child: Text(person.firstName[0], style: TextStyle(fontSize: avatarSize * 0.44, fontWeight: FontWeight.bold, color: Colors.white)))),
           SizedBox(height: isCompact ? 6 : 10),
-          Text(person.firstName, style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87), overflow: TextOverflow.ellipsis, maxLines: 1),
+          Text(person.firstName, style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.bold, color: context.colors.ink.withValues(alpha: 0.87)), overflow: TextOverflow.ellipsis, maxLines: 1),
           if (!isCompact) Text(person.lastName, style: TextStyle(fontSize: fontSize - 3, color: Colors.grey), overflow: TextOverflow.ellipsis),
           SizedBox(height: isCompact ? 4 : 8),
           Text(hasChildren ? '$descCount desc.' : 'No children', style: TextStyle(fontSize: isCompact ? 9 : 10, color: hasChildren ? color : Colors.grey)),
@@ -1399,7 +1678,7 @@ class _TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateM
     
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(color: isDark ? AppTheme.surfaceDark : Colors.white, border: Border(top: BorderSide(color: Colors.grey.withOpacity(0.2)))),
+      decoration: BoxDecoration(color: context.colors.surface, border: Border(top: BorderSide(color: Colors.grey.withOpacity(0.2)))),
       child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
         if (hasPrev) _buildSiblingBtn(siblings[idx - 1], true, isDark) else const SizedBox(width: 100),
         GestureDetector(
@@ -1454,6 +1733,15 @@ class _TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateM
       count += 1 + _getDescendantCount(child);
     }
     return count;
+  }
+  
+  // Count all descendants by personId
+  int _countAllDescendants(String personId) {
+    final person = widget.persons.firstWhere(
+      (p) => p.id == personId,
+      orElse: () => widget.persons.first,
+    );
+    return _getDescendantCount(person);
   }
 
   List<Widget> _buildPersonNodes() {
@@ -1544,8 +1832,8 @@ class _TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateM
       }
 
       return Positioned(
-        left: position.dx - 60,
-        top: position.dy - 80,
+        left: position.dx - _nodeHalfWidth,
+        top: position.dy - _nodeHalfHeight,
         child: PersonNode(
           person: person,
           generation: generation,
@@ -1553,6 +1841,9 @@ class _TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateM
           isFocused: isFocused,
           isDimmed: isDimmed,
           color: nodeColor,
+          variant: widget.layoutMode == LayoutMode.timeline
+              ? PersonNodeVariant.treePlaque
+              : PersonNodeVariant.classic,
           onTap: () => widget.onPersonTapped(person.id),
           onDoubleTap: () => widget.onPersonDoubleTapped(person.id),
           onLongPress: () => widget.onPersonLongPressed(person.id),
@@ -1574,6 +1865,8 @@ class _ConnectionLinesPainter extends CustomPainter {
   final int? selectedGeneration;
   final bool isDark;
   final LayoutMode layoutMode;
+  final double nodeWidth;
+  final double nodeHeight;
 
   _ConnectionLinesPainter({
     required this.persons,
@@ -1584,6 +1877,8 @@ class _ConnectionLinesPainter extends CustomPainter {
     this.selectedGeneration,
     this.isDark = true,
     this.layoutMode = LayoutMode.tree,
+    this.nodeWidth = PersonNode.classicWidth,
+    this.nodeHeight = PersonNode.classicHeight,
   });
 
   @override
@@ -1793,6 +2088,7 @@ class _ConnectionLinesPainter extends CustomPainter {
   }
 
   void _drawTimelineConnections(Canvas canvas) {
+    final nodeHalfHeight = nodeHeight / 2;
     // Draw beautiful flowing bezier curves for timeline
     for (final person in persons) {
       final personPos = positions[person.id];
@@ -1815,8 +2111,8 @@ class _ConnectionLinesPainter extends CustomPainter {
         final baseOpacity = isFilteredOut ? 0.15 : 0.7;
 
         // Connection points outside nodes
-        final startY = personPos.dy + 80;
-        final endY = childPos.dy - 80;
+        final startY = personPos.dy + nodeHalfHeight;
+        final endY = childPos.dy - nodeHalfHeight;
         
         // Control points for elegant S-curve
         final controlPoint1 = Offset(personPos.dx, startY + (endY - startY) * 0.4);
@@ -1883,6 +2179,7 @@ class _ConnectionLinesPainter extends CustomPainter {
 
   void _drawTreeConnections(Canvas canvas) {
     // Beautiful flowing bezier curves for tree layout
+    final nodeHalfHeight = nodeHeight / 2;
     for (final person in persons) {
       final personPos = positions[person.id];
       if (personPos == null) continue;
@@ -1909,8 +2206,8 @@ class _ConnectionLinesPainter extends CustomPainter {
         final baseOpacity = isFilteredOut ? 0.15 : 0.7;
 
         // Connection points
-        final startY = personPos.dy + 80;
-        final endY = childPos.dy - 80;
+        final startY = personPos.dy + nodeHalfHeight;
+        final endY = childPos.dy - nodeHalfHeight;
 
         // Elegant S-curve control points
         final controlPoint1 = Offset(personPos.dx, startY + (endY - startY) * 0.4);
@@ -1993,4 +2290,147 @@ class _ConnectionLinesPainter extends CustomPainter {
 
 class _LeafCounter {
   int value = 0;
+}
+
+/// Custom painter for focus mode connection lines (parent to children)
+/// Uses the same elegant S-curve bezier style as the full tree view
+class _FocusConnectionsPainter extends CustomPainter {
+  final Person parent;
+  final List<Person> children;
+  final Map<String, Offset> positions;
+  final Color color;
+  final bool isDark;
+  final String? selectedChildId;
+
+  _FocusConnectionsPainter({
+    required this.parent,
+    required this.children,
+    required this.positions,
+    required this.color,
+    required this.isDark,
+    this.selectedChildId,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (children.isEmpty) return;
+    
+    final parentPos = positions[parent.id];
+    if (parentPos == null) return;
+    
+    // Parent bottom center (where lines start) - matching tree style offset
+    final startY = parentPos.dy + 80;
+    
+    // Draw elegant S-curve bezier to each child
+    for (int i = 0; i < children.length; i++) {
+      final child = children[i];
+      final childPos = positions[child.id];
+      if (childPos == null) continue;
+      
+      final endY = childPos.dy - 80;
+      final isHighlighted = child.id == selectedChildId;
+      
+      // Calculate generation color for child
+      final childGen = _getChildGeneration(child);
+      final childColor = AppTheme.generationColors[childGen % AppTheme.generationColors.length];
+      
+      // Control points for elegant S-curve (same as tree view)
+      final controlPoint1 = Offset(parentPos.dx, startY + (endY - startY) * 0.4);
+      final controlPoint2 = Offset(childPos.dx, startY + (endY - startY) * 0.6);
+      
+      // Create the bezier path
+      final path = Path()
+        ..moveTo(parentPos.dx, startY)
+        ..cubicTo(
+          controlPoint1.dx, controlPoint1.dy,
+          controlPoint2.dx, controlPoint2.dy,
+          childPos.dx, endY,
+        );
+      
+      // Highlighted glow effect (stronger when selected)
+      if (isHighlighted) {
+        final highlightGlow = Paint()
+          ..color = AppTheme.primaryLight.withOpacity(0.3)
+          ..strokeWidth = 20
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+        canvas.drawPath(path, highlightGlow);
+        
+        final innerHighlight = Paint()
+          ..color = AppTheme.accentTeal.withOpacity(0.5)
+          ..strokeWidth = 10
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+        canvas.drawPath(path, innerHighlight);
+      } else {
+        // Outer glow effect (normal)
+        final outerGlow = Paint()
+          ..color = color.withOpacity(0.15)
+          ..strokeWidth = 14
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+        canvas.drawPath(path, outerGlow);
+        
+        // Inner glow
+        final innerGlow = Paint()
+          ..color = childColor.withOpacity(0.25)
+          ..strokeWidth = 6
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+        canvas.drawPath(path, innerGlow);
+      }
+      
+      // Main gradient line
+      final paint = Paint()
+        ..shader = ui.Gradient.linear(
+          Offset(parentPos.dx, startY),
+          Offset(childPos.dx, endY),
+          [
+            isHighlighted ? AppTheme.primaryLight : color.withOpacity(0.8),
+            isHighlighted ? AppTheme.accentTeal : childColor.withOpacity(0.8),
+          ],
+        )
+        ..strokeWidth = isHighlighted ? 4.5 : 3
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round;
+      canvas.drawPath(path, paint);
+      
+      // Start dot at parent
+      final parentDotPaint = Paint()
+        ..color = isHighlighted ? AppTheme.primaryLight : color
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(Offset(parentPos.dx, startY), isHighlighted ? 7 : 5, parentDotPaint);
+      
+      // End dot at child with glow
+      final childDotGlow = Paint()
+        ..color = (isHighlighted ? AppTheme.accentTeal : childColor).withOpacity(0.5)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, isHighlighted ? 8 : 4);
+      canvas.drawCircle(Offset(childPos.dx, endY), isHighlighted ? 14 : 10, childDotGlow);
+      
+      final childDotPaint = Paint()
+        ..color = isHighlighted ? AppTheme.accentTeal : childColor
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(Offset(childPos.dx, endY), isHighlighted ? 7 : 5, childDotPaint);
+    }
+  }
+  
+  int _getChildGeneration(Person person) {
+    // Simple estimate - children are parent gen + 1
+    if (person.relationships.parentIds.isEmpty) return 1;
+    return 2;
+  }
+
+  @override
+  bool shouldRepaint(_FocusConnectionsPainter oldDelegate) {
+    return oldDelegate.parent.id != parent.id ||
+        oldDelegate.children.length != children.length ||
+        oldDelegate.positions != positions ||
+        oldDelegate.color != color ||
+        oldDelegate.isDark != isDark ||
+        oldDelegate.selectedChildId != selectedChildId;
+  }
 }

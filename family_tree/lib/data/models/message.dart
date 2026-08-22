@@ -8,7 +8,7 @@ class Message {
   final String text;
   final DateTime sentAt;
   final bool isRead;
-  final String type; // 'text', 'image', 'video'
+  final String type; // 'text', 'image', 'video', 'audio', 'file'
   final String? mediaUrl;
 
   Message({

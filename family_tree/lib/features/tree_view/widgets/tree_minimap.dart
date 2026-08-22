@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:family_tree/core/theme/app_theme.dart';
+import 'package:family_tree/core/theme/app_colors.dart';
 import 'package:family_tree/data/models/person.dart';
 
 /// A minimap widget that provides an overview of the entire family tree
@@ -69,6 +70,7 @@ class TreeMinimap extends StatelessWidget {
                   viewportRect: viewportRect,
                   canvasSize: canvasSize,
                   isDark: isDark,
+                  connectionColor: context.colors.ink,
                 ),
               ),
             ),
@@ -174,6 +176,9 @@ class _MinimapPainter extends CustomPainter {
   final Size canvasSize;
   final bool isDark;
 
+  /// Passed in because a painter has no BuildContext to read the theme from.
+  final Color connectionColor;
+
   _MinimapPainter({
     required this.persons,
     required this.positions,
@@ -182,6 +187,7 @@ class _MinimapPainter extends CustomPainter {
     required this.viewportRect,
     required this.canvasSize,
     required this.isDark,
+    required this.connectionColor,
   });
 
   @override
@@ -230,7 +236,7 @@ class _MinimapPainter extends CustomPainter {
     
     // Draw connections
     final connectionPaint = Paint()
-      ..color = (isDark ? Colors.white : Colors.black).withValues(alpha: 0.15)
+      ..color = connectionColor.withValues(alpha: 0.15)
       ..strokeWidth = 0.5
       ..style = PaintingStyle.stroke;
     
