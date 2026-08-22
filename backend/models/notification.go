@@ -18,6 +18,7 @@ const (
 	NotificationNewMessage    NotificationType = "new_message"
 	NotificationEventRSVP     NotificationType = "event_rsvp"
 	NotificationMention       NotificationType = "mention"
+	NotificationAnnouncement  NotificationType = "announcement"
 )
 
 // JSONMap is a custom type for storing JSON data

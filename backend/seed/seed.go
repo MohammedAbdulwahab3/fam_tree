@@ -1,9 +1,7 @@
 package seed
 
 import (
-	"fmt"
 	"log"
-	"math/rand"
 	"time"
 
 	"family-tree-backend/models"
@@ -12,140 +10,353 @@ import (
 	"gorm.io/gorm"
 )
 
-// Arabic male first names
-var maleFirstNames = []string{
-	"Ahmed", "Ali", "Omar", "Youssef", "Hassan", "Hussein", "Khalid", "Abdulrahman", "Abdallah", "Ibrahim",
-	"Ismail", "Younis", "Saleh", "Saeed", "Nasser", "Faisal", "Sultan", "Hamad", "Rashid", "Majid",
-	"Tariq", "Waleed", "Samir", "Karim", "Jamal", "Adel", "Mansour", "Fahad", "Badr", "Zayed",
-	"Hamza", "Bilal", "Ayman", "Marwan", "Hisham", "Osama", "Rami", "Sami", "Nabil", "Wael",
-	"Amr", "Mustafa", "Mahmoud", "Tarek", "Ashraf", "Hazem", "Hatem", "Bassam", "Imad", "Ziyad",
+const DefaultFamilyTreeID = "main-family-tree"
+
+type Node struct {
+	FirstName string
+	LastName  string
+	Gender    string
+	Children  []Node
 }
 
-var bios = []string{
-	"A loving family member who enjoys spending time with relatives.",
-	"Known for their warm smile and generous heart.",
-	"The storyteller of the family, always sharing memories.",
-	"A dedicated parent and grandparent.",
-	"Passionate about keeping family traditions alive.",
-	"The adventurer who traveled the world.",
-	"A talented cook known for family recipes.",
-	"The family historian who keeps records.",
-	"Always the first to help in times of need.",
-	"Brought joy and laughter to every gathering.",
+func n(firstName, lastName, gender string, children ...Node) Node {
+	return Node{
+		FirstName: firstName,
+		LastName:  lastName,
+		Gender:    gender,
+		Children:  children,
+	}
 }
 
-// Structure to hold person and index for relationship building
-type personEntry struct {
-	person   models.Person
-	parentID string
+// Complete Mammaduu Family Tree matching family_tree_local
+var familyTreeNodes = []Node{
+	n("Mammaduu", "Family", "male",
+		n("Issa", "Mammaduu", "male",
+			n("MohammedSani", "Issa", "male"),
+			n("Makkah", "Issa", "male"),
+			n("Suleyman", "Issa", "male"),
+			n("Jemila", "Issa", "female"),
+			n("Kulsum", "Issa", "female"),
+		),
+		n("Osman", "Mammaduu", "male",
+			n("Muzeyen", "Osman", "male",
+				n("Oumer", "Muzeyen", "male",
+					n("Mohammed", "Oumer", "male"),
+					n("Saeeda", "Oumer", "female"),
+					n("Ahmed", "Oumer", "male"),
+					n("Seid", "Oumer", "male"),
+					n("Jihan", "Oumer", "female"),
+					n("Anwar", "Oumer", "male"),
+					n("Wahib", "Oumer", "male"),
+					n("Ihsan", "Oumer", "male"),
+				),
+				n("Seid", "Muzeyen", "male",
+					n("Eliyas", "seid", "male",
+						n("Mina", "Elias", "female"),
+						n("Seberina", "Elias", "female"),
+						n("Yasmin", "Elias", "female"),
+						n("Semhar", "Elias", "female"),
+					),
+					n("Yusuf", "seid", "male"),
+					n("Yunus", "seid", "male",
+						n("Riham", "Yunus", "female"),
+						n("Imran", "Yunus", "male"),
+						n("Isam", "Yunus", "male"),
+						n("Rami", "Yunus", "male"),
+						n("Reyan", "Yunus", "male"),
+						n("Isra", "Yunus", "female"),
+						n("Yumna", "Yunus", "female"),
+					),
+					n("Zeki", "seid", "male",
+						n("Ayub", "zeki", "male"),
+						n("Ahmed", "Zeki", "male"),
+					),
+					n("Ishaq", "seid", "male",
+						n("Jemil", "Ishaq", "male"),
+						n("Hafsa", "Ishaq", "female"),
+						n("Mohammed", "Ishaq", "male"),
+					),
+					n("Maki", "seid", "male",
+						n("Berket", "Maki", "male"),
+						n("Haniya", "Maki", "female"),
+						n("Hanana", "Maki", "female"),
+						n("Amru", "Maki", "male"),
+					),
+					n("Million", "seid", "male",
+						n("Amrah", "Million", "female"),
+						n("Eman", "Million", "female"),
+						n("Ikhlas", "Million", "female"),
+					),
+					n("Abdu", "seid", "male",
+						n("Amal", "Abdu", "female"),
+						n("Mahi", "Abdu", "male"),
+					),
+					n("Seada", "seid", "female",
+						n("Amir", "Seada", "male"),
+						n("Oumer", "Seada", "male"),
+						n("Yusra", "Seada", "female"),
+						n("Ahmed", "Seada", "male"),
+					),
+					n("Taher", "Seid", "male",
+						n("Mohammed", "Taher", "male"),
+						n("Oumer", "Taher", "male"),
+						n("Tesnim", "Taher", "female"),
+					),
+				),
+				n("Osman", "Muzeyen", "male",
+					n("Yusuf", "Osman", "male"),
+					n("Zeyneb", "Osman", "female"),
+					n("Fuad", "Osman", "male"),
+				),
+				n("Kheria", "Muzeyen", "female",
+					n("Mohammed", "Muhaba", "male"),
+					n("Abas", "Muhaba", "male"),
+					n("Sulatan", "Muhaba", "male"),
+				),
+				n("Sofia", "Muzeyen", "female"),
+				n("Hussein", "Muzeyen", "male",
+					n("Mina", "Hussein", "female"),
+					n("Lina", "Hussein", "male"),
+				),
+				n("Jemal", "Muzeyen", "male",
+					n("Newal", "Jemal", "male"),
+					n("Nehla", "Jemal", "female"),
+					n("Mesud", "Jemal", "male"),
+				),
+				n("Abdellah", "Muzeyen", "male",
+					n("Zeytuna", "Abdellah", "female"),
+				),
+				n("Temam", "Muzeyen", "male"),
+				n("Ibrahim", "Muzeyen", "male"),
+				n("Ali", "Muzeyen", "male"),
+				n("Abdulhakim", "Muzeyen", "male",
+					n("Mohammed", "Abdulhakim", "male",
+						n("Khedija", "Mohammed", "female"),
+						n("Abdulhakim", "Mohammed", "male"),
+					),
+				),
+				n("Ayisha", "Muzeyen", "female"),
+				n("Amina", "Muzeyen", "female",
+					n("Reem", "Seid", "male",
+						n("batool", "feysel", "female"),
+					),
+				),
+				n("Rashid", "Muzeyen", "male"),
+				n("Almaz", "Muzeyen", "female",
+					n("Hayat", "Mohammed", "female",
+						n("Mustefa", "Sami", "male"),
+						n("Fatuma", "Sami", "female"),
+						n("Yasin", "Sami", "male"),
+					),
+					n("Abdulrehman", "Mohammed", "male"),
+					n("Umer", "Mohammed", "male"),
+					n("Rahma", "Mohammed", "female",
+						n("Adem", "Omer", "male"),
+						n("Noria", "Omer", "female"),
+						n("Mohammed", "Omer", "male"),
+						n("Selhadin", "Omer", "male"),
+						n("Seid", "Omer", "male"),
+					),
+					n("AbdulQadir", "Mohammed", "male"),
+					n("Harun", "Mohammed", "male"),
+					n("Hawa", "Mohammed", "female"),
+					n("Nesib", "Mohammed", "male"),
+					n("Hussien", "Mohammed", "male"),
+					n("Yasin", "Mohammed", "male"),
+					n("Eliyas", "Mohammed", "male"),
+					n("Kheria", "Mohammed", "female"),
+					n("India", "Mohammed", "female"),
+				),
+				n("Abubaker", "Muzeyen", "male"),
+				n("Fatuma", "Muzeyen", "female"),
+				n("Idris", "Muzeyen", "male",
+					n("Khalid", "Idris", "male"),
+					n("Ismaeel", "Idris", "male"),
+				),
+				n("Abdulkerim", "Muzeyen", "male",
+					n("Mariam", "Abdulkerim", "female"),
+					n("Issa", "Abdulkerim", "male"),
+				),
+				n("Zubaida", "Muzeyen", "female",
+					n("Iftikahar", "MohammedAli", "female"),
+					n("Ibtisam", "MohammedAli", "female"),
+				),
+				n("Nuru", "Muzeyen", "male",
+					n("Yasmin", "Nuru", "male",
+						n("Roya", "Idris", "female"),
+					),
+					n("Khalid", "Nuru", "male"),
+					n("Adel", "Nuru", "male"),
+					n("Emad", "Nuru", "male"),
+					n("Menel", "Nuru", "female"),
+				),
+				n("Mohammed", "Muzeyen", "male",
+					n("Muzeyen", "Mohammed", "male"),
+					n("Nebil", "Mohammed", "male"),
+					n("Ahmed", "Mohammed", "male"),
+					n("Zamzam", "Mohammed", "female"),
+					n("Abdulqadir", "Mohammed", "male"),
+				),
+			),
+			n("Mohammed", "Osman", "male",
+				n("Khedir", "Mohammed", "male",
+					n("Kikiya", "Khedir", "male",
+						n("Ahmed", "Kikiya", "male"),
+						n("Amir", "Kikiya", "male"),
+					),
+					n("AbdulJabar", "Khedir", "male",
+						n("Isamdin", "AbdulJebar", "male"),
+						n("Imran", "Abduljebar", "male"),
+						n("Nerjis", "Abduljebar", "female"),
+						n("Nejwa", "Abduljebar", "male"),
+						n("Newara", "Abduljebar", "male"),
+						n("zikera", "Abduljebar", "male"),
+						n("Bediuzeman", "Abduljebar", "male"),
+						n("Beyan", "Abduljebar", "male"),
+					),
+					n("AbdulWahab", "Khedir", "male",
+						n("Mohammed", "Abdulwahab", "male"),
+						n("Jabir", "Abdulwahab", "male"),
+						n("Rawan", "Abdulwahab", "male"),
+						n("Fatima", "Abdulwahab", "male"),
+					),
+					n("AbdulBasit", "Khedir", "male",
+						n("Firdows", "Abdulbasit", "female"),
+						n("Inaya", "Abdulbasit", "male"),
+						n("Faruq", "Abdulbasit", "male"),
+					),
+					n("Khalid", "Khedir", "male",
+						n("MohammedSalih", "Khalid", "male"),
+					),
+				),
+				n("Khedija", "Mohammed", "male",
+					n("Rahma", "Abdu", "female"),
+					n("Fatima", "Abdu", "male"),
+					n("Mohammed", "Abdu", "male"),
+					n("Nura", "Abdu", "female"),
+					n("Sulayman", "Abdu", "male"),
+					n("Khalid", "Abdu", "male"),
+					n("Hussen", "Abdu", "male"),
+					n("Yunus", "Abdu", "male"),
+				),
+			),
+			n("Ruqiya", "Osman", "female"),
+			n("Fantaye", "Osman", "female"),
+			n("Mustefa", "Osman", "male",
+				n("Adam", "Mustefa", "male"),
+				n("AbdulQadir", "Mustefa", "male"),
+				n("Khedir", "Mustefa", "male"),
+				n("Temima", "Mustefa", "female",
+					n("Eliyas", "MohammedAmin", "male"),
+					n("Saliha", "MohammedAmin", "female"),
+					n("Emebet", "MohammedAmin", "female"),
+					n("Nebil", "MohammedAmin", "male"),
+					n("Hussen", "MohammedAmin", "male"),
+				),
+				n("Fatima", "Mustefa", "female"),
+				n("Jibrel", "Mustefa", "male",
+					n("Rahma", "Jibrel", "female"),
+					n("Temam", "Jibrel", "male"),
+					n("Nejat", "Jibrel", "female"),
+				),
+			),
+			n("Radiya", "Osman", "female"),
+			n("Zame", "Osman", "female"),
+		),
+		n("Sheikh Mussa", "Mammaduu", "male",
+			n("Dawud", "Mussa", "male"),
+			n("Ibrahim", "Mussa", "male"),
+			n("Ahmed", "Mussa", "male"),
+			n("Hassen", "Mussa", "male"),
+			n("Zeyneb", "Mussa", "female"),
+		),
+		n("Sheikh Abdu", "Mammaduu", "male",
+			n("Abdulqadir", "Abdu", "male"),
+			n("Yusuf", "Abdu", "male"),
+			n("Jemila", "Abdu", "female"),
+			n("Hawa", "Abdu", "female"),
+			n("MohammedAmin", "Abdu", "male"),
+		),
+		n("Ibrahim", "Mammaduu", "male"),
+		n("Hassen", "Mammaduu", "male"),
+		n("Hussen", "Mammaduu", "male"),
+	),
 }
 
 func SeedDatabase(db *gorm.DB) {
-	log.Println("🌱 Seeding Mohammed's family tree (100 persons)...")
+	log.Println("🌱 Seeding Mammaduu Family Tree...")
 
 	// Run migrations first
 	db.AutoMigrate(&models.Person{}, &models.User{})
 
-	// Clear existing data (ignore errors if table doesn't exist)
-	db.Exec("DELETE FROM people WHERE 1=1")
-
-	rand.Seed(time.Now().UnixNano())
-
-	familyTreeID := "main-family-tree"
-	allPersons := make([]models.Person, 0, 100)
-
-	// ==========================================
-	// Generation 1: Mohammed (the patriarch)
-	// ==========================================
-	mohammed := createMalePerson("Mohammed", 1940, familyTreeID)
-	mohammedIdx := 0
-	allPersons = append(allPersons, mohammed)
-
-	// ==========================================
-	// Generation 2: Mohammed's 4 sons
-	// ==========================================
-	gen2Names := []string{"Ahmed", "Ali", "Omar", "Youssef"}
-	gen2Indices := make([]int, 4)
-
-	for i, name := range gen2Names {
-		son := createMalePerson(name, 1965+rand.Intn(5), familyTreeID)
-		son.Relationships = models.Relationships{
-			ParentIDs: []string{mohammed.ID},
-		}
-		gen2Indices[i] = len(allPersons)
-		allPersons = append(allPersons, son)
-		allPersons[mohammedIdx].Relationships.ChildrenIDs = append(
-			allPersons[mohammedIdx].Relationships.ChildrenIDs, son.ID)
+	// Clear existing data
+	if err := db.Exec("DELETE FROM people WHERE 1=1").Error; err != nil {
+		log.Printf("Warning clearing people table: %v", err)
 	}
 
-	// ==========================================
-	// Generation 3: Each of the 4 sons has 4 sons (16 total)
-	// ==========================================
-	gen3Indices := make([]int, 0, 16)
+	allPersons := make([]models.Person, 0, 200)
+	childrenMap := make(map[string][]string)
 
-	for _, parentIdx := range gen2Indices {
-		for j := 0; j < 4; j++ {
-			name := maleFirstNames[rand.Intn(len(maleFirstNames))]
-			grandson := createMalePerson(name, 1985+rand.Intn(5), familyTreeID)
-			grandson.Relationships = models.Relationships{
-				ParentIDs: []string{allPersons[parentIdx].ID},
-			}
-			gen3Indices = append(gen3Indices, len(allPersons))
-			allPersons = append(allPersons, grandson)
-			allPersons[parentIdx].Relationships.ChildrenIDs = append(
-				allPersons[parentIdx].Relationships.ChildrenIDs, grandson.ID)
+	var buildSubtree func(nd Node, parentID string, displayOrder int, gen int)
+	buildSubtree = func(nd Node, parentID string, displayOrder int, gen int) {
+		personID := uuid.New().String()
+		birthYear := 1900 + (gen * 25)
+		birthDate := time.Date(birthYear, time.January, 1, 0, 0, 0, 0, time.UTC)
+
+		parents := []string{}
+		if parentID != "" {
+			parents = append(parents, parentID)
 		}
+
+		p := models.Person{
+			ID:           personID,
+			FamilyTreeID: DefaultFamilyTreeID,
+			FirstName:    nd.FirstName,
+			LastName:     nd.LastName,
+			Gender:       nd.Gender,
+			BirthDate:    &birthDate,
+			Bio:          "",
+			Relationships: models.Relationships{
+				ParentIDs: parents,
+			},
+			DisplayOrder: displayOrder,
+			CreatedAt:    time.Now(),
+			UpdatedAt:    time.Now(),
+		}
+
+		personIdx := len(allPersons)
+		allPersons = append(allPersons, p)
+
+		if parentID != "" {
+			childrenMap[parentID] = append(childrenMap[parentID], personID)
+		}
+
+		for i, child := range nd.Children {
+			buildSubtree(child, personID, i, gen+1)
+		}
+		_ = personIdx
 	}
 
-	// ==========================================
-	// Generation 4: Each of the 16 grandsons has 3 sons (48 total)
-	// ==========================================
-	gen4Indices := make([]int, 0, 48)
+	for i, root := range familyTreeNodes {
+		buildSubtree(root, "", i, 0)
+	}
 
-	for _, parentIdx := range gen3Indices {
-		for j := 0; j < 3; j++ {
-			name := maleFirstNames[rand.Intn(len(maleFirstNames))]
-			greatGrandson := createMalePerson(name, 2000+rand.Intn(5), familyTreeID)
-			greatGrandson.Relationships = models.Relationships{
-				ParentIDs: []string{allPersons[parentIdx].ID},
-			}
-			gen4Indices = append(gen4Indices, len(allPersons))
-			allPersons = append(allPersons, greatGrandson)
-			allPersons[parentIdx].Relationships.ChildrenIDs = append(
-				allPersons[parentIdx].Relationships.ChildrenIDs, greatGrandson.ID)
+	// Link children back to parent relationships
+	for i := range allPersons {
+		pID := allPersons[i].ID
+		if kids, exists := childrenMap[pID]; exists && len(kids) > 0 {
+			allPersons[i].Relationships.ChildrenIDs = kids
 		}
 	}
 
-	// ==========================================
-	// Generation 5: First 31 great-grandsons get 1 son each (to reach 100 total)
-	// Total: 1 + 4 + 16 + 48 + 31 = 100
-	// ==========================================
-	gen5Count := 0
-	maxGen5 := 31 // To reach exactly 100
-
-	for i, parentIdx := range gen4Indices {
-		if i >= maxGen5 {
-			break
-		}
-		name := maleFirstNames[rand.Intn(len(maleFirstNames))]
-		greatGreatGrandson := createMalePerson(name, 2015+rand.Intn(5), familyTreeID)
-		greatGreatGrandson.Relationships = models.Relationships{
-			ParentIDs: []string{allPersons[parentIdx].ID},
-		}
-		allPersons = append(allPersons, greatGreatGrandson)
-		allPersons[parentIdx].Relationships.ChildrenIDs = append(
-			allPersons[parentIdx].Relationships.ChildrenIDs, greatGreatGrandson.ID)
-		gen5Count++
-	}
-
-	// Save all persons to database
+	// Batch insert all persons into DB
 	for i, person := range allPersons {
 		if err := db.Create(&person).Error; err != nil {
-			log.Printf("Error creating person %d: %v", i, err)
+			log.Printf("Error creating person %d (%s %s): %v", i, person.FirstName, person.LastName, err)
 		}
 	}
 
-	// Create a default admin user
+	// Create default admin user if missing
 	adminUser := models.User{
 		ID:    "admin-default",
 		Email: "admin@familytree.com",
@@ -154,43 +365,5 @@ func SeedDatabase(db *gorm.DB) {
 	}
 	db.FirstOrCreate(&adminUser, models.User{ID: "admin-default"})
 
-	log.Printf("✅ Database seeded successfully with %d family members!", len(allPersons))
-	log.Println("📊 Mohammed's Family Tree:")
-	log.Println("   - Gen 1 (Mohammed): 1 person")
-	log.Println("   - Gen 2 (Sons): 4 people")
-	log.Println("   - Gen 3 (Grandsons): 16 people")
-	log.Println("   - Gen 4 (Great-Grandsons): 48 people")
-	log.Printf("   - Gen 5 (Great-Great-Grandsons): %d people", gen5Count)
-	log.Println("👤 Default admin user created: admin@familytree.com")
-}
-
-func createMalePerson(firstName string, birthYear int, familyTreeID string) models.Person {
-	birthMonth := rand.Intn(12) + 1
-	birthDay := rand.Intn(28) + 1
-	birthDate := parseDate(fmt.Sprintf("%d-%02d-%02d", birthYear, birthMonth, birthDay))
-
-	// Older generations may have passed
-	var deathDate *time.Time
-	if birthYear < 1960 && rand.Float32() > 0.5 {
-		deathYear := birthYear + 60 + rand.Intn(25)
-		if deathYear <= time.Now().Year() {
-			deathDate = parseDate(fmt.Sprintf("%d-%02d-%02d", deathYear, rand.Intn(12)+1, rand.Intn(28)+1))
-		}
-	}
-
-	return models.Person{
-		ID:           uuid.New().String(),
-		FamilyTreeID: familyTreeID,
-		FirstName:    firstName,
-		LastName:     "Al-Mohammed",
-		Gender:       "male",
-		BirthDate:    birthDate,
-		DeathDate:    deathDate,
-		Bio:          bios[rand.Intn(len(bios))],
-	}
-}
-
-func parseDate(dateStr string) *time.Time {
-	t, _ := time.Parse("2006-01-02", dateStr)
-	return &t
+	log.Printf("✅ Mammaduu Family Tree seeded successfully with %d persons!", len(allPersons))
 }

@@ -16,6 +16,8 @@ type Post struct {
 	Photos       JSONStringArray `gorm:"type:text" json:"photos"`
 	Videos       JSONStringArray `gorm:"type:text" json:"videos"`
 	Files        JSONStringArray `gorm:"type:text" json:"files"`
+	AudioURL     string          `json:"audioUrl"`
+	Reactions    []Reaction      `gorm:"foreignKey:PostID" json:"reactions"`
 	CreatedAt    time.Time       `json:"createdAt"`
 	UpdatedAt    time.Time       `json:"updatedAt"`
 	DeletedAt    gorm.DeletedAt  `gorm:"index" json:"-"`

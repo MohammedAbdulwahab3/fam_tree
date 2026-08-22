@@ -1,115 +1,75 @@
 package middleware
 
 import (
-	"context"
 	"log"
 	"net/http"
 	"strings"
 
+	"family-tree-backend/auth"
 	"family-tree-backend/models"
 
-	firebase "firebase.google.com/go/v4"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
-func AuthMiddleware(app *firebase.App, db *gorm.DB) gin.HandlerFunc {
+// AuthMiddleware validates the JWT issued by /login or /register and loads the
+// matching user. Requests without a valid token are rejected — the token is the
+// only accepted proof of identity.
+func AuthMiddleware(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
-		var uid string
-		var email string
-
-		// No auth header - use dev mode
 		if authHeader == "" {
-			log.Println("Warning: No Authorization header, using dev mode")
-			uid = "dev-user"
-		} else {
-			parts := strings.Split(authHeader, " ")
-			if len(parts) != 2 || parts[0] != "Bearer" {
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization header format"})
-				c.Abort()
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "Authorization header required",
+			})
+			return
+		}
+
+		parts := strings.SplitN(authHeader, " ", 2)
+		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "Authorization header must be 'Bearer <token>'",
+			})
+			return
+		}
+
+		claims, err := auth.ValidateToken(strings.TrimSpace(parts[1]))
+		if err != nil {
+			log.Printf("Auth: rejected token: %v", err)
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "Invalid or expired token",
+			})
+			return
+		}
+
+		// The token only carries a user ID; the role always comes from the
+		// database so a stale token can never carry stale privileges.
+		var user models.User
+		if err := db.First(&user, "id = ?", claims.UserID).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+					"error": "User no longer exists",
+				})
 				return
 			}
-
-			tokenString := parts[1]
-
-			// If Firebase app is not initialized (e.g. dev mode without creds), use token as uid
-			if app == nil {
-				log.Println("Warning: Firebase app not initialized, using token prefix as uid")
-				// Use part of the token as a pseudo-uid for dev
-				if len(tokenString) > 20 {
-					uid = tokenString[:20]
-				} else {
-					uid = tokenString
-				}
-			} else {
-				client, err := app.Auth(context.Background())
-				if err != nil {
-					log.Printf("Warning: Error initializing auth client: %v, using dev mode", err)
-					uid = "dev-user"
-				} else {
-					token, err := client.VerifyIDToken(context.Background(), tokenString)
-					if err != nil {
-						log.Printf("Warning: Token verification failed: %v, using dev mode", err)
-						// In dev mode, still allow access but with limited uid
-						uid = "unverified-user"
-					} else {
-						uid = token.UID
-						// Get email from token claims
-						if e, ok := token.Claims["email"].(string); ok {
-							email = e
-						}
-					}
-				}
-			}
+			log.Printf("Auth: database error loading user %s: %v", claims.UserID, err)
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+				"error": "Could not load user",
+			})
+			return
 		}
 
-		// Sync user to local DB
-		var user models.User
-		
-		// First try to find by ID (Firebase UID)
-		if err := db.First(&user, "id = ?", uid).Error; err != nil {
-			if err == gorm.ErrRecordNotFound {
-				// Try to find by email if we have it
-				if email != "" {
-					if err := db.First(&user, "email = ?", email).Error; err == nil {
-						// Found user by email - update their ID to Firebase UID
-						log.Printf("Found user by email %s, updating ID from %s to %s", email, user.ID, uid)
-						db.Model(&user).Update("id", uid)
-						user.ID = uid
-					} else {
-						// Create new user with default member role
-						newUser := models.User{
-							ID:    uid,
-							Email: email,
-							Name:  "Firebase User",
-							Role:  models.RoleMember,
-						}
-						if err := db.Create(&newUser).Error; err != nil {
-							log.Printf("Error creating user sync: %v", err)
-						}
-						user = newUser
-					}
-				} else {
-					// No email, create user with just UID
-					newUser := models.User{
-						ID:    uid,
-						Email: "",
-						Name:  "Firebase User",
-						Role:  models.RoleMember,
-					}
-					if err := db.Create(&newUser).Error; err != nil {
-						log.Printf("Error creating user sync: %v", err)
-					}
-					user = newUser
-				}
-			} else {
-				log.Printf("Error checking user sync: %v", err)
-			}
+		// A ban must take effect immediately, including for tokens issued
+		// before it — the role and ban state are re-read on every request.
+		if user.IsBanned {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"error":  "This account has been suspended",
+				"reason": user.BanReason,
+			})
+			return
 		}
 
-		// Set the UID and role info
-		c.Set("userID", uid)
+		c.Set("userID", user.ID)
 		c.Set("user", user)
 		c.Set("isAdmin", user.IsAdmin())
 		c.Next()

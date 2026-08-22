@@ -5,6 +5,7 @@ import (
 	"family-tree-backend/services"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -19,21 +20,58 @@ type PostHandler struct {
 
 func (h *PostHandler) GetPosts(c *gin.Context) {
 	var posts []models.Post
-	if result := h.DB.Order("created_at desc").Find(&posts); result.Error != nil {
+	if result := h.DB.Preload("Reactions").Order("created_at desc").Find(&posts); result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, posts)
 }
 
+// callerOf returns the authenticated user AuthMiddleware attached to the
+// request. Every route below it is authenticated, so the second return is only
+// false in a misconfiguration.
+func callerOf(c *gin.Context) (models.User, bool) {
+	value, exists := c.Get("user")
+	if !exists {
+		return models.User{}, false
+	}
+	user, ok := value.(models.User)
+	return user, ok
+}
+
+// CreatePost serves both the member feed composer and the admin composer. The
+// author is taken from the verified token rather than the request body, so a
+// post can never be attributed to someone else and a client that does not know
+// its own user id — which the feed composer did not — still posts correctly.
 func (h *PostHandler) CreatePost(c *gin.Context) {
+	author, ok := callerOf(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not signed in"})
+		return
+	}
+
 	var post models.Post
 	if err := c.ShouldBindJSON(&post); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
+	if strings.TrimSpace(post.Content) == "" &&
+		len(post.Photos) == 0 && len(post.Videos) == 0 &&
+		len(post.Files) == 0 && post.AudioURL == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Write something or attach a photo before posting",
+		})
+		return
+	}
+
 	post.ID = uuid.New().String()
+	post.UserID = author.ID
+	post.UserName = author.Name
+	post.UserPhoto = author.ProfilePhotoURL
+	if post.FamilyTreeID == "" {
+		post.FamilyTreeID = author.FamilyTreeID
+	}
 	post.CreatedAt = time.Now()
 	post.UpdatedAt = time.Now()
 
@@ -99,13 +137,38 @@ func (h *PostHandler) UpdatePost(c *gin.Context) {
 	c.JSON(http.StatusOK, post)
 }
 
+// DeletePost removes a post. Mounted on both the member route and the admin
+// route: a member may only delete their own, an admin may delete any.
 func (h *PostHandler) DeletePost(c *gin.Context) {
 	id := c.Param("id")
+
+	caller, ok := callerOf(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not signed in"})
+		return
+	}
+
+	var post models.Post
+	if err := h.DB.First(&post, "id = ?", id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Post not found"})
+		return
+	}
+
+	if !caller.IsAdmin() && post.UserID != caller.ID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You can only delete your own posts"})
+		return
+	}
+
+	// The comments and reactions hanging off a deleted post would otherwise
+	// stay behind and be counted by anything that reads them by post id.
+	h.DB.Where("post_id = ?", id).Delete(&models.Comment{})
+	h.DB.Where("post_id = ?", id).Delete(&models.Reaction{})
+
 	if result := h.DB.Delete(&models.Post{}, "id = ?", id); result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "Post deleted"})
+	c.JSON(http.StatusOK, gin.H{"message": "Post deleted", "id": id})
 }
 
 // ===== COMMENTS =====
@@ -129,8 +192,22 @@ func (h *PostHandler) CreateComment(c *gin.Context) {
 		return
 	}
 
+	author, ok := callerOf(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not signed in"})
+		return
+	}
+
+	if strings.TrimSpace(comment.Text) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Comment cannot be empty"})
+		return
+	}
+
 	comment.ID = uuid.New().String()
 	comment.PostID = postID
+	comment.UserID = author.ID
+	comment.UserName = author.Name
+	comment.UserPhoto = author.ProfilePhotoURL
 	comment.CreatedAt = time.Now()
 
 	if result := h.DB.Create(&comment); result.Error != nil {
@@ -188,13 +265,85 @@ func (h *PostHandler) CreateComment(c *gin.Context) {
 	c.JSON(http.StatusCreated, comment)
 }
 
+// UpdateComment edits a comment. Only its author may edit it — an admin can
+// remove a comment but not rewrite what someone else said.
+func (h *PostHandler) UpdateComment(c *gin.Context) {
+	id := c.Param("id")
+
+	caller, ok := callerOf(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not signed in"})
+		return
+	}
+
+	var req struct {
+		Text string `json:"text"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	text := strings.TrimSpace(req.Text)
+	if text == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Comment cannot be empty"})
+		return
+	}
+
+	var comment models.Comment
+	if err := h.DB.First(&comment, "id = ?", id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Comment not found"})
+		return
+	}
+
+	if comment.UserID != caller.ID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You can only edit your own comments"})
+		return
+	}
+
+	comment.Text = text
+	if err := h.DB.Save(&comment).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, comment)
+}
+
+// DeleteComment removes a comment. Its author, the author of the post it sits
+// under, and any admin may do this.
 func (h *PostHandler) DeleteComment(c *gin.Context) {
 	id := c.Param("id")
+
+	caller, ok := callerOf(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not signed in"})
+		return
+	}
+
+	var comment models.Comment
+	if err := h.DB.First(&comment, "id = ?", id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Comment not found"})
+		return
+	}
+
+	allowed := caller.IsAdmin() || comment.UserID == caller.ID
+	if !allowed {
+		var post models.Post
+		if err := h.DB.First(&post, "id = ?", comment.PostID).Error; err == nil {
+			allowed = post.UserID == caller.ID
+		}
+	}
+	if !allowed {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You can only delete your own comments"})
+		return
+	}
+
 	if result := h.DB.Delete(&models.Comment{}, "id = ?", id); result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "Comment deleted"})
+	c.JSON(http.StatusOK, gin.H{"message": "Comment deleted", "id": id})
 }
 
 // ===== REACTIONS =====
@@ -202,18 +351,27 @@ func (h *PostHandler) DeleteComment(c *gin.Context) {
 func (h *PostHandler) ToggleReaction(c *gin.Context) {
 	postID := c.Param("id")
 
+	caller, ok := callerOf(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not signed in"})
+		return
+	}
+
 	var req struct {
-		Emoji  string `json:"emoji"`
-		UserID string `json:"userId"`
+		Emoji string `json:"emoji"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	if strings.TrimSpace(req.Emoji) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No reaction given"})
+		return
+	}
 
 	// Check if reaction exists
 	var existing models.Reaction
-	result := h.DB.Where("post_id = ? AND user_id = ?", postID, req.UserID).First(&existing)
+	result := h.DB.Where("post_id = ? AND user_id = ?", postID, caller.ID).First(&existing)
 
 	if result.Error == nil {
 		// Reaction exists
@@ -234,7 +392,7 @@ func (h *PostHandler) ToggleReaction(c *gin.Context) {
 	reaction := models.Reaction{
 		ID:        uuid.New().String(),
 		PostID:    postID,
-		UserID:    req.UserID,
+		UserID:    caller.ID,
 		Emoji:     req.Emoji,
 		CreatedAt: time.Now(),
 	}

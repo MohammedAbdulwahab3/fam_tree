@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"strings"
+
 	"family-tree-backend/auth"
 	"family-tree-backend/models"
 	"net/http"
@@ -61,6 +63,13 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 
 	if result := h.DB.Create(&user); result.Error != nil {
+		// A soft-deleted row still holds the unique email index, so surface
+		// the real cause instead of a blanket 500.
+		if strings.Contains(strings.ToLower(result.Error.Error()), "duplicate") ||
+			strings.Contains(strings.ToLower(result.Error.Error()), "unique") {
+			c.JSON(http.StatusConflict, gin.H{"error": "Email already registered"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
 		return
 	}
@@ -95,6 +104,15 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	// Check password
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+		return
+	}
+
+	// Refuse to mint a token for a suspended account.
+	if user.IsBanned {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error":  "This account has been suspended",
+			"reason": user.BanReason,
+		})
 		return
 	}
 

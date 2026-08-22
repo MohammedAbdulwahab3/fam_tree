@@ -56,7 +56,10 @@ func (h *MessageHandler) SendMessage(c *gin.Context) {
 				}
 			}
 
-			h.NotificationService.SendBatchNotifications(
+			// Push only, deliberately. A row per member per chat message
+			// would bury posts, comments and event reminders in the
+			// notifications list within a day of normal family chatter.
+			h.NotificationService.SendPushOnly(
 				userIDs,
 				models.NotificationNewMessage,
 				"message",

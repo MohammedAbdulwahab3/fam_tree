@@ -6,8 +6,6 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.21-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-336791?style=flat&logo=postgresql)](https://www.postgresql.org/)
-[![Firebase](https://img.shields.io/badge/Firebase-Auth-FFCA28?style=flat&logo=firebase)](https://firebase.google.com/)
-[![Deployed on Render](https://img.shields.io/badge/Deployed%20on-Render-46E3B7?style=flat)](https://render.com)
 
 </div>
 
@@ -21,7 +19,6 @@
 - [Getting Started](#-getting-started)
 - [API Documentation](#-api-documentation)
 - [Admin Utilities](#-admin-utilities)
-- [Deployment](#-deployment)
 - [Development](#-development)
 
 ---
@@ -36,8 +33,7 @@ This is a production-ready REST API backend for managing family trees, built wit
 - **Web Framework:** Gin
 - **Database:** PostgreSQL
 - **ORM:** GORM
-- **Authentication:** Firebase Auth (ID Token Verification)
-- **Deployment:** Render
+- **Authentication:** JWT issued by this server (bcrypt password hashing)
 - **Storage:** Local file system (uploads)
 
 ---
@@ -49,7 +45,7 @@ This is a production-ready REST API backend for managing family trees, built wit
 - 📝 **Family Posts** - Share updates, photos, and stories
 - 📅 **Events** - Create and manage family events with RSVP
 - 💬 **Messaging** - Real-time family chat system
-- 🔐 **Authentication** - Firebase ID token verification
+- 🔐 **Authentication** - Email and password, JWT sessions
 - 👑 **Role-Based Access** - Admin and member roles
 
 ### Technical Features
@@ -76,7 +72,7 @@ backend/
 │   ├── message.go
 │   └── upload.go
 ├── middleware/     # HTTP middlewares
-│   ├── auth.go     # Firebase token verification
+│   ├── auth.go     # JWT verification, loads the user
 │   └── admin.go    # Admin access control
 ├── models/         # Database models
 │   ├── user.go
@@ -85,9 +81,8 @@ backend/
 ├── seed/           # Database seeding
 │   └── seed.go
 ├── uploads/        # File uploads directory
-├── main.go         # Application entry point
-├── make_admin.go   # Admin promotion utility
-└── render.yaml     # Render deployment config
+├── e2e/            # End-to-end API checks
+└── main.go         # Application entry point
 ```
 
 ---
@@ -98,7 +93,7 @@ backend/
 
 - **Go 1.21+** ([Download](https://go.dev/dl/))
 - **PostgreSQL 15+** ([Download](https://www.postgresql.org/download/))
-- **Firebase Project** with service account credentials
+- **Docker** (optional) for the local Postgres in `docker-compose.yml`
 
 ### 1. Clone the Repository
 
@@ -130,14 +125,19 @@ See [POSTGRES_SETUP.md](POSTGRES_SETUP.md) for detailed database setup instructi
 Create a `.env` file or set environment variables:
 
 ```bash
-# Database Configuration
+# Required in anything but a local run — without it the server falls back to a
+# development signing key and says so loudly at startup.
+export JWT_SECRET="a-long-random-string"
+
+# Database. Defaults to a local Postgres on 5432 if unset.
 export DATABASE_URL="host=127.0.0.1 user=postgres password=postgres dbname=family_tree port=5432 sslmode=disable"
 
-# Firebase Credentials (as JSON string)
-export FIREBASE_CREDENTIALS='{"type":"service_account","project_id":"your-project",...}'
+# Optional. How long a session lasts; defaults to 720h (30 days).
+export TOKEN_TTL=720h
 
-# Or point to credentials file
-# FIREBASE_CREDENTIALS will be loaded from firebase-credentials.json if not set
+# Optional. Enables device push notifications. Without it, notifications still
+# appear in the app — they just do not reach the lock screen.
+export FIREBASE_CREDENTIALS='{"type":"service_account",...}'
 ```
 
 ### 5. Run the Server
@@ -171,14 +171,13 @@ This will create:
 ### Base URL
 
 - **Local:** `http://localhost:8080`
-- **Production:** `https://your-app.onrender.com`
 
 ### Authentication
 
-Most endpoints require authentication via Firebase ID token:
+Most endpoints require the JWT that `/login` or `/register` returned:
 
 ```bash
-Authorization: Bearer <FIREBASE_ID_TOKEN>
+Authorization: Bearer <TOKEN>
 ```
 
 ---
@@ -384,6 +383,50 @@ Content-Type: application/json
 DELETE /api/admin/events/:id
 ```
 
+#### Account
+
+```http
+# Change your own password
+PUT /api/me/password
+{ "currentPassword": "...", "newPassword": "..." }
+
+# Delete your own account. Your person record stays in the tree, unclaimed.
+DELETE /api/me
+{ "password": "..." }
+
+# Set a new password with a code an admin issued (public — you cannot sign in)
+POST /reset-password
+{ "email": "...", "code": "ABCD-1234", "newPassword": "..." }
+```
+
+#### Claiming Your Record
+
+```http
+# Ask to be linked to a person in the tree
+POST /api/link-requests
+{ "personId": "..." }
+
+# Where your claim stands: not_linked | pending | rejected | verified.
+# A rejection carries the admin's reason.
+GET /api/link-requests/my-status
+
+# Withdraw a claim that is still waiting
+DELETE /api/link-requests/mine
+```
+
+#### Notifications
+
+```http
+GET    /api/notifications
+GET    /api/notifications/unread-count
+PUT    /api/notifications/:id/read
+PUT    /api/notifications/read-all
+DELETE /api/notifications/:id
+DELETE /api/notifications
+GET    /api/notifications/preferences
+PUT    /api/notifications/preferences
+```
+
 ---
 
 ## 👑 Admin Utilities
@@ -405,7 +448,7 @@ go run cmd/make_admin/main.go <user_id>
 
 #### Method 2: Direct Database (Production)
 
-Using Render's database shell:
+Straight against the database:
 
 ```sql
 UPDATE users SET role = 'admin' WHERE email = 'user@example.com';
@@ -421,65 +464,6 @@ Content-Type: application/json
 {
   "role": "admin"
 }
-```
-
----
-
-## 🚢 Deployment
-
-### Deploy to Render
-
-This project includes a `render.yaml` blueprint for easy deployment.
-
-#### Prerequisites
-1. Create a [Render](https://render.com) account
-2. Push code to GitHub repository
-3. Prepare Firebase credentials as environment variable
-
-#### Steps
-
-1. **Create PostgreSQL Database**
-   - New → PostgreSQL
-   - Name: `family-tree-db`
-   - Plan: Free
-
-2. **Create Web Service**
-   - New → Blueprint
-   - Connect your GitHub repository
-   - Select `backend/render.yaml`
-
-3. **Set Environment Variables**
-   
-   In Render dashboard, add:
-   
-   ```
-   FIREBASE_CREDENTIALS = <paste_your_firebase_credentials_json>
-   GIN_MODE = release
-   ```
-
-4. **Deploy**
-   
-   Render will automatically:
-   - Build the Go application
-   - Connect to PostgreSQL
-   - Start the server on port 8080
-   - Deploy on a `.onrender.com` URL
-
-5. **(Optional) Seed Database**
-   
-   In Render shell:
-   ```bash
-   ./server --seed
-   ```
-
-### Manual Deployment
-
-```bash
-# Build for Linux
-GOOS=linux GOARCH=amd64 go build -o server .
-
-# Upload to your server and run
-./server
 ```
 
 ---
@@ -507,12 +491,18 @@ db.AutoMigrate(&models.User{}, &models.Person{}, &models.Post{}, &models.Event{}
 ### Testing
 
 ```bash
-# Test health endpoint
-curl http://localhost:8080/ping
+# End-to-end checks, each against a throwaway database
+./e2e/run.sh          # all phases
+./e2e/run.sh 3        # one phase
 
-# Test with authentication
-curl -H "Authorization: Bearer <token>" http://localhost:8080/api/persons
+# Health check
+curl http://localhost:8080/ping
 ```
+
+`e2e/` covers the API surface end to end: feed posting and deletion, comment and
+event permissions, notification delivery and preferences, reminder scheduling,
+the account-claim flow, and password reset. It needs the Postgres container from
+`docker-compose.yml` running.
 
 ### Project Structure Best Practices
 
@@ -529,18 +519,25 @@ curl -H "Authorization: Bearer <token>" http://localhost:8080/api/persons
 
 | Variable | Description | Default |
 |----------|-------------|---------|
+| `JWT_SECRET` | Signs session tokens. Set it. | insecure dev key, with a warning |
 | `DATABASE_URL` | PostgreSQL connection string | `host=127.0.0.1 user=postgres password=postgres dbname=family_tree port=5432 sslmode=disable` |
-| `FIREBASE_CREDENTIALS` | Firebase service account JSON | Reads from `firebase-credentials.json` |
+| `TOKEN_TTL` | How long a session lasts | `720h` (30 days) |
+| `FIREBASE_CREDENTIALS` | Service account JSON; enables push notifications | unset — push off, in-app notifications unaffected |
+| `REDIS_URL` | Optional response cache | unset — caching off |
 | `GIN_MODE` | Gin mode (debug/release) | `debug` |
 | `PORT` | Server port | `8080` |
 
-### Firebase Setup
+### Push Notifications (optional)
+
+Notifications are recorded in the database and shown in the app with no external
+service. Firebase only adds delivery to devices:
 
 1. Go to [Firebase Console](https://console.firebase.google.com)
-2. Create or select your project
-3. Go to Project Settings → Service Accounts
-4. Click "Generate New Private Key"
-5. Save as `firebase-credentials.json` or set as `FIREBASE_CREDENTIALS` env var
+2. Project Settings → Service Accounts → "Generate New Private Key"
+3. Set the JSON as the `FIREBASE_CREDENTIALS` environment variable
+
+Keep the key out of the repository — the server reads it from the environment
+only, never from a file on disk.
 
 ---
 
@@ -572,11 +569,17 @@ pg_isready
 psql -U postgres -d family_tree -c "SELECT 1;"
 ```
 
-### Firebase Auth Issues
+### Signed Out Unexpectedly
 
-- Ensure `FIREBASE_CREDENTIALS` is valid JSON
-- Check Firebase project ID matches your Flutter app
-- Verify SHA-1 fingerprint is registered in Firebase Console
+- Check `JWT_SECRET` is set and has not changed — every existing session is
+  invalidated when the signing key changes
+- Sessions last `TOKEN_TTL` (30 days by default)
+
+### A Member Cannot Sign In
+
+Issue them a reset code: **Admin panel → Members → ⋮ → Password reset code**, or
+`POST /api/admin/users/:id/reset-code`. Pass the code on yourself; they enter it
+on the app's "Forgot your password?" screen. Codes last 2 hours and work once.
 
 ### Port Already in Use
 

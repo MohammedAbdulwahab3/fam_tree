@@ -103,6 +103,36 @@ func (le LifeEvents) Value() (driver.Value, error) {
 	return json.Marshal(le)
 }
 
+// LocalizedPersonName holds a person's name in a specific locale
+type LocalizedPersonName struct {
+	FirstName string `json:"firstName"`
+	LastName  string `json:"lastName"`
+}
+
+// LocalizedNames maps a locale code (e.g. "am") to that locale's name
+type LocalizedNames map[string]LocalizedPersonName
+
+func (ln *LocalizedNames) Scan(value interface{}) error {
+	if value == nil {
+		*ln = LocalizedNames{}
+		return nil
+	}
+	var bytes []byte
+	switch v := value.(type) {
+	case []byte:
+		bytes = v
+	case string:
+		bytes = []byte(v)
+	default:
+		return errors.New("type assertion failed for LocalizedNames")
+	}
+	return json.Unmarshal(bytes, ln)
+}
+
+func (ln LocalizedNames) Value() (driver.Value, error) {
+	return json.Marshal(ln)
+}
+
 // Person model matching Flutter structure
 type Person struct {
 	ID              string          `gorm:"primaryKey" json:"id"`
@@ -110,14 +140,39 @@ type Person struct {
 	AuthUserID      string          `gorm:"index" json:"authUserId"`
 	FirstName       string          `json:"firstName"`
 	LastName        string          `json:"lastName"`
+	LocalizedNames  LocalizedNames  `gorm:"type:text" json:"localizedNames"`
 	BirthDate       *time.Time      `json:"birthDate,omitempty"`
 	DeathDate       *time.Time      `json:"deathDate,omitempty"`
 	Gender          string          `json:"gender"`
 	Bio             string          `json:"bio"`
 	ProfilePhotoURL string          `json:"profilePhotoUrl"`
+
+	// Self-authored profile detail. A linked member fills these in about
+	// themselves; everyone browsing the tree sees them on the person's card.
+	Occupation       string          `json:"occupation"`
+	BirthPlace       string          `json:"birthPlace"`
+	CurrentResidence string          `json:"currentResidence"`
+	Education        string          `json:"education"`
+	ContactEmail     string          `json:"contactEmail"`
+	ContactPhone     string          `json:"contactPhone"`
+	Interests        JSONStringArray `gorm:"type:text" json:"interests"`
+
+	// "single" | "married" | "divorced" | "widowed", or empty when unstated.
+	MaritalStatus string `json:"maritalStatus"`
+	// Free text, for a spouse who has no record of their own in the tree.
+	// A spouse who *is* in the tree lives in Relationships.Spouses.
+	SpouseName string `json:"spouseName"`
+
+	// Whether the person has died. Kept separate from DeathDate because a
+	// family often knows someone has passed long before anyone can name the
+	// date — deriving this from DeathDate alone would leave them shown as
+	// living until a date is found.
+	IsDeceased bool `json:"isDeceased"`
+
 	Photos          JSONStringArray `gorm:"type:text" json:"photos"`
 	LifeEvents      LifeEvents      `gorm:"type:text" json:"lifeEvents"`
 	Relationships   Relationships   `gorm:"type:text" json:"relationships"`
+	DisplayOrder    int             `gorm:"default:0" json:"displayOrder"`
 	CreatedAt       time.Time       `json:"createdAt"`
 	UpdatedAt       time.Time       `json:"updatedAt"`
 	DeletedAt       gorm.DeletedAt  `gorm:"index" json:"-"`
