@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import 'app_theme.dart';
-import 'elegant_theme.dart';
 
 /// The app's colours by the job they do, resolved for the current theme.
 ///
@@ -32,6 +31,10 @@ class AppColors extends ThemeExtension<AppColors> {
     required this.gold,
     required this.rose,
     required this.info,
+    required this.onAccent,
+    required this.success,
+    required this.warning,
+    required this.danger,
     required this.brandGradient,
   });
 
@@ -56,7 +59,7 @@ class AppColors extends ThemeExtension<AppColors> {
   /// Text you are not meant to read closely: timestamps, hints.
   final Color inkMuted;
 
-  /// The brand colour. Terracotta, lifted on dark grounds.
+  /// The brand colour. An evergreen, lifted on dark grounds.
   final Color accent;
 
   /// A deeper accent for gradients and pressed states.
@@ -65,42 +68,63 @@ class AppColors extends ThemeExtension<AppColors> {
   /// A wash of the accent, for tinted backgrounds behind icons and chips.
   final Color accentSoft;
 
-  /// The second brand colour. Sage.
+  /// A supporting hue, desaturated so the accent stays the only voice
+  /// raised above a murmur.
   final Color secondary;
 
   /// Gold, for anything celebratory — anniversaries, admin marks.
   final Color gold;
 
-  /// Dusty rose, used for mentions and personal notices.
+  /// A muted rose, used for mentions and personal notices.
   final Color rose;
 
   /// Informational blue, for neutral notices.
   final Color info;
 
+  /// Text and icons drawn on top of [accent].
+  final Color onAccent;
+
+  /// Something worked.
+  final Color success;
+
+  /// Something needs attention but is not broken.
+  final Color warning;
+
+  /// Something failed, or is about to be destroyed.
+  ///
+  /// These three used to be one pair of constants shared by both themes, on
+  /// the reasoning that green means good either way. It does — but the same
+  /// green is either too dark to read on black or too light to read on white,
+  /// so each theme now carries its own.
+  final Color danger;
+
   /// The brand gradient for primary buttons and marks.
   final LinearGradient brandGradient;
 
-  /// Status colours do not change between themes: green means good in both.
-  Color get success => AppTheme.success;
-  Color get warning => AppTheme.warning;
-  Color get danger => AppTheme.error;
-
   static const AppColors light = AppColors(
-    ground: ElegantColors.cream,
-    surface: ElegantColors.warmWhite,
-    surfaceRaised: ElegantColors.parchment,
-    hairline: Color(0xFFE8DFD0),
-    ink: ElegantColors.charcoal,
-    inkSoft: Color(0xFF6B6259),
-    inkMuted: ElegantColors.warmGray,
-    accent: ElegantColors.terracotta,
-    accentDeep: ElegantColors.sienna,
-    accentSoft: Color(0xFFF6E7E2),
-    secondary: ElegantColors.sage,
-    gold: ElegantColors.gold,
-    rose: ElegantColors.dustyRose,
-    info: ElegantColors.softBlue,
-    brandGradient: ElegantColors.warmGradient,
+    ground: AppTheme.backgroundLight,
+    surface: AppTheme.surfaceLight,
+    surfaceRaised: AppTheme.cardLight,
+    hairline: AppTheme.borderLight,
+    ink: AppTheme.textPrimaryLight,
+    inkSoft: AppTheme.textSecondaryLight,
+    inkMuted: AppTheme.textMutedLight,
+    accent: AppTheme.primary,
+    accentDeep: AppTheme.primaryDeep,
+    accentSoft: Color(0xFFE3F1EB),
+    secondary: AppTheme.accentTeal,
+    gold: AppTheme.accentGold,
+    rose: AppTheme.accentRose,
+    info: AppTheme.info,
+    onAccent: Color(0xFFFFFFFF),
+    success: AppTheme.success,
+    warning: AppTheme.warning,
+    danger: AppTheme.error,
+    brandGradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [AppTheme.primary, AppTheme.primaryDeep],
+    ),
   );
 
   static const AppColors dark = AppColors(
@@ -112,16 +136,20 @@ class AppColors extends ThemeExtension<AppColors> {
     inkSoft: AppTheme.textSecondaryDark,
     inkMuted: AppTheme.textMutedDark,
     accent: AppTheme.primaryLight,
-    accentDeep: AppTheme.primaryDeep,
-    accentSoft: Color(0xFF3A2A24),
+    accentDeep: AppTheme.primary,
+    accentSoft: Color(0xFF12291F),
     secondary: AppTheme.accentTeal,
-    gold: AppTheme.accentGold,
+    gold: AppTheme.accentGoldDark,
     rose: AppTheme.accentRose,
     info: AppTheme.accentCyan,
+    onAccent: Color(0xFF04231A),
+    success: AppTheme.successDark,
+    warning: AppTheme.warningDark,
+    danger: AppTheme.errorDark,
     brandGradient: LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [AppTheme.primaryDeep, AppTheme.primaryLight],
+      colors: [AppTheme.primaryLight, AppTheme.primary],
     ),
   );
 
@@ -141,6 +169,10 @@ class AppColors extends ThemeExtension<AppColors> {
     Color? gold,
     Color? rose,
     Color? info,
+    Color? onAccent,
+    Color? success,
+    Color? warning,
+    Color? danger,
     LinearGradient? brandGradient,
   }) {
     return AppColors(
@@ -158,6 +190,10 @@ class AppColors extends ThemeExtension<AppColors> {
       gold: gold ?? this.gold,
       rose: rose ?? this.rose,
       info: info ?? this.info,
+      onAccent: onAccent ?? this.onAccent,
+      success: success ?? this.success,
+      warning: warning ?? this.warning,
+      danger: danger ?? this.danger,
       brandGradient: brandGradient ?? this.brandGradient,
     );
   }
@@ -180,6 +216,10 @@ class AppColors extends ThemeExtension<AppColors> {
       gold: Color.lerp(gold, other.gold, t)!,
       rose: Color.lerp(rose, other.rose, t)!,
       info: Color.lerp(info, other.info, t)!,
+      onAccent: Color.lerp(onAccent, other.onAccent, t)!,
+      success: Color.lerp(success, other.success, t)!,
+      warning: Color.lerp(warning, other.warning, t)!,
+      danger: Color.lerp(danger, other.danger, t)!,
       brandGradient:
           LinearGradient.lerp(brandGradient, other.brandGradient, t)!,
     );
