@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:family_tree/data/models/person.dart';
 import 'package:family_tree/data/services/link_service.dart';
 import 'package:family_tree/features/tree_view/widgets/link_account_sheet.dart';
-import 'package:family_tree/providers/link_provider.dart';
+import 'package:family_tree/features/linking/link_status.dart';
 
 /// Stands in for the network. Records what it was asked to link so a test can
 /// assert the request carried the person the user actually picked.

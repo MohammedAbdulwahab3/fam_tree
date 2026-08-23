@@ -7,7 +7,7 @@ import 'package:family_tree/core/theme/app_colors.dart';
 import 'package:family_tree/core/theme/elegant_theme.dart';
 import 'package:family_tree/data/models/person.dart';
 import 'package:family_tree/data/services/link_service.dart';
-import 'package:family_tree/providers/link_provider.dart';
+import 'package:family_tree/features/linking/link_status.dart';
 
 /// The member-facing half of account linking.
 ///

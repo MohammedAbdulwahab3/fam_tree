@@ -17,7 +17,7 @@ import 'package:family_tree/data/models/post.dart';
 import 'package:family_tree/data/repositories/group_repository.dart';
 import 'package:family_tree/data/services/api_service.dart';
 import 'package:family_tree/data/services/storage_service.dart';
-import 'package:family_tree/features/auth/providers/auth_provider.dart';
+import 'package:family_tree/features/auth/session.dart';
 import 'package:family_tree/features/feed/widgets/post_card.dart';
 
 /// The family tree this build shows. Set at build time — see [AppConfig].
@@ -130,7 +130,7 @@ class _FeedPageState extends ConsumerState<FeedPage>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final user = ref.watch(authStateProvider).value;
+    final user = ref.watch(currentUserProvider);
     final postsAsync = ref.watch(postsProvider);
     final isWide = MediaQuery.of(context).size.width >= 720;
 

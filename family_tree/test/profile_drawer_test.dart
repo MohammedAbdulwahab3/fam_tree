@@ -5,11 +5,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:family_tree/data/models/app_user.dart';
 import 'package:family_tree/data/models/person.dart';
 import 'package:family_tree/data/services/link_service.dart';
-import 'package:family_tree/features/auth/providers/auth_provider.dart';
+import 'package:family_tree/features/auth/session.dart';
 import 'package:family_tree/features/notifications/notifications_screen.dart';
 import 'package:family_tree/features/tree_view/widgets/profile_drawer.dart';
-import 'package:family_tree/providers/admin_provider.dart';
-import 'package:family_tree/providers/link_provider.dart';
+import 'package:family_tree/features/linking/link_status.dart';
 
 /// A four-generation line with a spouse and a sibling hanging off it:
 ///
@@ -103,8 +102,8 @@ Widget _harness({
   return ProviderScope(
     overrides: [
       // The drawer must never reach the network to render.
-      authStateProvider.overrideWith((ref) => Stream.value(user)),
-      userRoleProvider.overrideWith((ref) async => user),
+      currentUserProvider.overrideWithValue(user),
+      isAdminProvider.overrideWithValue(user.isAdmin),
       unreadCountProvider.overrideWith((ref) => Stream.value(3)),
       linkStatusProvider.overrideWith(
         (ref) async =>

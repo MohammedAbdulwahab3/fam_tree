@@ -10,7 +10,7 @@ import 'package:family_tree/core/widgets/aurora_background.dart';
 import 'package:family_tree/core/widgets/tree_mark.dart';
 import 'package:family_tree/providers/family_stats_provider.dart';
 import 'package:family_tree/data/services/auth_service.dart';
-import 'package:family_tree/features/auth/providers/auth_provider.dart';
+import 'package:family_tree/features/auth/session.dart';
 import 'package:family_tree/providers/theme_provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -256,7 +256,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
           Consumer(
             builder: (context, ref, _) {
               final isSignedIn =
-                  ref.watch(authStateProvider).value != null;
+                  ref.watch(isSignedInProvider);
               
               if (isSignedIn) {
                 // Show Logout button

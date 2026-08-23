@@ -8,7 +8,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/elegant_theme.dart';
 import '../../data/services/api_service.dart';
 import '../../data/services/link_service.dart';
-import '../../providers/link_provider.dart';
+import 'package:family_tree/features/linking/link_status.dart';
 
 /// Admin review of "this account says it is this person in the tree".
 ///

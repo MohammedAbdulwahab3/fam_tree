@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:family_tree/data/models/person.dart';
 import 'package:family_tree/data/repositories/person_repository.dart';
-import 'package:family_tree/features/auth/providers/auth_provider.dart';
+import 'package:family_tree/features/auth/session.dart';
 import 'package:family_tree/features/profile/my_profile_editor.dart';
-import 'package:family_tree/providers/admin_provider.dart';
 import 'package:family_tree/core/layout/breakpoints.dart';
 import 'package:family_tree/core/theme/app_theme.dart';
 import 'package:family_tree/core/theme/app_colors.dart';
@@ -88,7 +87,7 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
 
   @override
   Widget build(BuildContext context) {
-    final user = ref.watch(authStateProvider).value;
+    final user = ref.watch(currentUserProvider);
     // Whether this record is the signed-in member's own. Both sides are already
     // in hand, so this used to be a network round trip — and a FutureBuilder —
     // to compare two strings.
@@ -1067,7 +1066,7 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
       context,
       person: widget.person,
       spouses: widget.spouses,
-      isAdmin: ref.read(userRoleProvider).value?.isAdmin ?? false,
+      isAdmin: ref.read(isAdminProvider),
       onSave: (updated) => repository.updatePerson(updated),
     );
 

@@ -15,7 +15,7 @@ import 'package:family_tree/core/theme/app_colors.dart';
 import 'package:family_tree/core/widgets/aurora_background.dart';
 import 'package:family_tree/data/models/post.dart';
 import 'package:family_tree/features/admin/admin_tools_sheet.dart';
-import 'package:family_tree/features/auth/providers/auth_provider.dart';
+import 'package:family_tree/features/auth/session.dart';
 import 'package:family_tree/features/admin/link_requests_dashboard.dart';
 import 'package:family_tree/features/admin/post_composer_sheet.dart';
 import 'package:family_tree/data/services/family_export_service.dart';
@@ -474,7 +474,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
   /// to empty, so the feed could only ever receive plain text even though
   /// [Post] has always carried attachments.
   Future<void> _showAddPostDialog() async {
-    final user = ref.read(authStateProvider).value;
+    final user = ref.read(currentUserProvider);
 
     final composed = await PostComposerSheet.show(
       context,

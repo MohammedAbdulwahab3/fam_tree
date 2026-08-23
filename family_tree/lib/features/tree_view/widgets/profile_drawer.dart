@@ -11,14 +11,13 @@ import 'package:family_tree/core/theme/app_colors.dart';
 import 'package:family_tree/core/theme/elegant_theme.dart';
 import 'package:family_tree/data/models/app_user.dart';
 import 'package:family_tree/data/models/person.dart';
-import 'package:family_tree/features/auth/providers/auth_provider.dart';
+import 'package:family_tree/features/auth/session.dart';
 import 'package:family_tree/data/services/api_service.dart';
 import 'package:family_tree/data/services/auth_service.dart';
 import 'package:family_tree/data/services/link_service.dart';
 import 'package:family_tree/features/notifications/notifications_screen.dart';
 import 'package:family_tree/features/tree_view/widgets/link_account_sheet.dart';
-import 'package:family_tree/providers/admin_provider.dart';
-import 'package:family_tree/providers/link_provider.dart';
+import 'package:family_tree/features/linking/link_status.dart';
 import 'package:family_tree/providers/locale_provider.dart';
 import 'package:family_tree/providers/theme_provider.dart';
 
@@ -87,8 +86,8 @@ class _ProfileDrawerState extends ConsumerState<ProfileDrawer>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final authUser = ref.watch(authStateProvider).value;
-    final isAdmin = ref.watch(userRoleProvider).value?.isAdmin ?? false;
+    final authUser = ref.watch(currentUserProvider);
+    final isAdmin = ref.watch(isAdminProvider);
     final linked = widget.linkedPerson;
 
     final stats = _FamilyStats.from(widget.familyMembers, linked);
@@ -703,7 +702,7 @@ class _ProfileDrawerState extends ConsumerState<ProfileDrawer>
 
     if (confirmed != true || !mounted) return;
 
-    await ref.read(authControllerProvider.notifier).signOut();
+    await ref.read(sessionProvider.notifier).signOut();
     if (!mounted) return;
     Navigator.pop(context);
     context.go('/');

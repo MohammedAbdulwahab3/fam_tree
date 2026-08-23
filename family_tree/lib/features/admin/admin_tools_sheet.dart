@@ -10,7 +10,7 @@ import 'package:family_tree/data/models/app_user.dart';
 import 'package:family_tree/data/models/post.dart';
 import 'package:family_tree/data/repositories/admin_repository.dart';
 import 'package:family_tree/data/repositories/group_repository.dart';
-import 'package:family_tree/features/auth/providers/auth_provider.dart';
+import 'package:family_tree/features/auth/session.dart';
 
 enum AdminTool { members, posts }
 
@@ -283,7 +283,7 @@ class _AdminToolsSheetState extends ConsumerState<AdminToolsSheet> {
   // ---------------------------------------------------------------- members
 
   Widget _memberRow(AppUser user, bool isDark) {
-    final currentUserId = ref.read(authStateProvider).value?.uid;
+    final currentUserId = ref.read(currentUserProvider)?.uid;
     final isSelf = user.id == currentUserId;
     final accent = user.isBanned
         ? AppTheme.error

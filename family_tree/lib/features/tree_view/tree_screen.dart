@@ -13,10 +13,9 @@ import 'package:family_tree/features/tree_view/widgets/person_details_dialog.dar
 import 'package:family_tree/features/tree_view/widgets/profile_drawer.dart';
 import 'package:family_tree/features/tree_view/widgets/link_account_sheet.dart';
 import 'package:family_tree/data/services/link_service.dart';
-import 'package:family_tree/providers/link_provider.dart';
+import 'package:family_tree/features/linking/link_status.dart';
 import 'package:family_tree/features/profile/my_profile_editor.dart';
-import 'package:family_tree/features/auth/providers/auth_provider.dart';
-import 'package:family_tree/providers/admin_provider.dart';
+import 'package:family_tree/features/auth/session.dart';
 import 'package:family_tree/core/widgets/theme_toggle_button.dart';
 import 'package:family_tree/core/widgets/locale_menu_button.dart';
 import 'package:image_picker/image_picker.dart';
@@ -213,7 +212,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
   }
 
   void _showUserProfileEditDialog(BuildContext context, bool isDark) {
-    final user = ref.read(authStateProvider).value;
+    final user = ref.read(currentUserProvider);
     final nameController = TextEditingController(text: user?.displayName ?? '');
     
     showDialog(
@@ -405,7 +404,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
               if (newName.isNotEmpty && user != null) {
                 try {
                   await ref.read(authServiceProvider).updateDisplayName(newName);
-                  ref.invalidate(authStateProvider);
+                  ref.read(sessionProvider.notifier).refresh();
                   if (mounted) {
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -500,7 +499,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
           ),
         );
         // Refresh the auth state to get updated photo
-        ref.invalidate(authStateProvider);
+        ref.read(sessionProvider.notifier).refresh();
       }
     } catch (e) {
       if (mounted) {
@@ -533,7 +532,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
       context,
       person: person,
       spouses: spouses,
-      isAdmin: ref.read(userRoleProvider).value?.isAdmin ?? false,
+      isAdmin: ref.read(isAdminProvider),
       onSave: (updated) async {
         await controller.updatePerson(updated);
         await controller.refresh();
@@ -563,13 +562,11 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
     final isMobile = MediaQuery.of(context).size.width < 768;
     
     // Get current user for filtering
-    final authUser = ref.watch(authStateProvider).value;
+    final authUser = ref.watch(currentUserProvider);
     final authUserId = authUser?.uid;
     final isSignedIn = authUser != null;
     
-    // Use userRoleProvider for consistent admin check
-    final userRoleAsync = ref.watch(userRoleProvider);
-    final isAdmin = userRoleAsync.value?.isAdmin ?? false;
+    final isAdmin = ref.watch(isAdminProvider);
     
     // Get linked person for display
     final linkedPerson = _getLinkedPerson(state.persons, authUserId);
@@ -593,7 +590,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
     if (!_initialized && linkedPerson != null && !widget.isDemo) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        ref.invalidate(userRoleProvider);
+        ref.read(sessionProvider.notifier).refresh();
         controller.selectPerson(linkedPerson.id);
         controller.setLayoutMode(LayoutMode.focus);
         setState(() {
@@ -1241,7 +1238,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
   /// this screen only supplies the tree data and the dialogs the panel opens.
   Widget _buildProfileSidebar(BuildContext context, bool isDark) {
     final state = ref.watch(treeControllerProvider(widget.familyTreeId));
-    final authUserId = ref.watch(authStateProvider).value?.uid;
+    final authUserId = ref.watch(currentUserProvider)?.uid;
 
     return ProfileDrawer(
       familyMembers: state.persons,

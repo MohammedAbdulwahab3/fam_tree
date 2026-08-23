@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:family_tree/data/models/person.dart';
-import 'package:family_tree/features/auth/providers/auth_provider.dart';
+import 'package:family_tree/features/auth/session.dart';
 import 'package:family_tree/features/tree_view/widgets/person_details_dialog.dart';
 
 Person _person(String id, String first, {String last = 'Bekele'}) => Person(
@@ -27,7 +27,7 @@ Widget _harness({required Size size, Brightness brightness = Brightness.dark}) {
     overrides: [
       // The dialog asks who is signed in; nobody is, which is the read-only
       // path and keeps the test off the network.
-      authStateProvider.overrideWith((ref) => Stream.value(null)),
+      currentUserProvider.overrideWithValue(null),
     ],
     child: MediaQuery(
       data: MediaQueryData(size: size),
@@ -113,7 +113,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          authStateProvider.overrideWith((ref) => Stream.value(null)),
+          currentUserProvider.overrideWithValue(null),
         ],
         child: const MediaQuery(
           data: MediaQueryData(
