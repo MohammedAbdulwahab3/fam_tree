@@ -25,7 +25,7 @@
 
 ## 🎯 Overview
 
-This is a production-ready REST API backend for managing family trees, built with **Go**, **Gin**, **GORM**, and **PostgreSQL**. It provides complete family management features including person profiles, family posts, events, messaging, and role-based access control.
+A REST API for one family's tree, built with **Go**, **Gin**, **GORM** and **PostgreSQL**: people and their relationships, self-authored profiles, the claim flow that ties an account to a person, a family feed, in-app notifications, and role-based access.
 
 ### Tech Stack
 
@@ -36,17 +36,22 @@ This is a production-ready REST API backend for managing family trees, built wit
 - **Authentication:** JWT issued by this server (bcrypt password hashing)
 - **Storage:** Local file system (uploads)
 
+There is deliberately no push channel, no mail server, and no chat. See the
+root README for why.
+
 ---
 
 ## ✨ Features
 
 ### Core Features
-- 👤 **Person Management** - Complete CRUD operations for family members
-- 📝 **Family Posts** - Share updates, photos, and stories
-- 📅 **Events** - Create and manage family events with RSVP
-- 💬 **Messaging** - Real-time family chat system
-- 🔐 **Authentication** - Email and password, JWT sessions
-- 👑 **Role-Based Access** - Admin and member roles
+- 👤 **People and relationships** — the tree itself, with parents, marriages
+  and self-authored profiles
+- 🔗 **Claiming** — a member says which person they are, an admin confirms
+- 📝 **Family feed** — posts, comments and reactions
+- 🔔 **Notifications** — in-app, with per-type preferences
+- 🔐 **Authentication** — email and password, JWT sessions, admin-issued
+  password resets
+- 👑 **Roles** — admin and member, enforced on every route
 
 ### Technical Features
 - ✅ RESTful API design
@@ -63,23 +68,24 @@ This is a production-ready REST API backend for managing family trees, built wit
 
 ```
 backend/
-├── auth/           # JWT token utilities
+├── auth/           # JWT: issuing, and verifying with the algorithm pinned
+├── config/         # Everything read from the environment, in one place
 ├── handlers/       # HTTP request handlers
-│   ├── auth.go
-│   ├── person.go
-│   ├── post.go
-│   ├── event.go
-│   ├── message.go
+│   ├── auth.go         # register, login
+│   ├── person.go       # the tree; children are derived here on read
+│   ├── post.go         # feed, comments, reactions
+│   ├── link_handler.go # claiming a person, and admin review
+│   ├── notification.go
+│   ├── password.go     # change, reset by admin-issued code, delete account
 │   └── upload.go
 ├── middleware/     # HTTP middlewares
-│   ├── auth.go     # JWT verification, loads the user
-│   └── admin.go    # Admin access control
+│   ├── auth.go         # verifies the token, re-reads role and ban state
+│   ├── admin.go        # admin-only
+│   ├── ratelimit.go    # per-IP, on the public auth routes
+│   └── cache.go        # optional Redis
 ├── models/         # Database models
-│   ├── user.go
-│   ├── person.go
-│   └── post.go
-├── seed/           # Database seeding
-│   └── seed.go
+├── seed/           # Fills the tree with people. Creates no admin.
+├── cmd/make_admin/ # The only way to create the first admin
 ├── uploads/        # File uploads directory
 ├── e2e/            # End-to-end API checks
 └── main.go         # Application entry point
@@ -125,9 +131,9 @@ See [POSTGRES_SETUP.md](POSTGRES_SETUP.md) for detailed database setup instructi
 Create a `.env` file or set environment variables:
 
 ```bash
-# Required in anything but a local run — without it the server falls back to a
-# development signing key and says so loudly at startup.
-export JWT_SECRET="a-long-random-string"
+# Required. A release build (GIN_MODE=release) refuses to start without it
+# rather than signing every session with a key that is public in this repo.
+export JWT_SECRET="$(openssl rand -base64 48)"
 
 # Database. Defaults to a local Postgres on 5432 if unset.
 export DATABASE_URL="host=127.0.0.1 user=postgres password=postgres dbname=family_tree port=5432 sslmode=disable"
@@ -135,9 +141,9 @@ export DATABASE_URL="host=127.0.0.1 user=postgres password=postgres dbname=famil
 # Optional. How long a session lasts; defaults to 720h (30 days).
 export TOKEN_TTL=720h
 
-# Optional. Enables device push notifications. Without it, notifications still
-# appear in the app — they just do not reach the lock screen.
-export FIREBASE_CREDENTIALS='{"type":"service_account",...}'
+# Optional. Which family tree this deployment serves. Must match the app's
+# FAMILY_TREE_ID.
+export FAMILY_TREE_ID=main-family-tree
 ```
 
 ### 5. Run the Server
@@ -159,10 +165,10 @@ Server will start on **http://localhost:8080** 🎉
 go run main.go --seed
 ```
 
-This will create:
-- Sample persons (Adam, Eve, Cain, Abel, Seth)
-- Sample posts, events, and messages
-- Default admin user (`admin@familytree.com`)
+This fills the tree with people. It creates no admin: the one it used to create
+had an empty password hash, so bcrypt rejected every sign-in against it — an
+account that looked like a way in and was not one. Register through the app,
+then promote yourself with `go run ./cmd/make_admin <your-email>`.
 
 ---
 
@@ -241,18 +247,24 @@ Content-Type: application/json
 #### Posts
 
 ```http
-# Get all posts
-GET /api/posts
+# A page of the feed, newest first. Paging is by timestamp rather than
+# offset: the feed is written to while it is read, and an offset silently
+# repeats or skips a post when something arrives between two pages.
+GET /api/posts?limit=20&before=<RFC3339 from the last nextCursor>
 
-# Get post comments
-GET /api/posts/:id/comments
+# -> { "posts": [...], "hasMore": true, "nextCursor": "2026-..." }
 
-# Toggle reaction
+# A post's comments
+GET /api/posts/:id/comments?limit=20
+# -> { "comments": [...], "total": 42 }
+
+# Set, change or clear your reaction. Sending the same emoji twice
+# takes it back.
 POST /api/posts/:id/reactions
 Content-Type: application/json
 
 {
-  "reaction_type": "like"
+  "emoji": "❤️"
 }
 
 # Add comment
@@ -260,37 +272,7 @@ POST /api/posts/:id/comments
 Content-Type: application/json
 
 {
-  "content": "Great post!"
-}
-```
-
-#### Events
-
-```http
-# Get all events
-GET /api/events
-
-# Toggle RSVP
-POST /api/events/:id/rsvp
-Content-Type: application/json
-
-{
-  "status": "attending"
-}
-```
-
-#### Messages
-
-```http
-# Get messages
-GET /api/messages
-
-# Send message
-POST /api/messages
-Content-Type: application/json
-
-{
-  "content": "Hello family!"
+  "text": "Great post!"
 }
 ```
 
@@ -433,17 +415,16 @@ PUT    /api/notifications/preferences
 
 ### Promote User to Admin
 
-#### Method 1: Using Go Script (Local/Production)
+This is the only way to create the *first* admin, and it is deliberate: an HTTP
+route that grants admin is a route anybody can call. There used to be one here,
+gated on a secret string committed to this repository.
 
 ```bash
-# Make most recent user an admin
-go run cmd/make_admin/main.go
+# The most recently registered account
+go run ./cmd/make_admin
 
-# Make specific user an admin by email
-go run cmd/make_admin/main.go user@example.com
-
-# Make specific user an admin by ID
-go run cmd/make_admin/main.go <user_id>
+# A specific one, by email or id
+go run ./cmd/make_admin user@example.com
 ```
 
 #### Method 2: Direct Database (Production)
@@ -482,27 +463,37 @@ go run main.go
 
 ### Database Migrations
 
-GORM auto-migrates on startup, but you can trigger manually:
+GORM auto-migrates every model on startup. Two notes for an existing database:
 
-```go
-db.AutoMigrate(&models.User{}, &models.Person{}, &models.Post{}, &models.Event{}, &models.Message{})
-```
+- Reactions gained a unique `(post_id, user_id)` index and lost their soft
+  delete. AutoMigrate will not drop the old `deleted_at` column, so any reaction
+  soft-deleted by an older build becomes visible again.
+- Notification preferences lost their `default:true` column defaults, which is
+  what made turning a notification off silently store "on". Existing rows are
+  unaffected.
 
 ### Testing
 
 ```bash
-# End-to-end checks, each against a throwaway database
-./e2e/run.sh          # all phases
-./e2e/run.sh 3        # one phase
+# Unit and handler tests. No database — these run against in-memory SQLite.
+go test ./...
+
+# End-to-end, each suite against a throwaway database.
+./e2e/run.sh                  # everything
+./e2e/run.sh permissions      # one suite
 
 # Health check
 curl http://localhost:8080/ping
 ```
 
-`e2e/` covers the API surface end to end: feed posting and deletion, comment and
-event permissions, notification delivery and preferences, reminder scheduling,
-the account-claim flow, and password reset. It needs the Postgres container from
-`docker-compose.yml` running.
+`go test ./...` covers token validation, rate limiting, notification
+preferences, relationship derivation and pruning, cycle termination, and the
+permission and field-merge behaviour of every person and post route.
+
+`e2e/` covers the API end to end in five suites — `permissions`,
+`notifications`, `linking`, `sessions`, `tree`. Locally it wants the Postgres
+container from `docker-compose.yml`; in CI it talks to a service container. Set
+`PG_HOST` and `PG_PORT` to point it elsewhere.
 
 ### Project Structure Best Practices
 
@@ -519,25 +510,19 @@ the account-claim flow, and password reset. It needs the Postgres container from
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `JWT_SECRET` | Signs session tokens. Set it. | insecure dev key, with a warning |
+| `JWT_SECRET` | Signs session tokens | dev-only fallback; **release refuses to start without it** |
 | `DATABASE_URL` | PostgreSQL connection string | `host=127.0.0.1 user=postgres password=postgres dbname=family_tree port=5432 sslmode=disable` |
 | `TOKEN_TTL` | How long a session lasts | `720h` (30 days) |
-| `FIREBASE_CREDENTIALS` | Service account JSON; enables push notifications | unset — push off, in-app notifications unaffected |
+| `FAMILY_TREE_ID` | Which tree this deployment serves | `main-family-tree` |
 | `REDIS_URL` | Optional response cache | unset — caching off |
 | `GIN_MODE` | Gin mode (debug/release) | `debug` |
 | `PORT` | Server port | `8080` |
 
-### Push Notifications (optional)
+### Notifications
 
-Notifications are recorded in the database and shown in the app with no external
-service. Firebase only adds delivery to devices:
-
-1. Go to [Firebase Console](https://console.firebase.google.com)
-2. Project Settings → Service Accounts → "Generate New Private Key"
-3. Set the JSON as the `FIREBASE_CREDENTIALS` environment variable
-
-Keep the key out of the repository — the server reads it from the environment
-only, never from a file on disk.
+Recorded in the database and read by the app, which polls. There is no push
+channel: nothing ever registered a device token, so the Firebase layer that used
+to be here could not have delivered anything, and it has been removed.
 
 ---
 
