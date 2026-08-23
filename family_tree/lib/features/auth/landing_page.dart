@@ -12,7 +12,7 @@ import 'package:family_tree/providers/family_stats_provider.dart';
 import 'package:family_tree/data/services/auth_service.dart';
 import 'package:family_tree/features/auth/session.dart';
 import 'package:family_tree/providers/theme_provider.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:family_tree/core/design/typography.dart';
 
 /// Stunning landing page with modern animations, floating particles,
 /// and emotionally rich design that celebrates family connections.
@@ -232,7 +232,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
                     'Mammedu Family',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.playfairDisplay(
+                    style: AppType.sans(
                       fontSize: isMobile ? 19 : 22,
                       fontWeight: FontWeight.bold,
                       color: isDark
@@ -377,7 +377,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
           ).createShader(bounds),
           child: Text(
             'Mammedu Family',
-            style: GoogleFonts.playfairDisplay(
+            style: AppType.sans(
               fontSize: isMobile ? 48 : 72,
               fontWeight: FontWeight.bold,
               color: Colors.white,
@@ -393,7 +393,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
         // Tagline with beautiful typography
         Text(
           'Our Roots, Our Legacy, Our Story',
-          style: GoogleFonts.cormorantGaramond(
+          style: AppType.sans(
             fontSize: isMobile ? 24 : 32,
             fontWeight: FontWeight.w500,
             fontStyle: FontStyle.italic,
@@ -414,7 +414,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
           padding: EdgeInsets.symmetric(horizontal: isMobile ? 8.0 : 24.0),
           child: Text(
             'Explore the Mammedu family lineage through generations. Celebrate our ancestors, preserve our memories, and stay connected with our heritage.',
-            style: GoogleFonts.inter(
+            style: AppType.sans(
               fontSize: isMobile ? 15 : 18,
               color: context.colors.inkMuted,
               height: 1.7,
@@ -469,7 +469,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
               const SizedBox(width: 10),
               Text(
                 label,
-                style: GoogleFonts.inter(
+                style: AppType.sans(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                   color: Colors.white,
@@ -521,7 +521,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
         // Section title
         Text(
           'Our Family Features',
-          style: GoogleFonts.playfairDisplay(
+          style: AppType.sans(
             fontSize: isMobile ? 32 : 42,
             fontWeight: FontWeight.bold,
             color: context.colors.ink,
@@ -531,7 +531,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
         const SizedBox(height: 16),
         Text(
           'Designed for the Mammedu family',
-          style: GoogleFonts.inter(
+          style: AppType.sans(
             fontSize: isMobile ? 16 : 18,
             color: context.colors.inkMuted,
           ),
@@ -650,7 +650,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
             // Title
             Text(
               feature.title,
-              style: GoogleFonts.inter(
+              style: AppType.sans(
                 fontSize: isMobile ? 18 : 20,
                 fontWeight: FontWeight.bold,
                 color: context.colors.ink,
@@ -663,7 +663,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
             // Description
             Text(
               feature.description,
-              style: GoogleFonts.inter(
+              style: AppType.sans(
                 fontSize: isMobile ? 14 : 15,
                 color: context.colors.inkSoft,
                 height: 1.6,
@@ -763,7 +763,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
     if (value == null) {
       figure = Text(
         suffix,
-        style: GoogleFonts.playfairDisplay(
+        style: AppType.sans(
           fontSize: isMobile ? 38 : 52,
           fontWeight: FontWeight.bold,
           color: Colors.white,
@@ -776,7 +776,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
         curve: Curves.easeOutCubic,
         builder: (context, shown, _) => Text(
           value == 0 ? '\u2014' : '$shown',
-          style: GoogleFonts.playfairDisplay(
+          style: AppType.sans(
             fontSize: isMobile ? 38 : 52,
             fontWeight: FontWeight.bold,
             color: Colors.white,
@@ -798,7 +798,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
           const SizedBox(height: 10),
           Text(
             label,
-            style: GoogleFonts.inter(
+            style: AppType.sans(
               fontSize: isMobile ? 13 : 15,
               letterSpacing: 0.6,
               color: isDark
@@ -831,7 +831,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
         children: [
           Text(
             'Ready to Explore Our Heritage?',
-            style: GoogleFonts.playfairDisplay(
+            style: AppType.sans(
               fontSize: isMobile ? 28 : 38,
               fontWeight: FontWeight.bold,
               color: Colors.white,
@@ -841,7 +841,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
           const SizedBox(height: 16),
           Text(
             'Discover the Mammedu family tree and connect with our roots.',
-            style: GoogleFonts.inter(
+            style: AppType.sans(
               fontSize: isMobile ? 16 : 18,
               color: Colors.white.withValues(alpha: 0.9),
               height: 1.6,
@@ -867,7 +867,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
                         'Explore Tree',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(
+                        style: AppType.sans(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                           color: AppTheme.primaryDeep,
@@ -899,7 +899,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
           const SizedBox(height: 24),
           Text(
             'Made with ❤️ for families everywhere',
-            style: GoogleFonts.inter(
+            style: AppType.sans(
               fontSize: 14,
               color: context.colors.inkMuted,
             ),
@@ -907,7 +907,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
           const SizedBox(height: 8),
           Text(
             '© ${DateTime.now().year} Family Tree. All rights reserved.',
-            style: GoogleFonts.inter(
+            style: AppType.sans(
               fontSize: 12,
               color: isDark
                   ? AppTheme.textMutedDark.withValues(alpha: 0.7)

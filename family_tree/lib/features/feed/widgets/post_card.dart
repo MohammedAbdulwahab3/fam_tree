@@ -8,11 +8,11 @@ import 'package:family_tree/data/repositories/group_repository.dart';
 import 'package:family_tree/data/services/api_service.dart';
 import 'package:family_tree/core/widgets/video_player_widget.dart';
 import 'package:family_tree/widgets/voice_message_widget.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:family_tree/core/design/typography.dart';
 
 class PostCard extends StatefulWidget {
   final Post post;
@@ -205,7 +205,7 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
                 : Center(
                     child: Text(
                       widget.post.userName.isNotEmpty ? widget.post.userName[0].toUpperCase() : '?',
-                      style: GoogleFonts.inter(
+                      style: AppType.sans(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
                         fontSize: 20,
@@ -222,7 +222,7 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
               children: [
                 Text(
                   widget.post.userName,
-                  style: GoogleFonts.playfairDisplay(
+                  style: AppType.sans(
                     color: context.colors.ink,
                     fontWeight: FontWeight.w600,
                     fontSize: 15,
@@ -236,7 +236,7 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
                     const SizedBox(width: 4),
                     Text(
                       timeago.format(widget.post.createdAt),
-                      style: GoogleFonts.cormorantGaramond(
+                      style: AppType.sans(
                         color: context.colors.inkMuted,
                         fontSize: 13,
                       ),
@@ -264,7 +264,7 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
                     children: [
                       const Icon(Icons.delete_outline, color: AppTheme.error, size: 20),
                       const SizedBox(width: 8),
-                      Text('Delete', style: GoogleFonts.cormorantGaramond(color: AppTheme.error)),
+                      Text('Delete', style: AppType.sans(color: AppTheme.error)),
                     ],
                   ),
                 ),
@@ -280,7 +280,7 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Text(
         widget.post.content,
-        style: GoogleFonts.cormorantGaramond(
+        style: AppType.sans(
           color: context.colors.ink,
           fontSize: 16,
           height: 1.5,
@@ -305,7 +305,7 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
               const SizedBox(width: 4),
               Text(
                 'Voice Note',
-                style: GoogleFonts.inter(
+                style: AppType.sans(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: context.colors.inkMuted,
@@ -339,7 +339,7 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
               const SizedBox(width: 4),
               Text(
                 'Attachments',
-                style: GoogleFonts.inter(
+                style: AppType.sans(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: context.colors.inkMuted,
@@ -386,7 +386,7 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
                       Flexible(
                         child: Text(
                           fileName.length > 20 ? '${fileName.substring(0, 17)}...' : fileName,
-                          style: GoogleFonts.inter(
+                          style: AppType.sans(
                             fontSize: 13,
                             color: context.colors.ink,
                           ),
@@ -621,7 +621,7 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
               const SizedBox(width: 8),
               Text(
                 'Comments',
-                style: GoogleFonts.inter(
+                style: AppType.sans(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: context.colors.ink,
@@ -653,7 +653,7 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
                         const SizedBox(height: 8),
                         Text(
                           'No comments yet. Be the first!',
-                          style: GoogleFonts.inter(
+                          style: AppType.sans(
                             color: context.colors.inkMuted,
                             fontSize: 13,
                           ),
@@ -703,13 +703,13 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
                   ),
                   child: TextField(
                     controller: _commentController,
-                    style: GoogleFonts.inter(
+                    style: AppType.sans(
                       color: context.colors.ink,
                       fontSize: 14,
                     ),
                     decoration: InputDecoration(
                       hintText: 'Write a comment...',
-                      hintStyle: GoogleFonts.inter(
+                      hintStyle: AppType.sans(
                         color: context.colors.inkMuted,
                         fontSize: 14,
                       ),
@@ -783,7 +783,7 @@ class _ActionButton extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               label,
-              style: GoogleFonts.inter(
+              style: AppType.sans(
                 color: color,
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
@@ -843,7 +843,7 @@ class _CommentItem extends StatelessWidget {
                           comment.userName.isNotEmpty 
                               ? comment.userName[0].toUpperCase() 
                               : '?',
-                          style: GoogleFonts.inter(
+                          style: AppType.sans(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
@@ -855,7 +855,7 @@ class _CommentItem extends StatelessWidget {
                           comment.userName.isNotEmpty 
                               ? comment.userName[0].toUpperCase() 
                               : '?',
-                          style: GoogleFonts.inter(
+                          style: AppType.sans(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
@@ -869,7 +869,7 @@ class _CommentItem extends StatelessWidget {
                       comment.userName.isNotEmpty 
                           ? comment.userName[0].toUpperCase() 
                           : '?',
-                      style: GoogleFonts.inter(
+                      style: AppType.sans(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
@@ -889,7 +889,7 @@ class _CommentItem extends StatelessWidget {
                   children: [
                     Text(
                       comment.userName,
-                      style: GoogleFonts.inter(
+                      style: AppType.sans(
                         color: context.colors.ink,
                         fontWeight: FontWeight.w600,
                         fontSize: 13,
@@ -898,7 +898,7 @@ class _CommentItem extends StatelessWidget {
                     const SizedBox(width: 8),
                     Text(
                       timeago.format(comment.createdAt),
-                      style: GoogleFonts.inter(
+                      style: AppType.sans(
                         color: context.colors.inkMuted,
                         fontSize: 11,
                       ),
@@ -910,7 +910,7 @@ class _CommentItem extends StatelessWidget {
                 // Comment text
                 Text(
                   comment.text,
-                  style: GoogleFonts.inter(
+                  style: AppType.sans(
                     color: context.colors.inkSoft,
                     fontSize: 14,
                     height: 1.4,

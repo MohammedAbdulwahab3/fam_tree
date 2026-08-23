@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'package:family_tree/core/theme/app_theme.dart';
 import 'package:family_tree/core/theme/app_colors.dart';
@@ -11,6 +10,7 @@ import 'package:family_tree/data/models/post.dart';
 import 'package:family_tree/data/repositories/admin_repository.dart';
 import 'package:family_tree/data/repositories/group_repository.dart';
 import 'package:family_tree/features/auth/session.dart';
+import 'package:family_tree/core/design/typography.dart';
 
 enum AdminTool { members, posts }
 
@@ -150,7 +150,7 @@ class _AdminToolsSheetState extends ConsumerState<AdminToolsSheet> {
                   const SizedBox(width: 10),
                   Text(
                     isMembers ? 'Members' : 'Posts',
-                    style: GoogleFonts.playfairDisplay(
+                    style: AppType.sans(
                       fontSize: 22,
                       fontWeight: FontWeight.w700,
                       color: context.colors.ink,
@@ -172,7 +172,7 @@ class _AdminToolsSheetState extends ConsumerState<AdminToolsSheet> {
               child: TextField(
                 controller: _searchController,
                 onChanged: (v) => setState(() => _query = v.trim()),
-                style: GoogleFonts.inter(fontSize: 14.5),
+                style: AppType.sans(fontSize: 14.5),
                 decoration: InputDecoration(
                   isDense: true,
                   hintText: isMembers
@@ -224,7 +224,7 @@ class _AdminToolsSheetState extends ConsumerState<AdminToolsSheet> {
       ),
       child: Text(
         label,
-        style: GoogleFonts.inter(
+        style: AppType.sans(
           fontSize: 11,
           fontWeight: FontWeight.w700,
           color: color,
@@ -271,7 +271,7 @@ class _AdminToolsSheetState extends ConsumerState<AdminToolsSheet> {
         ),
         child: Text(
           label,
-          style: GoogleFonts.inter(
+          style: AppType.sans(
             fontSize: 10,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.4,
@@ -314,7 +314,7 @@ class _AdminToolsSheetState extends ConsumerState<AdminToolsSheet> {
                         user.name.isEmpty ? user.email : user.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(
+                        style: AppType.sans(
                           fontSize: 14.5,
                           fontWeight: FontWeight.w600,
                           color:
@@ -343,7 +343,7 @@ class _AdminToolsSheetState extends ConsumerState<AdminToolsSheet> {
                       : user.email,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(
+                  style: AppType.sans(
                     fontSize: 12,
                     color: isDark
                         ? AppTheme.textMutedDark
@@ -512,14 +512,14 @@ class _AdminToolsSheetState extends ConsumerState<AdminToolsSheet> {
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: Text('Suspend ${user.name}',
-            style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w700)),
+            style: AppType.sans(fontWeight: FontWeight.w700)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'They are signed out immediately and cannot sign back in until restored.',
-              style: GoogleFonts.inter(fontSize: 13, height: 1.5),
+              style: AppType.sans(fontSize: 13, height: 1.5),
             ),
             const SizedBox(height: 14),
             TextField(
@@ -565,7 +565,7 @@ class _AdminToolsSheetState extends ConsumerState<AdminToolsSheet> {
               children: [
                 Text(
                   post.userName,
-                  style: GoogleFonts.inter(
+                  style: AppType.sans(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: context.colors.ink,
@@ -576,7 +576,7 @@ class _AdminToolsSheetState extends ConsumerState<AdminToolsSheet> {
                   post.content.isEmpty ? '(no text)' : post.content,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(
+                  style: AppType.sans(
                     fontSize: 12.5,
                     height: 1.45,
                     color: isDark
@@ -638,9 +638,9 @@ Future<bool> confirmDialog(
     builder: (context) => AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       title: Text(title,
-          style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w700)),
+          style: AppType.sans(fontWeight: FontWeight.w700)),
       content:
-          Text(message, style: GoogleFonts.inter(fontSize: 13.5, height: 1.5)),
+          Text(message, style: AppType.sans(fontSize: 13.5, height: 1.5)),
       actions: [
         TextButton(
             onPressed: () => Navigator.pop(context, false),

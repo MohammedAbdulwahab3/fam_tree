@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:family_tree/core/theme/app_theme.dart';
 import 'package:family_tree/data/models/person.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:family_tree/core/design/typography.dart';
 
 /// Control panel for tree navigation with zoom, search, and filters
 class TreeControls extends StatefulWidget {
@@ -416,7 +416,7 @@ class _TreeControlsState extends State<TreeControls> {
                     controller: _searchController,
                     autofocus: true,
                     onChanged: _performSearch,
-                    style: GoogleFonts.inter(
+                    style: AppType.sans(
                       fontSize: 14,
                       color: isDark
                           ? AppTheme.textPrimaryDark
@@ -507,7 +507,7 @@ class _TreeControlsState extends State<TreeControls> {
                           children: [
                             Text(
                               person.fullName,
-                              style: GoogleFonts.inter(
+                              style: AppType.sans(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w500,
                                 color: isDark
@@ -518,7 +518,7 @@ class _TreeControlsState extends State<TreeControls> {
                             if (person.lifespan.isNotEmpty)
                               Text(
                                 person.lifespan,
-                                style: GoogleFonts.inter(
+                                style: AppType.sans(
                                   fontSize: 11,
                                   color: isDark
                                       ? AppTheme.textMutedDark

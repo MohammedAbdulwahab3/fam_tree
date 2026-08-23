@@ -82,6 +82,57 @@ class AppType {
         fontFeatures: const [FontFeature.tabularFigures()],
       );
 
+  /// A drop-in for a direct `GoogleFonts.x(...)` call.
+  ///
+  /// The app had 224 of those across fifteen screens, in three different Latin
+  /// families, none of which can draw Ethiopic — so every one of them rendered
+  /// Amharic in whatever the device happened to have. This takes the same
+  /// arguments and returns the same size, weight and colour in the one family,
+  /// with the Ethiopic fallback attached.
+  ///
+  /// Prefer the named styles above in new code. This exists so that fixing the
+  /// script problem did not require re-deciding the type on every screen at
+  /// the same time.
+  static TextStyle sans({
+    double? fontSize,
+    FontWeight? fontWeight,
+    FontStyle? fontStyle,
+    Color? color,
+    Color? backgroundColor,
+    double? letterSpacing,
+    double? wordSpacing,
+    double? height,
+    TextDecoration? decoration,
+    Color? decorationColor,
+    TextDecorationStyle? decorationStyle,
+    double? decorationThickness,
+    List<Shadow>? shadows,
+    List<FontFeature>? fontFeatures,
+    TextBaseline? textBaseline,
+    Paint? foreground,
+    Paint? background,
+  }) {
+    return GoogleFonts.manrope(
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      fontStyle: fontStyle,
+      color: color,
+      backgroundColor: backgroundColor,
+      letterSpacing: letterSpacing,
+      wordSpacing: wordSpacing,
+      height: height,
+      decoration: decoration,
+      decorationColor: decorationColor,
+      decorationStyle: decorationStyle,
+      decorationThickness: decorationThickness,
+      shadows: shadows,
+      fontFeatures: fontFeatures,
+      textBaseline: textBaseline,
+      foreground: foreground,
+      background: background,
+    ).copyWith(fontFamilyFallback: _fallback);
+  }
+
   /// The Material text theme, so anything that has not been given an explicit
   /// style still lands inside the system.
   static TextTheme textTheme(Color ink, Color inkSoft) {

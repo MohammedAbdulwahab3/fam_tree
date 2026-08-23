@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'package:family_tree/core/localization/app_localizations_x.dart';
 import 'package:family_tree/core/theme/app_theme.dart';
 import 'package:family_tree/providers/locale_provider.dart';
+import 'package:family_tree/core/design/typography.dart';
 
 class LocaleMenuButton extends ConsumerWidget {
   const LocaleMenuButton({super.key});
@@ -53,7 +53,7 @@ class LocaleMenuButton extends ConsumerWidget {
             const SizedBox(width: 6),
             Text(
               locale.languageCode.toUpperCase(),
-              style: GoogleFonts.inter(
+              style: AppType.sans(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: isDark

@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 import '../../core/layout/breakpoints.dart';
@@ -14,6 +13,7 @@ import '../../core/widgets/aurora_background.dart';
 import '../../data/models/notification_model.dart';
 import '../../data/services/api_service.dart';
 import 'package:family_tree/core/logging.dart';
+import 'package:family_tree/core/design/typography.dart';
 
 // Notifications state provider
 final notificationsProvider =
@@ -227,7 +227,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
               children: [
                 Text(
                   'Notifications',
-                  style: GoogleFonts.playfairDisplay(
+                  style: AppType.sans(
                     fontSize: context.isCompact ? 22 : 26,
                     fontWeight: FontWeight.bold,
                     color: onSurface,
@@ -236,7 +236,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
                 if (unread > 0)
                   Text(
                     '$unread unread',
-                    style: GoogleFonts.inter(
+                    style: AppType.sans(
                       fontSize: 12.5,
                       color: isDark
                           ? AppTheme.textMutedDark
@@ -253,7 +253,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
               icon: const Icon(Icons.done_all_rounded, size: 18),
               label: Text(
                 context.isCompact ? 'Read' : 'Mark all read',
-                style: GoogleFonts.inter(
+                style: AppType.sans(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),
@@ -620,7 +620,7 @@ class NotificationCard extends StatelessWidget {
                         notification.title,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(
+                        style: AppType.sans(
                           fontSize: 14,
                           height: 1.3,
                           fontWeight:
@@ -634,7 +634,7 @@ class NotificationCard extends StatelessWidget {
                           notification.body,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.cormorantGaramond(
+                          style: AppType.sans(
                             fontSize: 14.5,
                             height: 1.35,
                             color: isDark ? Colors.white70 : muted,
@@ -644,7 +644,7 @@ class NotificationCard extends StatelessWidget {
                       const SizedBox(height: 6),
                       Text(
                         timeago.format(notification.sentAt),
-                        style: GoogleFonts.inter(fontSize: 11.5, color: muted),
+                        style: AppType.sans(fontSize: 11.5, color: muted),
                       ),
                     ],
                   ),
@@ -750,7 +750,7 @@ class _CenteredMessage extends StatelessWidget {
             Text(
               title,
               textAlign: TextAlign.center,
-              style: GoogleFonts.playfairDisplay(
+              style: AppType.sans(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
                 color: onSurface,
@@ -760,7 +760,7 @@ class _CenteredMessage extends StatelessWidget {
             Text(
               body,
               textAlign: TextAlign.center,
-              style: GoogleFonts.cormorantGaramond(
+              style: AppType.sans(
                 fontSize: 15,
                 height: 1.45,
                 color: muted,

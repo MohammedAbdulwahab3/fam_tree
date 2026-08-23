@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:family_tree/core/layout/breakpoints.dart';
 import 'package:family_tree/core/theme/app_theme.dart';
 import 'package:family_tree/core/theme/app_colors.dart';
@@ -26,6 +25,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:printing/printing.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:family_tree/core/design/typography.dart';
 
 /// Which slice of the tree the canvas draws.
 enum FamilyViewMode {
@@ -149,7 +149,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
             const SizedBox(height: 20),
             Text(
               'Change Profile Photo',
-              style: GoogleFonts.playfairDisplay(
+              style: AppType.sans(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
                 color: context.colors.ink,
@@ -170,7 +170,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
               ),
               title: Text(
                 'Take Photo',
-                style: GoogleFonts.inter(
+                style: AppType.sans(
                   color: context.colors.ink,
                   fontWeight: FontWeight.w500,
                 ),
@@ -194,7 +194,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
               ),
               title: Text(
                 'Choose from Gallery',
-                style: GoogleFonts.inter(
+                style: AppType.sans(
                   color: context.colors.ink,
                   fontWeight: FontWeight.w500,
                 ),
@@ -237,7 +237,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
             const SizedBox(width: 12),
             Text(
               'Edit Profile',
-              style: GoogleFonts.playfairDisplay(
+              style: AppType.sans(
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
                 color: context.colors.ink,
@@ -305,7 +305,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
               Center(
                 child: Text(
                   'Tap to change photo',
-                  style: GoogleFonts.inter(
+                  style: AppType.sans(
                     fontSize: 12,
                     color: context.colors.inkMuted,
                   ),
@@ -316,7 +316,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
               // Name field
               Text(
                 'Display Name',
-                style: GoogleFonts.inter(
+                style: AppType.sans(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: context.colors.inkSoft,
@@ -325,12 +325,12 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
               const SizedBox(height: 8),
               TextField(
                 controller: nameController,
-                style: GoogleFonts.inter(
+                style: AppType.sans(
                   color: context.colors.ink,
                 ),
                 decoration: InputDecoration(
                   hintText: 'Enter your name',
-                  hintStyle: GoogleFonts.inter(
+                  hintStyle: AppType.sans(
                     color: context.colors.inkMuted,
                   ),
                   filled: true,
@@ -352,7 +352,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
               // Email (read-only)
               Text(
                 'Email',
-                style: GoogleFonts.inter(
+                style: AppType.sans(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: context.colors.inkSoft,
@@ -377,7 +377,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                     const SizedBox(width: 12),
                     Text(
                       user?.email ?? 'Not set',
-                      style: GoogleFonts.inter(
+                      style: AppType.sans(
                         color: context.colors.inkMuted,
                         fontSize: 14,
                       ),
@@ -393,7 +393,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
             onPressed: () => Navigator.pop(context),
             child: Text(
               'Cancel',
-              style: GoogleFonts.inter(
+              style: AppType.sans(
                 color: context.colors.inkMuted,
               ),
             ),
@@ -433,7 +433,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
             ),
             child: Text(
               'Save',
-              style: GoogleFonts.inter(
+              style: AppType.sans(
                 color: Colors.white,
                 fontWeight: FontWeight.w600,
               ),
@@ -732,7 +732,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
           Expanded(
             child: Text(
               widget.isDemo ? 'Family Tree Demo' : _getViewTitle(),
-              style: GoogleFonts.playfairDisplay(
+              style: AppType.sans(
                 fontSize: isMobile ? 20 : 24,
                 fontWeight: FontWeight.bold,
                 color: context.colors.ink,
@@ -809,7 +809,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                           const SizedBox(width: 6),
                           Text(
                             isFocusMode ? 'Focus' : 'Full Tree',
-                            style: GoogleFonts.inter(
+                            style: AppType.sans(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                               color: isFocusMode 
@@ -947,7 +947,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                 children: [
                   Text(
                     isSubtree ? 'Download Subtree' : 'Download Family Tree',
-                    style: GoogleFonts.playfairDisplay(
+                    style: AppType.sans(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
                       color: context.colors.ink,
@@ -957,7 +957,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                     isSubtree 
                       ? '${familyMembers.length} members (${focusedPersonName}\'s branch)'
                       : '${familyMembers.length} members',
-                    style: GoogleFonts.inter(
+                    style: AppType.sans(
                       fontSize: 12,
                       color: context.colors.inkMuted,
                     ),
@@ -1178,7 +1178,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                   children: [
                     Text(
                       title,
-                      style: GoogleFonts.inter(
+                      style: AppType.sans(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
                         color: context.colors.ink,
@@ -1187,7 +1187,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                     const SizedBox(height: 2),
                     Text(
                       subtitle,
-                      style: GoogleFonts.inter(
+                      style: AppType.sans(
                         fontSize: 12,
                         color: context.colors.inkMuted,
                       ),
@@ -1297,7 +1297,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
           const SizedBox(height: 24),
           Text(
             'No family members yet',
-            style: GoogleFonts.playfairDisplay(
+            style: AppType.sans(
               fontSize: 24,
               fontWeight: FontWeight.bold,
               color: context.colors.ink,
@@ -1306,7 +1306,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
           const SizedBox(height: 12),
           Text(
             'The family tree is empty.\nUse the Admin Panel to add members.',
-            style: GoogleFonts.inter(
+            style: AppType.sans(
               fontSize: 15,
               color: context.colors.inkMuted,
             ),
@@ -1336,7 +1336,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
           const SizedBox(width: 12),
           Text(
             label,
-            style: GoogleFonts.inter(
+            style: AppType.sans(
               fontWeight: FontWeight.w500,
               color: context.colors.ink,
             ),

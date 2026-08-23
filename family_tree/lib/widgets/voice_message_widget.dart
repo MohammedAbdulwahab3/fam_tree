@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
@@ -11,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:family_tree/core/theme/app_theme.dart';
 import 'package:family_tree/core/theme/app_colors.dart';
 import 'package:family_tree/core/theme/elegant_theme.dart';
+import 'package:family_tree/core/design/typography.dart';
 
 /// Voice message recorder widget - hold to record, release to send
 class VoiceRecorderButton extends StatefulWidget {
@@ -195,7 +195,7 @@ class _VoiceRecorderButtonState extends State<VoiceRecorderButton>
                 const SizedBox(width: 8),
                 Text(
                   _formatDuration(_recordDuration),
-                  style: GoogleFonts.inter(
+                  style: AppType.sans(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: Colors.red,
@@ -451,7 +451,7 @@ class _VoiceMessagePlayerState extends State<VoiceMessagePlayer> {
                 // Duration
                 Text(
                   '${_formatDuration(_position)} / ${_formatDuration(_duration)}',
-                  style: GoogleFonts.inter(
+                  style: AppType.sans(
                     fontSize: 11,
                     color: context.colors.inkMuted,
                   ),

@@ -3,7 +3,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'package:family_tree/core/config.dart';
 import 'package:family_tree/core/theme/app_theme.dart';
@@ -19,6 +18,7 @@ import 'package:family_tree/data/services/api_service.dart';
 import 'package:family_tree/data/services/storage_service.dart';
 import 'package:family_tree/features/auth/session.dart';
 import 'package:family_tree/features/feed/widgets/post_card.dart';
+import 'package:family_tree/core/design/typography.dart';
 
 /// The family tree this build shows. Set at build time — see [AppConfig].
 const String kFeedFamilyTreeId = AppConfig.familyTreeId;
@@ -83,14 +83,14 @@ class _FeedPageState extends ConsumerState<FeedPage>
         ),
         title: Text(
           'Delete post',
-          style: GoogleFonts.playfairDisplay(
+          style: AppType.sans(
             fontWeight: FontWeight.w700,
             color: context.colors.ink,
           ),
         ),
         content: Text(
           'This cannot be undone.',
-          style: GoogleFonts.inter(
+          style: AppType.sans(
             fontSize: 14,
             color: context.colors.inkMuted,
           ),
@@ -98,14 +98,14 @@ class _FeedPageState extends ConsumerState<FeedPage>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel', style: GoogleFonts.inter()),
+            child: Text('Cancel', style: AppType.sans()),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: AppTheme.error),
             child: Text(
               'Delete',
-              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+              style: AppType.sans(fontWeight: FontWeight.w600),
             ),
           ),
         ],
@@ -215,7 +215,7 @@ class _FeedPageState extends ConsumerState<FeedPage>
                   'Family Feed',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.playfairDisplay(
+                  style: AppType.sans(
                     fontSize: isWide ? 24 : 20,
                     fontWeight: FontWeight.bold,
                     color: context.colors.ink,
@@ -291,7 +291,7 @@ class _FeedPageState extends ConsumerState<FeedPage>
           const SizedBox(height: 18),
           Text(
             'No stories yet',
-            style: GoogleFonts.playfairDisplay(
+            style: AppType.sans(
               fontSize: 22,
               fontWeight: FontWeight.w700,
               color: context.colors.ink,
@@ -303,7 +303,7 @@ class _FeedPageState extends ConsumerState<FeedPage>
             child: Text(
               'Share a photo, a memory, or a bit of news — it will appear here for the whole family.',
               textAlign: TextAlign.center,
-              style: GoogleFonts.cormorantGaramond(
+              style: AppType.sans(
                 fontSize: 18,
                 fontStyle: FontStyle.italic,
                 height: 1.5,
@@ -328,7 +328,7 @@ class _FeedPageState extends ConsumerState<FeedPage>
         Text(
           'Could not load the feed',
           textAlign: TextAlign.center,
-          style: GoogleFonts.playfairDisplay(
+          style: AppType.sans(
             fontSize: 20,
             fontWeight: FontWeight.w600,
             color: context.colors.ink,
@@ -340,7 +340,7 @@ class _FeedPageState extends ConsumerState<FeedPage>
           child: Text(
             '$error',
             textAlign: TextAlign.center,
-            style: GoogleFonts.inter(
+            style: AppType.sans(
               fontSize: 13,
               color: context.colors.inkMuted,
             ),
@@ -611,7 +611,7 @@ class _ComposerState extends State<_Composer> {
                   maxLines: _expanded ? 6 : 2,
                   enabled: !_busy,
                   onChanged: (_) => setState(() {}),
-                  style: GoogleFonts.inter(
+                  style: AppType.sans(
                     fontSize: 15,
                     height: 1.5,
                     color: context.colors.ink,
@@ -620,7 +620,7 @@ class _ComposerState extends State<_Composer> {
                     isDense: true,
                     border: InputBorder.none,
                     hintText: 'Share something with the family…',
-                    hintStyle: GoogleFonts.inter(
+                    hintStyle: AppType.sans(
                       fontSize: 15,
                       color: isDark
                           ? AppTheme.textMutedDark
@@ -671,7 +671,7 @@ class _ComposerState extends State<_Composer> {
                                 },
                           child: Text(
                             'Cancel',
-                            style: GoogleFonts.inter(
+                            style: AppType.sans(
                               fontSize: 13.5,
                               color: isDark
                                   ? AppTheme.textMutedDark
@@ -815,7 +815,7 @@ class _ComposerState extends State<_Composer> {
                           const SizedBox(width: 10),
                           Text(
                             '$_uploadStage  ${(_uploadProgress * 100).round()}%',
-                            style: GoogleFonts.inter(
+                            style: AppType.sans(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                               color: Colors.white,
@@ -826,7 +826,7 @@ class _ComposerState extends State<_Composer> {
                     )
                   : Text(
                       'Post',
-                      style: GoogleFonts.inter(
+                      style: AppType.sans(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                         color: Colors.white,
@@ -874,7 +874,7 @@ class _Avatar extends StatelessWidget {
   Widget _initial(String initial) => Center(
         child: Text(
           initial,
-          style: GoogleFonts.playfairDisplay(
+          style: AppType.sans(
             fontSize: 18,
             fontWeight: FontWeight.bold,
             color: Colors.white,

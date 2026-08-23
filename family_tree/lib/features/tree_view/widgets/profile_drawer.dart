@@ -4,7 +4,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'package:family_tree/core/theme/app_theme.dart';
 import 'package:family_tree/core/theme/app_colors.dart';
@@ -20,6 +19,7 @@ import 'package:family_tree/features/linking/find_myself_sheet.dart';
 import 'package:family_tree/features/linking/link_status.dart';
 import 'package:family_tree/providers/locale_provider.dart';
 import 'package:family_tree/providers/theme_provider.dart';
+import 'package:family_tree/core/design/typography.dart';
 
 /// The profile side panel opened from the tree screen's avatar button.
 ///
@@ -261,7 +261,7 @@ class _ProfileDrawerState extends ConsumerState<ProfileDrawer>
               children: [
                 Text(
                   'Profile',
-                  style: GoogleFonts.playfairDisplay(
+                  style: AppType.sans(
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
                     height: 1.1,
@@ -270,7 +270,7 @@ class _ProfileDrawerState extends ConsumerState<ProfileDrawer>
                 ),
                 Text(
                   'Your place in the family',
-                  style: GoogleFonts.cormorantGaramond(
+                  style: AppType.sans(
                     fontSize: 13,
                     color: context.colors.inkMuted,
                   ),
@@ -639,7 +639,7 @@ class _ProfileDrawerState extends ConsumerState<ProfileDrawer>
         icon: const Icon(Icons.logout_rounded, size: 18),
         label: Text(
           'Sign Out',
-          style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+          style: AppType.sans(fontWeight: FontWeight.w600),
         ),
         style: OutlinedButton.styleFrom(
           foregroundColor: AppTheme.accentRose,
@@ -664,14 +664,14 @@ class _ProfileDrawerState extends ConsumerState<ProfileDrawer>
         ),
         title: Text(
           'Sign out?',
-          style: GoogleFonts.playfairDisplay(
+          style: AppType.sans(
             fontWeight: FontWeight.w700,
             color: context.colors.ink,
           ),
         ),
         content: Text(
           'Your family tree stays exactly where it is. You can sign back in any time.',
-          style: GoogleFonts.inter(
+          style: AppType.sans(
             fontSize: 14,
             color: context.colors.inkSoft,
           ),
@@ -681,7 +681,7 @@ class _ProfileDrawerState extends ConsumerState<ProfileDrawer>
             onPressed: () => Navigator.pop(dialogContext, false),
             child: Text(
               'Stay',
-              style: GoogleFonts.inter(
+              style: AppType.sans(
                 color: context.colors.inkMuted,
               ),
             ),
@@ -926,7 +926,7 @@ class _IdentityCard extends StatelessWidget {
                     textAlign: TextAlign.center,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.playfairDisplay(
+                    style: AppType.sans(
                       fontSize: 20,
                       fontWeight: FontWeight.w700,
                       color: Colors.white,
@@ -938,7 +938,7 @@ class _IdentityCard extends StatelessWidget {
                     textAlign: TextAlign.center,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(
+                    style: AppType.sans(
                       fontSize: 12,
                       color: Colors.white.withValues(alpha: 0.82),
                     ),
@@ -1045,7 +1045,7 @@ class _Avatar extends StatelessWidget {
                   ? null
                   : Text(
                       fallbackInitials,
-                      style: GoogleFonts.playfairDisplay(
+                      style: AppType.sans(
                         fontSize: 28,
                         fontWeight: FontWeight.w700,
                         color: Colors.white,
@@ -1111,7 +1111,7 @@ class _Badge extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             label,
-            style: GoogleFonts.inter(
+            style: AppType.sans(
               fontSize: 11,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.2,
@@ -1247,7 +1247,7 @@ class _StatTile extends StatelessWidget {
             curve: Curves.easeOutCubic,
             builder: (context, animated, _) => Text(
               animated.round().toString(),
-              style: GoogleFonts.playfairDisplay(
+              style: AppType.sans(
                 fontSize: 21,
                 fontWeight: FontWeight.w700,
                 height: 1.1,
@@ -1260,7 +1260,7 @@ class _StatTile extends StatelessWidget {
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.inter(
+            style: AppType.sans(
               fontSize: 10,
               fontWeight: FontWeight.w500,
               color: context.colors.inkMuted,
@@ -1306,7 +1306,7 @@ class _LineageCard extends StatelessWidget {
                   'In the tree as ${person.fullName}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(
+                  style: AppType.sans(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: context.colors.ink,
@@ -1321,7 +1321,7 @@ class _LineageCard extends StatelessWidget {
               person.age != null
                   ? '${person.lifespan}  ·  ${person.age} years'
                   : person.lifespan,
-              style: GoogleFonts.cormorantGaramond(
+              style: AppType.sans(
                 fontSize: 13,
                 color: context.colors.inkMuted,
               ),
@@ -1401,7 +1401,7 @@ class _RelationChip extends StatelessWidget {
           if (count != null) ...[
             Text(
               '$count',
-              style: GoogleFonts.inter(
+              style: AppType.sans(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
                 color: context.colors.ink,
@@ -1411,7 +1411,7 @@ class _RelationChip extends StatelessWidget {
           ],
           Text(
             label,
-            style: GoogleFonts.inter(
+            style: AppType.sans(
               fontSize: 11,
               fontWeight: FontWeight.w500,
               color: context.colors.inkSoft,
@@ -1456,7 +1456,7 @@ class _BirthdayStrip extends StatelessWidget {
           Expanded(
             child: Text(
               message,
-              style: GoogleFonts.inter(
+              style: AppType.sans(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: context.colors.ink,
@@ -1566,7 +1566,7 @@ class _QuickTileState extends State<_QuickTile> {
                           ),
                           child: Text(
                             widget.badge!,
-                            style: GoogleFonts.inter(
+                            style: AppType.sans(
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
                               color: Colors.white,
@@ -1587,7 +1587,7 @@ class _QuickTileState extends State<_QuickTile> {
                           widget.label,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.inter(
+                          style: AppType.sans(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                             color: widget.isDark
@@ -1599,7 +1599,7 @@ class _QuickTileState extends State<_QuickTile> {
                           widget.caption,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.cormorantGaramond(
+                          style: AppType.sans(
                             fontSize: 12,
                             color: widget.isDark
                                 ? Colors.white54
@@ -1663,7 +1663,7 @@ class _ActionTile extends StatelessWidget {
                   children: [
                     Text(
                       label,
-                      style: GoogleFonts.inter(
+                      style: AppType.sans(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w600,
                         color: context.colors.ink,
@@ -1671,7 +1671,7 @@ class _ActionTile extends StatelessWidget {
                     ),
                     Text(
                       subtitle,
-                      style: GoogleFonts.cormorantGaramond(
+                      style: AppType.sans(
                         fontSize: 12,
                         color: context.colors.inkMuted,
                       ),
@@ -1844,7 +1844,7 @@ class _LinkCallToAction extends StatelessWidget {
               Expanded(
                 child: Text(
                   _heading,
-                  style: GoogleFonts.inter(
+                  style: AppType.sans(
                     fontSize: 13.5,
                     fontWeight: FontWeight.w700,
                     color: context.colors.ink,
@@ -1856,7 +1856,7 @@ class _LinkCallToAction extends StatelessWidget {
           const SizedBox(height: 11),
           Text(
             _explanation,
-            style: GoogleFonts.cormorantGaramond(
+            style: AppType.sans(
               fontSize: 13.5,
               height: 1.4,
               color: context.colors.inkSoft,
@@ -1870,7 +1870,7 @@ class _LinkCallToAction extends StatelessWidget {
               icon: Icon(_actionIcon, size: 17),
               label: Text(
                 _actionLabel,
-                style: GoogleFonts.inter(
+                style: AppType.sans(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),
@@ -1899,7 +1899,7 @@ class _LinkCallToAction extends StatelessWidget {
                 ),
                 child: Text(
                   'Withdraw this claim',
-                  style: GoogleFonts.inter(
+                  style: AppType.sans(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
                   ),
@@ -1998,7 +1998,7 @@ class _PreferencesCard extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     'Dark mode',
-                    style: GoogleFonts.inter(
+                    style: AppType.sans(
                       fontSize: 13.5,
                       fontWeight: FontWeight.w600,
                       color: context.colors.ink,
@@ -2045,7 +2045,7 @@ class _PreferencesCard extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     'Language',
-                    style: GoogleFonts.inter(
+                    style: AppType.sans(
                       fontSize: 13.5,
                       fontWeight: FontWeight.w600,
                       color: context.colors.ink,
@@ -2098,7 +2098,7 @@ class _LocaleSwitch extends ConsumerWidget {
               child: Text(
                 _labels[locale.languageCode] ??
                     locale.languageCode.toUpperCase(),
-                style: GoogleFonts.inter(
+                style: AppType.sans(
                   fontSize: 11.5,
                   fontWeight: FontWeight.w700,
                   color: selected
@@ -2130,7 +2130,7 @@ class _SectionLabel extends StatelessWidget {
       children: [
         Text(
           text.toUpperCase(),
-          style: GoogleFonts.inter(
+          style: AppType.sans(
             fontSize: 10.5,
             fontWeight: FontWeight.w700,
             letterSpacing: 1.3,
@@ -2169,7 +2169,7 @@ class _Footer extends StatelessWidget {
           const SizedBox(height: 5),
           Text(
             'Family Tree · v1.0.0',
-            style: GoogleFonts.cormorantGaramond(
+            style: AppType.sans(
               fontSize: 12,
               color: context.colors.inkMuted,
             ),

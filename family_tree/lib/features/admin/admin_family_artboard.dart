@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:family_tree/data/models/person.dart';
 import 'package:family_tree/data/repositories/person_repository.dart';
 import 'package:family_tree/data/repositories/admin_repository.dart';
@@ -23,6 +22,7 @@ import 'package:family_tree/features/admin/post_composer_sheet.dart';
 import 'package:family_tree/data/services/family_export_service.dart';
 import 'package:family_tree/data/services/web_download_helper.dart';
 import 'package:family_tree/core/config.dart';
+import 'package:family_tree/core/design/typography.dart';
 
 /// Alias for backward compatibility
 typedef ArtboardColors = ElegantColors;
@@ -342,7 +342,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       softWrap: false,
-                      style: GoogleFonts.playfairDisplay(
+                      style: AppType.sans(
                         fontSize: compact ? 16 : 19,
                         fontWeight: FontWeight.bold,
                         color: fg,
@@ -420,7 +420,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
           dense: true,
           contentPadding: EdgeInsets.zero,
           leading: Icon(icon, size: 20),
-          title: Text(label, style: GoogleFonts.inter(fontSize: 13.5)),
+          title: Text(label, style: AppType.sans(fontSize: 13.5)),
           trailing: badge == 0 ? null : _CountBadge(count: badge),
         ),
       );
@@ -549,7 +549,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
             context.colors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: Text('Send announcement',
-            style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w700)),
+            style: AppType.sans(fontWeight: FontWeight.w700)),
         content: SizedBox(
           width: 420,
           child: Column(
@@ -571,7 +571,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
               const SizedBox(height: 10),
               Text(
                 'Every member receives this as a notification.',
-                style: GoogleFonts.inter(fontSize: 12, color: Colors.grey),
+                style: AppType.sans(fontSize: 12, color: Colors.grey),
               ),
             ],
           ),
@@ -618,7 +618,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
             context.colors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: Text('Export tree',
-            style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w700)),
+            style: AppType.sans(fontWeight: FontWeight.w700)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -737,14 +737,14 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
         setState(() => _searchQuery = v.trim());
         _filterPersons();
       },
-      style: GoogleFonts.inter(
+      style: AppType.sans(
         fontSize: 14,
         color: context.colors.ink,
       ),
       decoration: InputDecoration(
         isDense: true,
         hintText: 'Search relatives…',
-        hintStyle: GoogleFonts.inter(
+        hintStyle: AppType.sans(
           fontSize: 13.5,
           color: context.colors.inkMuted,
         ),
@@ -838,7 +838,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                 ? accent
                 : (isDark ? Colors.white70 : ArtboardColors.warmGray),
           ),
-          style: GoogleFonts.inter(
+          style: AppType.sans(
             fontSize: 13.5,
             fontWeight: FontWeight.w600,
             color: selected
@@ -852,7 +852,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                       g == 'All'
                           ? (compact ? 'All' : 'All generations')
                           : g,
-                      style: GoogleFonts.inter(
+                      style: AppType.sans(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w600,
                         color: selected
@@ -1040,7 +1040,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                             Text(
                               '${children.length} '
                               '${children.length == 1 ? "child" : "children"}',
-                              style: GoogleFonts.inter(
+                              style: AppType.sans(
                                 fontSize: 12.5,
                                 fontWeight: FontWeight.w600,
                                 color: dark ? Colors.white : color,
@@ -1074,7 +1074,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                           const SizedBox(width: 8),
                           Text(
                             'Tap to explore descendants',
-                            style: GoogleFonts.cormorantGaramond(
+                            style: AppType.sans(
                               fontSize: 14,
                               color: ArtboardColors.warmGray,
                               fontStyle: FontStyle.italic,
@@ -1097,7 +1097,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                         const SizedBox(height: 12),
                         Text(
                           'No children recorded',
-                          style: GoogleFonts.cormorantGaramond(
+                          style: AppType.sans(
                             fontSize: 16,
                             color: ArtboardColors.warmGray,
                           ),
@@ -1137,7 +1137,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
           child: Text(
             label,
-            style: GoogleFonts.inter(
+            style: AppType.sans(
               fontSize: 13,
               fontWeight: current ? FontWeight.w700 : FontWeight.w500,
               color: current ? fg : muted,
@@ -1197,7 +1197,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
           if (siblings.length > 1) ...[
             Text(
               '${currentIndex + 1}/${siblings.length}',
-              style: GoogleFonts.inter(fontSize: 11.5, color: muted),
+              style: AppType.sans(fontSize: 11.5, color: muted),
             ),
             IconButton(
               icon: const Icon(Icons.chevron_left_rounded, size: 20),
@@ -1285,7 +1285,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
             child: Center(
               child: Text(
                 person.firstName[0].toUpperCase(),
-                style: GoogleFonts.playfairDisplay(fontSize: avatarSize * 0.4, fontWeight: FontWeight.w700, color: Colors.white),
+                style: AppType.sans(fontSize: avatarSize * 0.4, fontWeight: FontWeight.w700, color: Colors.white),
               ),
             ),
           ),
@@ -1313,7 +1313,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                       ],
                       Text(
                         isRoot ? 'PATRIARCH' : 'GEN $generation',
-                        style: GoogleFonts.cormorantGaramond(
+                        style: AppType.sans(
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
                           color: Colors.white,
@@ -1329,13 +1329,13 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                 // Name - dynamic size
                 Text(
                   person.fullName,
-                  style: GoogleFonts.playfairDisplay(fontSize: nameFontSize, fontWeight: FontWeight.w700, color: ArtboardColors.charcoal),
+                  style: AppType.sans(fontSize: nameFontSize, fontWeight: FontWeight.w700, color: ArtboardColors.charcoal),
                 ),
                 
                 if (person.lifespan.isNotEmpty)
                   Text(
                     person.lifespan,
-                    style: GoogleFonts.cormorantGaramond(fontSize: 12, color: ArtboardColors.warmGray),
+                    style: AppType.sans(fontSize: 12, color: ArtboardColors.warmGray),
                   ),
                 
                 const SizedBox(height: 4),
@@ -1343,7 +1343,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                 // Stats
                 Text(
                   '${_getDescendantCount(person)} descendants',
-                  style: GoogleFonts.cormorantGaramond(fontSize: 12, fontWeight: FontWeight.w600, color: color),
+                  style: AppType.sans(fontSize: 12, fontWeight: FontWeight.w600, color: color),
                 ),
               ],
             ),
@@ -1414,7 +1414,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                     child: Center(
                       child: Text(
                         person.firstName[0].toUpperCase(),
-                        style: GoogleFonts.playfairDisplay(
+                        style: AppType.sans(
                           fontSize: avatarSize * 0.4,
                           fontWeight: FontWeight.w700,
                           color: Colors.white,
@@ -1425,7 +1425,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                   const SizedBox(height: 8),
                   Text(
                     person.firstName,
-                    style: GoogleFonts.playfairDisplay(
+                    style: AppType.sans(
                       fontSize: fontSize,
                       fontWeight: FontWeight.w700,
                       color: ArtboardColors.charcoal,
@@ -1490,7 +1490,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                         child: Center(
                           child: Text(
                             person.firstName[0].toUpperCase(),
-                            style: GoogleFonts.playfairDisplay(fontSize: avatarSize * 0.44, fontWeight: FontWeight.w700, color: Colors.white),
+                            style: AppType.sans(fontSize: avatarSize * 0.44, fontWeight: FontWeight.w700, color: Colors.white),
                           ),
                         ),
                       ),
@@ -1500,14 +1500,14 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                       // Name
                       Text(
                         person.firstName,
-                        style: GoogleFonts.playfairDisplay(fontSize: fontSize, fontWeight: FontWeight.w700, color: ArtboardColors.charcoal),
+                        style: AppType.sans(fontSize: fontSize, fontWeight: FontWeight.w700, color: ArtboardColors.charcoal),
                         textAlign: TextAlign.center,
                         overflow: TextOverflow.ellipsis,
                         maxLines: 1,
                       ),
                         Text(
                           person.lastName,
-                          style: GoogleFonts.cormorantGaramond(fontSize: fontSize - 2, color: ArtboardColors.warmGray),
+                          style: AppType.sans(fontSize: fontSize - 2, color: ArtboardColors.warmGray),
                           overflow: TextOverflow.ellipsis,
                         ),
                       
@@ -1516,7 +1516,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                       // Descendants or explore
                       Text(
                         hasChildren ? '$descendantCount desc.' : 'No children',
-                        style: GoogleFonts.cormorantGaramond(
+                        style: AppType.sans(
                           fontSize: 11, 
                           fontWeight: hasChildren ? FontWeight.w600 : FontWeight.w400,
                           color: hasChildren ? color : ArtboardColors.warmGray,
@@ -1560,7 +1560,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                                 ),
                                 child: Text(
                                   hasChildren ? 'Explore' : 'View',
-                                  style: GoogleFonts.cormorantGaramond(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white),
+                                  style: AppType.sans(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white),
                                 ),
                               ),
                             ),
@@ -1691,7 +1691,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                     child: Center(
                       child: Text(
                         person.firstName[0].toUpperCase(),
-                        style: GoogleFonts.playfairDisplay(
+                        style: AppType.sans(
                           fontSize: 24,
                           fontWeight: FontWeight.w700,
                           color: Colors.white,
@@ -1702,7 +1702,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                   const SizedBox(height: 12),
                   Text(
                     person.firstName,
-                    style: GoogleFonts.playfairDisplay(
+                    style: AppType.sans(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
                       color: ArtboardColors.charcoal,
@@ -1809,7 +1809,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                     ),
                     child: Text(
                       'Gen $generation',
-                      style: GoogleFonts.cormorantGaramond(
+                      style: AppType.sans(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                         color: branchColor,
@@ -1846,7 +1846,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                       child: Center(
                         child: Text(
                           person.firstName[0].toUpperCase(),
-                          style: GoogleFonts.playfairDisplay(
+                          style: AppType.sans(
                             fontSize: 28,
                             fontWeight: FontWeight.w700,
                             color: Colors.white,
@@ -1861,7 +1861,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                   // Name
                   Text(
                     person.firstName,
-                    style: GoogleFonts.playfairDisplay(
+                    style: AppType.sans(
                       fontSize: 20,
                       fontWeight: FontWeight.w700,
                       color: ArtboardColors.charcoal,
@@ -1871,7 +1871,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                   ),
                   Text(
                     person.lastName,
-                    style: GoogleFonts.cormorantGaramond(
+                    style: AppType.sans(
                       fontSize: 14,
                       color: ArtboardColors.warmGray,
                       fontStyle: FontStyle.italic,
@@ -1892,7 +1892,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                         const SizedBox(width: 4),
                         Text(
                           person.lifespan,
-                          style: GoogleFonts.cormorantGaramond(
+                          style: AppType.sans(
                             fontSize: 13,
                             color: ArtboardColors.warmGray,
                           ),
@@ -1999,7 +1999,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                           ),
                           child: Text(
                             'Generation $generation',
-                            style: GoogleFonts.cormorantGaramond(
+                            style: AppType.sans(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
                               color: branchColor,
@@ -2048,7 +2048,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                       child: Center(
                         child: Text(
                           person.firstName[0].toUpperCase(),
-                          style: GoogleFonts.playfairDisplay(
+                          style: AppType.sans(
                             fontSize: 40,
                             fontWeight: FontWeight.w700,
                             color: Colors.white,
@@ -2060,7 +2060,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                     
                     Text(
                       person.fullName,
-                      style: GoogleFonts.playfairDisplay(
+                      style: AppType.sans(
                         fontSize: 26,
                         fontWeight: FontWeight.w700,
                         color: ArtboardColors.charcoal,
@@ -2070,7 +2070,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                     if (person.lifespan.isNotEmpty)
                       Text(
                         person.lifespan,
-                        style: GoogleFonts.cormorantGaramond(
+                        style: AppType.sans(
                           fontSize: 16,
                           color: ArtboardColors.warmGray,
                           fontStyle: FontStyle.italic,
@@ -2133,7 +2133,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
       children: [
         Text(
           title,
-          style: GoogleFonts.cormorantGaramond(
+          style: AppType.sans(
             fontSize: 12,
             fontWeight: FontWeight.w700,
             color: ArtboardColors.terracotta,
@@ -2143,7 +2143,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
         const SizedBox(height: 8),
         Text(
           content,
-          style: GoogleFonts.cormorantGaramond(
+          style: AppType.sans(
             fontSize: 15,
             color: ArtboardColors.charcoal,
             height: 1.6,
@@ -2164,7 +2164,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
       children: [
         Text(
           'RELATIONSHIPS',
-          style: GoogleFonts.cormorantGaramond(
+          style: AppType.sans(
             fontSize: 12,
             fontWeight: FontWeight.w700,
             color: ArtboardColors.terracotta,
@@ -2176,7 +2176,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
         if (parents.isNotEmpty) ...[
           Text(
             'Parents',
-            style: GoogleFonts.cormorantGaramond(
+            style: AppType.sans(
               fontSize: 13,
               color: ArtboardColors.warmGray,
               fontStyle: FontStyle.italic,
@@ -2190,7 +2190,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
         if (children.isNotEmpty) ...[
           Text(
             'Children (${children.length})',
-            style: GoogleFonts.cormorantGaramond(
+            style: AppType.sans(
               fontSize: 13,
               color: ArtboardColors.warmGray,
               fontStyle: FontStyle.italic,
@@ -2230,7 +2230,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
               child: Center(
                 child: Text(
                   person.firstName[0],
-                  style: GoogleFonts.playfairDisplay(
+                  style: AppType.sans(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                     color: ArtboardColors.terracotta,
@@ -2241,7 +2241,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
             const SizedBox(width: 8),
             Text(
               person.firstName,
-              style: GoogleFonts.cormorantGaramond(
+              style: AppType.sans(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
                 color: ArtboardColors.charcoal,
@@ -2276,7 +2276,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
             const SizedBox(width: 8),
             Text(
               label,
-              style: GoogleFonts.cormorantGaramond(
+              style: AppType.sans(
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
                 color: Colors.white,
@@ -2306,7 +2306,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
           const SizedBox(height: 24),
           Text(
             'Loading family tree...',
-            style: GoogleFonts.cormorantGaramond(
+            style: AppType.sans(
               fontSize: 18,
               color: ArtboardColors.warmGray,
               fontStyle: FontStyle.italic,
@@ -2365,7 +2365,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                 const SizedBox(width: 12),
                 Text(
                   addAsRoot ? 'Add Patriarch' : 'Add Child',
-                  style: GoogleFonts.playfairDisplay(
+                  style: AppType.sans(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                     color: ArtboardColors.charcoal,
@@ -2408,7 +2408,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                           const SizedBox(width: 10),
                           Text(
                             'Child of ${selectedParent!.firstName}',
-                            style: GoogleFonts.cormorantGaramond(
+                            style: AppType.sans(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
                               color: ArtboardColors.charcoal,
@@ -2423,10 +2423,10 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                   // First Name
                   TextField(
                     controller: firstNameController,
-                    style: GoogleFonts.cormorantGaramond(fontSize: 16),
+                    style: AppType.sans(fontSize: 16),
                     decoration: InputDecoration(
                       labelText: 'First Name *',
-                      labelStyle: GoogleFonts.cormorantGaramond(color: ArtboardColors.warmGray),
+                      labelStyle: AppType.sans(color: ArtboardColors.warmGray),
                       prefixIcon: const Icon(Icons.person_rounded, color: ArtboardColors.warmGray, size: 20),
                       filled: true,
                       fillColor: ArtboardColors.cream,
@@ -2441,10 +2441,10 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                   // Father/Family Name
                   TextField(
                     controller: lastNameController,
-                    style: GoogleFonts.cormorantGaramond(fontSize: 16),
+                    style: AppType.sans(fontSize: 16),
                     decoration: InputDecoration(
                       labelText: addAsRoot ? 'Family Name *' : 'Father Name',
-                      labelStyle: GoogleFonts.cormorantGaramond(color: ArtboardColors.warmGray),
+                      labelStyle: AppType.sans(color: ArtboardColors.warmGray),
                       prefixIcon: const Icon(Icons.person_outline_rounded, color: ArtboardColors.warmGray, size: 20),
                       filled: true,
                       fillColor: ArtboardColors.cream,
@@ -2479,7 +2479,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                             const SizedBox(width: 8),
                             Text(
                               'Birth Order',
-                              style: GoogleFonts.cormorantGaramond(
+                              style: AppType.sans(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
                                 color: ArtboardColors.charcoal,
@@ -2488,7 +2488,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                             const SizedBox(width: 8),
                             Text(
                               '(${siblingCount} existing)',
-                              style: GoogleFonts.cormorantGaramond(
+                              style: AppType.sans(
                                 fontSize: 12,
                                 color: ArtboardColors.warmGray,
                               ),
@@ -2503,7 +2503,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                               child: DropdownButton<int>(
                                 value: selectedOrder.clamp(1, maxOrder),
                                 underline: const SizedBox(),
-                                style: GoogleFonts.cormorantGaramond(
+                                style: AppType.sans(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                   color: accentColor,
@@ -2814,7 +2814,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                           children: [
                             Text(
                               'Edit Profile',
-                              style: GoogleFonts.playfairDisplay(
+                              style: AppType.sans(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w700,
                                 color: ArtboardColors.charcoal,
@@ -2836,7 +2836,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                                 const SizedBox(width: 8),
                                 Text(
                                   person.fullName,
-                                  style: GoogleFonts.cormorantGaramond(
+                                  style: AppType.sans(
                                     fontSize: 13,
                                     color: ArtboardColors.warmGray,
                                   ),
@@ -2907,7 +2907,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                                         const SizedBox(width: 10),
                                         Text(
                                           'Current: $currentOrderLabel child',
-                                          style: GoogleFonts.cormorantGaramond(
+                                          style: AppType.sans(
                                             fontSize: 15,
                                             fontWeight: FontWeight.bold,
                                             color: ArtboardColors.charcoal,
@@ -2915,7 +2915,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                                         ),
                                         Text(
                                           ' (of $siblingCount siblings)',
-                                          style: GoogleFonts.cormorantGaramond(
+                                          style: AppType.sans(
                                             fontSize: 12,
                                             color: ArtboardColors.warmGray,
                                           ),
@@ -2927,7 +2927,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                                       children: [
                                         Text(
                                           'Change to:',
-                                          style: GoogleFonts.cormorantGaramond(
+                                          style: AppType.sans(
                                             fontSize: 13,
                                             color: ArtboardColors.warmGray,
                                           ),
@@ -2944,7 +2944,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                                             value: displayOrder.clamp(1, siblingCount),
                                             underline: const SizedBox(),
                                             isDense: true,
-                                            style: GoogleFonts.cormorantGaramond(
+                                            style: AppType.sans(
                                               fontSize: 15,
                                               fontWeight: FontWeight.bold,
                                               color: color,
@@ -2989,7 +2989,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                     children: [
                       TextButton(
                         onPressed: isLoading ? null : () => Navigator.pop(context),
-                        child: Text('Cancel', style: GoogleFonts.cormorantGaramond(color: ArtboardColors.warmGray)),
+                        child: Text('Cancel', style: AppType.sans(color: ArtboardColors.warmGray)),
                       ),
                       const Spacer(),
                       ElevatedButton(
@@ -3082,7 +3082,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                           : Row(mainAxisSize: MainAxisSize.min, children: [
                               const Icon(Icons.save_rounded, size: 18, color: Colors.white),
                               const SizedBox(width: 6),
-                              Text('Save Changes', style: GoogleFonts.cormorantGaramond(fontWeight: FontWeight.w700, color: Colors.white)),
+                              Text('Save Changes', style: AppType.sans(fontWeight: FontWeight.w700, color: Colors.white)),
                             ]),
                       ),
                     ],
@@ -3131,7 +3131,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Text(
           'Delete ${person.firstName}?',
-          style: GoogleFonts.playfairDisplay(
+          style: AppType.sans(
             color: ArtboardColors.charcoal,
             fontWeight: FontWeight.w700,
           ),
@@ -3142,7 +3142,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
           children: [
             Text(
               'This action cannot be undone.',
-              style: GoogleFonts.cormorantGaramond(
+              style: AppType.sans(
                 fontSize: 15,
                 color: ArtboardColors.warmGray,
               ),
@@ -3163,7 +3163,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                     Expanded(
                       child: Text(
                         'This will also delete ${descendants.length} descendant${descendants.length > 1 ? 's' : ''} (children, grandchildren, etc.)',
-                        style: GoogleFonts.cormorantGaramond(
+                        style: AppType.sans(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                           color: ArtboardColors.rust,
@@ -3181,7 +3181,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
             onPressed: () => Navigator.pop(context),
             child: Text(
               'Cancel',
-              style: GoogleFonts.cormorantGaramond(color: ArtboardColors.warmGray),
+              style: AppType.sans(color: ArtboardColors.warmGray),
             ),
           ),
           ElevatedButton(
@@ -3221,7 +3221,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
             },
             child: Text(
               'Delete ${totalToDelete > 1 ? 'All ($totalToDelete)' : ''}',
-              style: GoogleFonts.cormorantGaramond(
+              style: AppType.sans(
                 fontWeight: FontWeight.w700,
                 color: Colors.white,
               ),
@@ -3241,13 +3241,13 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
       controller: controller,
       maxLines: maxLines,
       keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-      style: GoogleFonts.cormorantGaramond(
+      style: AppType.sans(
         fontSize: 16,
         color: ArtboardColors.charcoal,
       ),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: GoogleFonts.cormorantGaramond(
+        labelStyle: AppType.sans(
           color: ArtboardColors.warmGray,
         ),
         prefixIcon: icon != null ? Icon(icon, color: ArtboardColors.warmGray, size: 20) : null,
@@ -3275,20 +3275,20 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
       children: [
         Text(
           'Gender:',
-          style: GoogleFonts.cormorantGaramond(
+          style: AppType.sans(
             color: ArtboardColors.warmGray,
           ),
         ),
         const SizedBox(width: 16),
         ChoiceChip(
-          label: Text('Male', style: GoogleFonts.cormorantGaramond()),
+          label: Text('Male', style: AppType.sans()),
           selected: selected == 'male',
           onSelected: (_) => onChanged('male'),
           selectedColor: ArtboardColors.terracotta.withValues(alpha: 0.2),
         ),
         const SizedBox(width: 8),
         ChoiceChip(
-          label: Text('Female', style: GoogleFonts.cormorantGaramond()),
+          label: Text('Female', style: AppType.sans()),
           selected: selected == 'female',
           onSelected: (_) => onChanged('female'),
           selectedColor: ArtboardColors.dustyRose.withValues(alpha: 0.3),
@@ -3351,7 +3351,7 @@ class _CountBadge extends StatelessWidget {
       ),
       child: Text(
         count > 9 ? '9+' : '$count',
-        style: GoogleFonts.inter(
+        style: AppType.sans(
           fontSize: 11,
           fontWeight: FontWeight.w700,
           color: Colors.white,

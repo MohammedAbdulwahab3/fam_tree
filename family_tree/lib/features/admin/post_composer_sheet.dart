@@ -2,13 +2,13 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'package:family_tree/core/theme/app_theme.dart';
 import 'package:family_tree/core/theme/app_colors.dart';
 import 'package:family_tree/core/theme/elegant_theme.dart';
 import 'package:family_tree/core/utils/platform_image_picker.dart';
 import 'package:family_tree/data/services/storage_service.dart';
+import 'package:family_tree/core/design/typography.dart';
 
 /// One attachment the author has staged but not yet published.
 class ComposerAttachment {
@@ -211,10 +211,10 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
       builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: Text('Discard this post?',
-            style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w700)),
+            style: AppType.sans(fontWeight: FontWeight.w700)),
         content: Text(
           'What you have written and attached will be lost.',
-          style: GoogleFonts.inter(fontSize: 14),
+          style: AppType.sans(fontSize: 14),
         ),
         actions: [
           TextButton(
@@ -313,7 +313,7 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
               children: [
                 Text(
                   'New post',
-                  style: GoogleFonts.playfairDisplay(
+                  style: AppType.sans(
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
                     color: context.colors.ink,
@@ -323,7 +323,7 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
                   'Posting as ${widget.authorName} · the whole family sees this',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.cormorantGaramond(
+                  style: AppType.sans(
                     fontSize: 13.5,
                     color: context.colors.inkMuted,
                   ),
@@ -357,14 +357,14 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
           minLines: 5,
           maxLines: 12,
           maxLength: 5000,
-          style: GoogleFonts.inter(
+          style: AppType.sans(
             fontSize: 15,
             height: 1.45,
             color: context.colors.ink,
           ),
           decoration: InputDecoration(
             hintText: 'Share news, a memory, or a photo with the family…',
-            hintStyle: GoogleFonts.cormorantGaramond(
+            hintStyle: AppType.sans(
               fontSize: 15,
               color: context.colors.inkMuted,
             ),
@@ -400,7 +400,7 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
           padding: const EdgeInsets.only(top: 4, right: 4),
           child: Text(
             '${_content.text.characters.length} / 5000',
-            style: GoogleFonts.inter(
+            style: AppType.sans(
               fontSize: 11,
               color: _content.text.characters.length > 4800
                   ? AppTheme.accentRose
@@ -473,7 +473,7 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
               const SizedBox(height: 5),
               Text(
                 label,
-                style: GoogleFonts.inter(
+                style: AppType.sans(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: context.colors.inkSoft,
@@ -493,7 +493,7 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
         Text(
           '${_attachments.length} attachment'
           '${_attachments.length == 1 ? '' : 's'}',
-          style: GoogleFonts.inter(
+          style: AppType.sans(
             fontSize: 11,
             fontWeight: FontWeight.w700,
             letterSpacing: 1,
@@ -563,7 +563,7 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
                   attachment.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(
+                  style: AppType.sans(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
                     color: context.colors.ink,
@@ -581,7 +581,7 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
                       ),
                       const SizedBox(width: 7),
                       Text('Uploading…',
-                          style: GoogleFonts.inter(
+                          style: AppType.sans(
                               fontSize: 11.5, color: tone)),
                     ],
                   )
@@ -590,7 +590,7 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
                     attachment.error!,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(
+                    style: AppType.sans(
                         fontSize: 11.5, color: AppTheme.accentRose),
                   )
                 else
@@ -601,7 +601,7 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
                       const SizedBox(width: 5),
                       Text(
                         attachment.readableSize,
-                        style: GoogleFonts.inter(
+                        style: AppType.sans(
                           fontSize: 11.5,
                           color: isDark
                               ? Colors.white54
@@ -648,7 +648,7 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
           Expanded(
             child: Text(
               _error!,
-              style: GoogleFonts.inter(
+              style: AppType.sans(
                 fontSize: 12.5,
                 height: 1.35,
                 color: context.colors.inkSoft,
@@ -700,7 +700,7 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
                 : _publishing
                     ? 'Posting…'
                     : 'Post to the family feed',
-            style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+            style: AppType.sans(fontWeight: FontWeight.w600),
           ),
           style: FilledButton.styleFrom(
             backgroundColor: accent,
