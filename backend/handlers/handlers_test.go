@@ -562,3 +562,98 @@ func TestETagMatching(t *testing.T) {
 		}
 	}
 }
+
+// Once an admin can move people around, the loop they can create is the
+// dangerous one: a person placed under their own grandchild produced a cycle
+// that every traversal in the app then walked until its stack ran out.
+func TestUpdateRefusesToPutSomebodyBelowTheirOwnDescendant(t *testing.T) {
+	db := newDB(t)
+	h := &PersonHandler{DB: db}
+	admin := makeUser(t, db, "admin", models.RoleAdmin)
+
+	db.Create(&models.Person{ID: "gran", FirstName: "Gran"})
+	db.Create(&models.Person{
+		ID:            "mum",
+		FirstName:     "Mum",
+		Relationships: models.Relationships{ParentIDs: []string{"gran"}},
+	})
+	db.Create(&models.Person{
+		ID:            "me",
+		FirstName:     "Me",
+		Relationships: models.Relationships{ParentIDs: []string{"mum"}},
+	})
+
+	c, rec := as(admin, http.MethodPut, "/api/admin/persons/gran",
+		map[string]interface{}{
+			"relationships": map[string]interface{}{"parents": []string{"me"}},
+		})
+	c.Params = gin.Params{{Key: "id", Value: "gran"}}
+	h.UpdatePersonWithPermission(c)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var gran models.Person
+	db.First(&gran, "id = ?", "gran")
+	if len(gran.Relationships.ParentIDs) != 0 {
+		t.Fatalf("the move should not have been saved, got %v",
+			gran.Relationships.ParentIDs)
+	}
+}
+
+// Moving somebody sideways — to a different parent who is not below them — is
+// the ordinary case and must still work.
+func TestAdminCanMoveSomebodyToADifferentParent(t *testing.T) {
+	db := newDB(t)
+	h := &PersonHandler{DB: db}
+	admin := makeUser(t, db, "admin", models.RoleAdmin)
+
+	db.Create(&models.Person{ID: "dad", FirstName: "Dad"})
+	db.Create(&models.Person{ID: "uncle", FirstName: "Uncle"})
+	db.Create(&models.Person{
+		ID:            "kid",
+		FirstName:     "Kid",
+		Relationships: models.Relationships{ParentIDs: []string{"dad"}},
+	})
+
+	c, rec := as(admin, http.MethodPut, "/api/admin/persons/kid",
+		map[string]interface{}{
+			"relationships": map[string]interface{}{"parents": []string{"uncle"}},
+		})
+	c.Params = gin.Params{{Key: "id", Value: "kid"}}
+	h.UpdatePersonWithPermission(c)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var kid models.Person
+	db.First(&kid, "id = ?", "kid")
+	if len(kid.Relationships.ParentIDs) != 1 ||
+		kid.Relationships.ParentIDs[0] != "uncle" {
+		t.Fatalf("expected the new parent, got %v", kid.Relationships.ParentIDs)
+	}
+}
+
+func TestUpdateRefusesADuplicateParent(t *testing.T) {
+	db := newDB(t)
+	h := &PersonHandler{DB: db}
+	admin := makeUser(t, db, "admin", models.RoleAdmin)
+
+	db.Create(&models.Person{ID: "dad", FirstName: "Dad"})
+	db.Create(&models.Person{ID: "kid", FirstName: "Kid"})
+
+	c, rec := as(admin, http.MethodPut, "/api/admin/persons/kid",
+		map[string]interface{}{
+			"relationships": map[string]interface{}{
+				"parents": []string{"dad", "dad"},
+			},
+		})
+	c.Params = gin.Params{{Key: "id", Value: "kid"}}
+	h.UpdatePersonWithPermission(c)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+}

@@ -15,7 +15,9 @@ import 'package:family_tree/core/theme/app_colors.dart';
 import 'package:family_tree/core/widgets/aurora_background.dart';
 import 'package:family_tree/data/models/post.dart';
 import 'package:family_tree/features/admin/admin_tools_sheet.dart';
+import 'package:family_tree/features/admin/relationships_sheet.dart';
 import 'package:family_tree/features/auth/session.dart';
+import 'package:family_tree/features/linking/link_status.dart';
 import 'package:family_tree/features/linking/review_claims_page.dart';
 import 'package:family_tree/features/admin/post_composer_sheet.dart';
 import 'package:family_tree/data/services/family_export_service.dart';
@@ -401,7 +403,17 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
   }
 
   Widget _toolsMenu(bool isDark) {
-    PopupMenuItem<String> item(String value, IconData icon, String label) {
+    // Somebody waiting to be linked has no way to hurry an admin along, and an
+    // admin has no reason to go and look. The count is the only thing that
+    // closes that gap.
+    final waiting = ref.watch(pendingLinkCountProvider);
+
+    PopupMenuItem<String> item(
+      String value,
+      IconData icon,
+      String label, {
+      int badge = 0,
+    }) {
       return PopupMenuItem(
         value: value,
         child: ListTile(
@@ -409,6 +421,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
           contentPadding: EdgeInsets.zero,
           leading: Icon(icon, size: 20),
           title: Text(label, style: GoogleFonts.inter(fontSize: 13.5)),
+          trailing: badge == 0 ? null : _CountBadge(count: badge),
         ),
       );
     }
@@ -427,27 +440,39 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
         item('posts', Icons.forum_outlined, 'Posts'),
         const PopupMenuDivider(),
         item('announce', Icons.campaign_outlined, 'Send announcement'),
-        item('links', Icons.verified_user_outlined, 'Link requests'),
+        item('links', Icons.verified_user_outlined, 'Who is who',
+            badge: waiting),
         item('export', Icons.download_outlined, 'Export tree'),
       ],
-      child: Container(
-        padding: const EdgeInsets.all(9),
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.07)
-              : Colors.white.withValues(alpha: 0.8),
-          border: Border.all(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.1)
-                : ArtboardColors.champagne,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          if (waiting > 0)
+            Positioned(
+              right: -2,
+              top: -2,
+              child: _CountBadge(count: waiting),
+            ),
+          Container(
+            padding: const EdgeInsets.all(9),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.07)
+                  : Colors.white.withValues(alpha: 0.8),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.1)
+                    : ArtboardColors.champagne,
+              ),
+            ),
+            child: Icon(
+              Icons.tune_rounded,
+              size: 19,
+              color: context.colors.inkSoft,
+            ),
           ),
-        ),
-        child: Icon(
-          Icons.tune_rounded,
-          size: 19,
-          color: context.colors.inkSoft,
-        ),
+        ],
       ),
     );
   }
@@ -1330,6 +1355,11 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
               _buildMiniAction(Icons.edit_rounded, ArtboardColors.sage, () => _showEditDialog(person)),
               const SizedBox(height: 6),
               _buildMiniAction(Icons.person_add_alt_rounded, color, () => _showUnifiedAddDialog(preSelectedParent: person)),
+              const SizedBox(height: 6),
+              // Moving somebody between branches, and recording a marriage.
+              // Without this the only way to correct a relative filed under
+              // the wrong parent was to delete them and everything below.
+              _buildMiniAction(Icons.account_tree_rounded, ArtboardColors.softBlue, () => _editRelationships(person)),
               if (!isRoot) ...[
                 const SizedBox(height: 6),
                 _buildMiniAction(Icons.delete_outline_rounded, ArtboardColors.rust, () => _confirmDelete(person)),
@@ -2713,6 +2743,17 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
     }
   }
 
+  /// Change who a person's parents are, and who they married.
+  Future<void> _editRelationships(Person person) async {
+    final saved = await showRelationshipsSheet(
+      context,
+      person: person,
+      people: _persons,
+      onSave: (updated) => _adminRepo.updatePerson(updated),
+    );
+    if (saved == true) _loadData();
+  }
+
   void _showEditDialog(Person person) {
     final firstNameController = TextEditingController(text: person.firstName);
     final lastNameController = TextEditingController(text: person.lastName);
@@ -3286,4 +3327,37 @@ class _PatternPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// A small count on an admin control. Reads as "there is work here" without
+/// having to open the menu to find out.
+class _CountBadge extends StatelessWidget {
+  const _CountBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    if (count == 0) return const SizedBox.shrink();
+
+    return Container(
+      constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 5),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: AppTheme.error,
+        shape: BoxShape.circle,
+        border: Border.all(color: context.colors.surface, width: 1.5),
+      ),
+      child: Text(
+        count > 9 ? '9+' : '$count',
+        style: GoogleFonts.inter(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+          height: 1,
+        ),
+      ),
+    );
+  }
 }

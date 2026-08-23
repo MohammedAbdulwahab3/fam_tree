@@ -233,25 +233,61 @@ func (h *PersonHandler) CreatePerson(c *gin.Context) {
 	c.JSON(http.StatusCreated, person)
 }
 
-// validateParents rejects a parent that is not in the tree, or a person who is
-// their own parent. Nothing checked this before, so a typo in an id produced a
-// person whose parent silently did not exist.
+// validateParents rejects a parent that is not in the tree, a person who is
+// their own parent, and — the one that actually matters once admins can move
+// people around — a parent who is already that person's descendant.
+//
+// Nothing checked any of this before. A typo in an id produced a person whose
+// parent silently did not exist, and moving somebody under their own grandchild
+// produced a loop that the app then walked until its stack ran out.
 func (h *PersonHandler) validateParents(person models.Person) error {
-	if len(person.Relationships.ParentIDs) == 0 {
+	parents := person.Relationships.ParentIDs
+	if len(parents) == 0 {
 		return nil
 	}
 
-	for _, parentID := range person.Relationships.ParentIDs {
+	seen := map[string]bool{}
+	for _, parentID := range parents {
 		if parentID == person.ID {
 			return fmt.Errorf("a person cannot be their own parent")
 		}
+		if seen[parentID] {
+			return fmt.Errorf("that parent is listed twice")
+		}
+		seen[parentID] = true
 	}
 
 	var found int64
-	h.DB.Model(&models.Person{}).
-		Where("id IN ?", person.Relationships.ParentIDs).Count(&found)
-	if int(found) != len(person.Relationships.ParentIDs) {
+	h.DB.Model(&models.Person{}).Where("id IN ?", parents).Count(&found)
+	if int(found) != len(parents) {
 		return fmt.Errorf("one of those parents is not in the tree")
+	}
+
+	// A new person has no descendants yet, so there is nothing to loop.
+	if person.ID == "" {
+		return nil
+	}
+
+	var people []models.Person
+	if err := h.DB.Find(&people).Error; err != nil {
+		return fmt.Errorf("could not check the tree")
+	}
+
+	// Apply the proposed change before looking, so this catches a move that
+	// would create the loop rather than only one that already has.
+	for i := range people {
+		if people[i].ID == person.ID {
+			people[i].Relationships.ParentIDs = parents
+			break
+		}
+	}
+
+	below := models.DescendantIDs(people, person.ID)
+	for _, parentID := range parents {
+		if below[parentID] && parentID != person.ID {
+			return fmt.Errorf(
+				"that would put this person below one of their own descendants")
+		}
 	}
 	return nil
 }
