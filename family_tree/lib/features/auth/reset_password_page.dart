@@ -90,7 +90,6 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
             const SizedBox(height: Insets.lg),
             Divider(color: c.hairline),
             const SizedBox(height: Insets.lg),
-
             AppTextField(
               label: 'Your email',
               controller: _email,
@@ -107,7 +106,6 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
                   : null,
             ),
             const SizedBox(height: Insets.md),
-
             AppTextField(
               label: 'The code',
               controller: _code,
@@ -122,7 +120,6 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
                   : null,
             ),
             const SizedBox(height: Insets.md),
-
             AppTextField(
               label: 'New password',
               controller: _password,
@@ -145,7 +142,6 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
                 tooltip: _showPassword ? 'Hide password' : 'Show password',
               ),
             ),
-
             if (session.error != null) ...[
               const SizedBox(height: Insets.md),
               AppNotice(message: session.error!, tone: NoticeTone.danger),

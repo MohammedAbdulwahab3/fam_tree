@@ -84,7 +84,9 @@ void main() {
     expect(find.text('Members'), findsOneWidget);
     expect(find.text('Posts'), findsOneWidget);
     expect(find.text('Send announcement'), findsOneWidget);
-    expect(find.text('Link requests'), findsOneWidget);
+    // The claims queue is labelled in the same plain language as the
+    // permission table — "Confirm who is who" — rather than "Link requests".
+    expect(find.text('Who is who'), findsOneWidget);
     expect(find.text('Export tree'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

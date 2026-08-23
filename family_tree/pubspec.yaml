@@ -20,7 +20,9 @@ dependencies:
   # the app polls /api/notifications, and there is no push channel.
 
   # UI & Styling
-  google_fonts: ^6.1.0
+  # Manrope and Noto Sans Ethiopic are committed under assets/fonts and
+  # declared below, rather than fetched at runtime by google_fonts — see
+  # assets/fonts/README.md.
   cached_network_image: ^3.3.0
   
   # Image Handling
@@ -43,6 +45,13 @@ dependencies:
   
   go_router: ^12.1.3
   timeago: ^3.7.1
+  # Amharic names are grapheme clusters, so an initial is taken with
+  # `characters` rather than `[0]`. It arrives transitively through Flutter,
+  # but the code imports it directly, so it is declared directly.
+  characters: ^1.4.0
+  # `printing` pulls `pdf` in transitively and the tree export imports it
+  # directly, which meant a `printing` upgrade could silently drop it.
+  pdf: ^3.12.0
   video_player: ^2.10.1
   chewie: ^1.13.0
   printing: ^5.14.2
@@ -77,3 +86,31 @@ flutter:
   
   assets:
     - assets/icons/
+
+  fonts:
+    # One face does every job; hierarchy comes from size and weight rather
+    # than from switching families.
+    - family: Manrope
+      fonts:
+        - asset: assets/fonts/Manrope-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Manrope-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Manrope-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Manrope-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Manrope-ExtraBold.ttf
+          weight: 800
+    # Manrope cannot draw Ethiopic, so this is registered as its fallback and
+    # every style carries it. Noto has no 800, so 700 is the heaviest.
+    - family: Noto Sans Ethiopic
+      fonts:
+        - asset: assets/fonts/NotoSansEthiopic-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/NotoSansEthiopic-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/NotoSansEthiopic-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/NotoSansEthiopic-Bold.ttf
+          weight: 700

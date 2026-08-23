@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:family_tree/data/models/app_user.dart';
 import 'package:family_tree/data/models/person.dart';
-import 'package:family_tree/data/services/link_service.dart';
 import 'package:family_tree/features/auth/session.dart';
 import 'package:family_tree/features/notifications/notifications_screen.dart';
 import 'package:family_tree/features/tree_view/widgets/profile_drawer.dart';

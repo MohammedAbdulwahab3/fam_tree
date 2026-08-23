@@ -1,11 +1,12 @@
-
 /// Represents a person in the family tree
 class Person {
   final String id;
   final String familyTreeId;
-  final String? authUserId; // Firebase Auth UID of the user who owns this record
+  final String?
+      authUserId; // Firebase Auth UID of the user who owns this record
   final String firstName;
   final String lastName;
+
   /// Names per locale tag (e.g. 'am'), served by the backend
   final Map<String, LocalizedPersonName> localizedNames;
   final DateTime? birthDate;
@@ -77,30 +78,29 @@ class Person {
     if (lastName.isEmpty) return firstName;
     return '$firstName $lastName';
   }
-  
+
   // Short name for compact displays
   String get shortName => firstName;
-  
+
   String get lifespan {
     if (birthDate == null && deathDate == null) return '';
-    
+
     final birth = birthDate != null ? _formatYear(birthDate!) : '?';
     final death = deathDate != null ? _formatYear(deathDate!) : 'Present';
-    
+
     return '$birth - $death';
   }
-  
+
   /// Either an explicit admin flag or a recorded death date. A family often
   /// knows someone has passed before the date is known, so the flag alone is
   /// enough.
   bool get isDeceased => isDeceasedFlag || deathDate != null;
-  
+
   int? get age {
     if (birthDate == null) return null;
     final end = deathDate ?? DateTime.now();
     return end.year - birthDate!.year;
   }
-
 
   /// Resolve the best localized name for a locale tag ('am', 'am-ET', ...)
   LocalizedPersonName? _localizedNameForLocaleTag(String? localeTag) {
@@ -241,8 +241,7 @@ class Person {
       'authUserId': authUserId,
       'firstName': firstName,
       'lastName': lastName,
-      'localizedNames':
-          localizedNames.map((k, v) => MapEntry(k, v.toJson())),
+      'localizedNames': localizedNames.map((k, v) => MapEntry(k, v.toJson())),
       'birthDate': _toRfc3339(birthDate),
       'deathDate': _toRfc3339(deathDate),
       'gender': gender,
@@ -281,8 +280,10 @@ class Person {
                     LocalizedPersonName.fromJson(v as Map<String, dynamic>),
                   )) ??
           const {},
-      birthDate: json['birthDate'] != null ? DateTime.parse(json['birthDate']) : null,
-      deathDate: json['deathDate'] != null ? DateTime.parse(json['deathDate']) : null,
+      birthDate:
+          json['birthDate'] != null ? DateTime.parse(json['birthDate']) : null,
+      deathDate:
+          json['deathDate'] != null ? DateTime.parse(json['deathDate']) : null,
       gender: json['gender'] ?? '',
       bio: json['bio'] ?? '',
       profilePhotoUrl: json['profilePhotoUrl'] ?? '',
@@ -302,11 +303,16 @@ class Person {
               .toList() ??
           [],
       relationships: json['relationships'] != null
-          ? Relationships.fromJson(json['relationships'] as Map<String, dynamic>)
+          ? Relationships.fromJson(
+              json['relationships'] as Map<String, dynamic>)
           : Relationships(),
       displayOrder: json['displayOrder'] ?? 0,
-      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : DateTime.now(),
-      updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : DateTime.now(),
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'])
+          : DateTime.now(),
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.parse(json['updatedAt'])
+          : DateTime.now(),
     );
   }
 }
@@ -375,7 +381,7 @@ class Relationships {
     this.childrenIds = const [],
     this.siblingIds = const [],
   });
-  
+
   // Helper getter for spouse IDs
   List<String> get spouseIds => spouses.map((s) => s.personId).toList();
 
@@ -397,7 +403,8 @@ class Relationships {
     return Relationships(
       parentIds: List<String>.from(json['parents'] ?? []),
       spouses: (json['spouses'] as List<dynamic>?)
-              ?.map((e) => RelationshipConnection.fromJson(e as Map<String, dynamic>))
+              ?.map((e) =>
+                  RelationshipConnection.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
       childrenIds: List<String>.from(json['children'] ?? []),
@@ -433,12 +440,9 @@ class RelationshipConnection {
     return RelationshipConnection(
       personId: json['personId'] ?? '',
       type: RelationshipType.fromString(json['type'] ?? 'marriage'),
-      startDate: json['startDate'] != null
-          ? _parseDate(json['startDate'])
-          : null,
-      endDate: json['endDate'] != null
-          ? _parseDate(json['endDate'])
-          : null,
+      startDate:
+          json['startDate'] != null ? _parseDate(json['startDate']) : null,
+      endDate: json['endDate'] != null ? _parseDate(json['endDate']) : null,
     );
   }
 

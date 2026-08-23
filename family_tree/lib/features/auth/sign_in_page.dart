@@ -140,7 +140,6 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: Insets.lg),
-
                     if (signedOutNotice != null) ...[
                       AppNotice(
                         title: signedOutNotice.$1,
@@ -149,7 +148,6 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                       ),
                       const SizedBox(height: Insets.md),
                     ],
-
                     if (_creatingAccount) ...[
                       AppTextField(
                         label: 'Your name',
@@ -165,7 +163,6 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                       ),
                       const SizedBox(height: Insets.md),
                     ],
-
                     AppTextField(
                       label: 'Email',
                       controller: _email,
@@ -183,7 +180,6 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                       onSubmitted: (_) => _passwordFocus.requestFocus(),
                     ),
                     const SizedBox(height: Insets.md),
-
                     AppTextField(
                       label: 'Password',
                       controller: _password,
@@ -206,12 +202,10 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                               ? Icons.visibility_off_rounded
                               : Icons.visibility_rounded,
                         ),
-                        tooltip: _showPassword
-                            ? 'Hide password'
-                            : 'Show password',
+                        tooltip:
+                            _showPassword ? 'Hide password' : 'Show password',
                       ),
                     ),
-
                     if (session.error != null &&
                         session.reason == SignedOutReason.none) ...[
                       const SizedBox(height: Insets.md),
@@ -220,7 +214,6 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                         tone: NoticeTone.danger,
                       ),
                     ],
-
                     const SizedBox(height: Insets.lg),
                     PrimaryButton(
                       label: _creatingAccount ? 'Create account' : 'Sign in',
@@ -230,7 +223,6 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                           : 'Signing in…',
                       onPressed: _submit,
                     ),
-
                     if (!_creatingAccount) ...[
                       const SizedBox(height: Insets.xs),
                       QuietButton(
@@ -238,7 +230,6 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                         onPressed: () => context.push('/reset-password'),
                       ),
                     ],
-
                     const SizedBox(height: Insets.lg),
                     Divider(color: c.hairline),
                     const SizedBox(height: Insets.sm),

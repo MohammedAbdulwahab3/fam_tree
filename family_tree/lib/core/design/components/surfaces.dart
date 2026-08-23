@@ -31,9 +31,8 @@ class AppCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final border = selected
-        ? c.accent
-        : tone?.withValues(alpha: 0.35) ?? c.hairline;
+    final border =
+        selected ? c.accent : tone?.withValues(alpha: 0.35) ?? c.hairline;
 
     final content = AnimatedContainer(
       duration: Motion.fast,

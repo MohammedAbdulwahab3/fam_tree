@@ -91,6 +91,17 @@ class AppTheme {
   static const Color warningDark = Color(0xFFE0A93F);
   static const Color errorDark = Color(0xFFE07A70);
 
+  /// The one gradient in the app, from the deep green through the accent.
+  ///
+  /// Six call sites — the landing page, the tree's primary action, a post's
+  /// author chip — draw it, so it is defined once rather than rebuilt inline
+  /// with slightly different stops each time.
+  static const LinearGradient primaryGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [primaryDeep, primary, primaryLight],
+  );
+
   // Legacy aliases, kept so older call sites still resolve.
   static const Color textPrimary = textPrimaryDark;
   static const Color textSecondary = textSecondaryDark;
@@ -103,47 +114,47 @@ class AppTheme {
   static const double spaceLg = 24.0;
   static const double spaceXl = 32.0;
   static const double space2xl = 48.0;
-  
+
   // Border radius
   static const double radiusSm = 8.0;
   static const double radiusMd = 12.0;
   static const double radiusLg = 16.0;
   static const double radiusXl = 24.0;
   static const double radiusFull = 9999.0;
-  
+
   // Elevation & Shadows
   static List<BoxShadow> get shadowSm => [
-    BoxShadow(
-      color: Colors.black.withValues(alpha: 0.1),
-      blurRadius: 4,
-      offset: const Offset(0, 2),
-    ),
-  ];
-  
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.1),
+          blurRadius: 4,
+          offset: const Offset(0, 2),
+        ),
+      ];
+
   static List<BoxShadow> get shadowMd => [
-    BoxShadow(
-      color: Colors.black.withValues(alpha: 0.15),
-      blurRadius: 8,
-      offset: const Offset(0, 4),
-    ),
-  ];
-  
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.15),
+          blurRadius: 8,
+          offset: const Offset(0, 4),
+        ),
+      ];
+
   static List<BoxShadow> get shadowLg => [
-    BoxShadow(
-      color: Colors.black.withValues(alpha: 0.2),
-      blurRadius: 16,
-      offset: const Offset(0, 8),
-    ),
-  ];
-  
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.2),
+          blurRadius: 16,
+          offset: const Offset(0, 8),
+        ),
+      ];
+
   static List<BoxShadow> get shadowGlow => [
-    BoxShadow(
-      color: primaryLight.withValues(alpha: 0.3),
-      blurRadius: 20,
-      offset: const Offset(0, 0),
-    ),
-  ];
-  
+        BoxShadow(
+          color: primaryLight.withValues(alpha: 0.3),
+          blurRadius: 20,
+          offset: const Offset(0, 0),
+        ),
+      ];
+
   /// The legacy TextTheme getter, now sourced from [AppType] so anything still
   /// reading it lands inside the type system rather than beside it.
   static TextTheme get textTheme =>
@@ -369,9 +380,8 @@ class AppTheme {
 
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected)
-              ? Colors.white
-              : c.inkMuted,
+          (states) =>
+              states.contains(WidgetState.selected) ? Colors.white : c.inkMuted,
         ),
         trackColor: WidgetStateProperty.resolveWith(
           (states) => states.contains(WidgetState.selected)

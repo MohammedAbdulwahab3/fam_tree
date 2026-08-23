@@ -117,7 +117,8 @@ class PersonRepository {
     try {
       final response = await _api.get('/api/persons/$personId');
       if (response.statusCode == 200) {
-        return Person.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+        return Person.fromJson(
+            jsonDecode(response.body) as Map<String, dynamic>);
       }
       return null;
     } catch (error, stack) {

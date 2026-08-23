@@ -90,7 +90,9 @@ void main() {
     });
 
     test('a person listed as their own parent is tolerated', () {
-      final people = [_person('lonely', parents: ['lonely'])];
+      final people = [
+        _person('lonely', parents: ['lonely'])
+      ];
 
       final layout = TreeLayoutService.calculate(people);
 
@@ -98,7 +100,9 @@ void main() {
     });
 
     test('a parent outside the list leaves the child as a root', () {
-      final people = [_person('orphan', parents: ['not-here'])];
+      final people = [
+        _person('orphan', parents: ['not-here'])
+      ];
 
       final layout = TreeLayoutService.calculate(people);
 
@@ -114,10 +118,24 @@ void main() {
       ];
 
       final layout = TreeLayoutService.calculate(people);
+      double x(String id) => layout.positions[id]!.dx;
 
-      final xs = layout.positions.values.map((o) => o.dx).toSet();
-      expect(xs.length, layout.positions.length,
-          reason: 'no two people should share a column');
+      // An only child sits directly under its parent, so sharing a column
+      // within one family is the point rather than a collision. What must not
+      // happen is the two families occupying the same span and drawing on top
+      // of each other, which is what an unseparated layout does.
+      final a = [x('familyA'), x('childA')];
+      final b = [x('familyB'), x('childB')];
+
+      expect(x('familyA'), isNot(x('familyB')),
+          reason: 'two roots should not share a column');
+      expect(
+        a.reduce((p, q) => p > q ? p : q) < b.reduce((p, q) => p < q ? p : q) ||
+            b.reduce((p, q) => p > q ? p : q) <
+                a.reduce((p, q) => p < q ? p : q),
+        isTrue,
+        reason: 'the two families should occupy separate spans',
+      );
     });
 
     test('an empty tree is an empty layout', () {

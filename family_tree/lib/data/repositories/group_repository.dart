@@ -44,14 +44,21 @@ class GroupRepository {
   /// an unchanged poll re-emits the identical list, which widgets comparing by
   /// identity treat as no change at all.
   Stream<List<Post>> watchPosts() async* {
+    var last = const <Post>[];
     while (true) {
       try {
-        final page = await getPosts();
-        yield page.posts;
+        last = (await getPosts()).posts;
       } catch (error) {
         log('Could not refresh the feed', error);
-        if (_cachedPosts != null) yield _cachedPosts!;
+        if (_cachedPosts != null) last = _cachedPosts!;
       }
+      // Yield on every pass, including a failed one. An `async*` generator
+      // only learns that its listener has gone at a yield, so a loop that
+      // yields solely on success keeps polling forever after the page is
+      // closed — exactly while the network is failing, which is when it is
+      // least wanted. `getPosts` hands back the identical list when nothing
+      // changed, so re-yielding here still costs no relayout.
+      yield last;
       await Future<void>.delayed(pollInterval);
     }
   }
@@ -72,7 +79,8 @@ class GroupRepository {
       return PostPage(posts: _cachedPosts!, hasMore: true);
     }
 
-    final query = before == null ? '' : '?before=${Uri.encodeQueryComponent(before)}';
+    final query =
+        before == null ? '' : '?before=${Uri.encodeQueryComponent(before)}';
     final response = await _api.get('/api/posts$query');
     ApiService.ensureOk(response, whileDoing: 'loading the feed');
 
@@ -99,7 +107,9 @@ class GroupRepository {
     ApiService.ensureOk(response, whileDoing: 'sharing your post');
 
     invalidate();
-    return (jsonDecode(response.body) as Map<String, dynamic>)['id'] as String? ?? '';
+    return (jsonDecode(response.body) as Map<String, dynamic>)['id']
+            as String? ??
+        '';
   }
 
   /// Delete a post. Members may delete their own; admins may delete any.
@@ -123,12 +133,16 @@ class GroupRepository {
 
   /// Watch a post's comments.
   Stream<List<Comment>> watchComments(String postId) async* {
+    var last = const <Comment>[];
     while (true) {
       try {
-        yield await getComments(postId);
+        last = await getComments(postId);
       } catch (error) {
         log('Could not load comments', error);
       }
+      // See watchPosts: yielding on the error path too is what lets a
+      // cancelled subscription end this loop.
+      yield last;
       await Future<void>.delayed(pollInterval);
     }
   }
@@ -151,7 +165,9 @@ class GroupRepository {
     );
     ApiService.ensureOk(response, whileDoing: 'posting your comment');
 
-    return (jsonDecode(response.body) as Map<String, dynamic>)['id'] as String? ?? '';
+    return (jsonDecode(response.body) as Map<String, dynamic>)['id']
+            as String? ??
+        '';
   }
 
   Future<void> deleteComment(String commentId) async {

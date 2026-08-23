@@ -9,7 +9,8 @@
 /// from. Colours come from `context.colors`, which this also exports.
 library;
 
-export 'package:family_tree/core/theme/app_colors.dart' show AppColors, ThemeColors;
+export 'package:family_tree/core/theme/app_colors.dart'
+    show AppColors, ThemeColors;
 
 export 'components/buttons.dart';
 export 'components/feedback.dart';

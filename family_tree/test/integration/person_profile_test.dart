@@ -37,7 +37,8 @@ void main() {
     ) as List;
 
     final withKin = all.firstWhere(
-      (p) => ((p['relationships']?['children'] as List?) ?? const []).isNotEmpty,
+      (p) =>
+          ((p['relationships']?['children'] as List?) ?? const []).isNotEmpty,
       orElse: () => null,
     );
     expect(withKin, isNotNull,
@@ -48,6 +49,11 @@ void main() {
   });
 
   tearDownAll(() async {
+    // setUpAll returns early without a backend, leaving personId, token and
+    // original unset — so this has to bail out the same way rather than throw
+    // a LateInitializationError and fail a suite that is meant to skip.
+    if (!Backend.isConfigured) return;
+
     // Put the record back exactly as it was found.
     await http.put(
       Uri.parse('$base/api/persons/$personId'),
@@ -147,7 +153,8 @@ void main() {
     expect(after['birthPlace'], 'Gondar');
   });
 
-  test('round-trips marital status, spouse name and photo', skip: skip, () async {
+  test('round-trips marital status, spouse name and photo', skip: skip,
+      () async {
     final r = await http.put(
       Uri.parse('$base/api/persons/$personId'),
       headers: _auth(token),
@@ -165,7 +172,8 @@ void main() {
     expect(after['profilePhotoUrl'], 'http://example.com/photo.jpg');
   });
 
-  test('an admin can mark someone as having died, and undo it', skip: skip, () async {
+  test('an admin can mark someone as having died, and undo it', skip: skip,
+      () async {
     await http.put(
       Uri.parse('$base/api/persons/$personId'),
       headers: _auth(token),
@@ -181,7 +189,8 @@ void main() {
     expect((await fetch())['isDeceased'], isFalse);
   });
 
-  test('the admin review list resolves both sides to names', skip: skip, () async {
+  test('the admin review list resolves both sides to names', skip: skip,
+      () async {
     final r = await http.get(
       Uri.parse('$base/api/admin/link-requests'),
       headers: _auth(token),

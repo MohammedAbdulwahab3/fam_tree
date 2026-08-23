@@ -93,8 +93,8 @@ Future<bool> confirm(
               width: 56,
               height: 56,
               decoration: BoxDecoration(
-                color: (destructive ? c.danger : c.accent)
-                    .withValues(alpha: 0.12),
+                color:
+                    (destructive ? c.danger : c.accent).withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
               child: Icon(

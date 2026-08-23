@@ -96,9 +96,7 @@ class SessionController extends StateNotifier<Session> {
     final user = await _auth.init();
     if (!mounted) return;
 
-    state = user == null
-        ? const Session()
-        : Session(user: user);
+    state = user == null ? const Session() : Session(user: user);
   }
 
   Future<bool> signIn({
@@ -107,7 +105,8 @@ class SessionController extends StateNotifier<Session> {
   }) async {
     state = state.copyWith(busy: true, clearError: true);
     try {
-      final user = await _auth.signInWithEmail(email: email, password: password);
+      final user =
+          await _auth.signInWithEmail(email: email, password: password);
       if (!mounted) return false;
       state = Session(user: user);
       return true;

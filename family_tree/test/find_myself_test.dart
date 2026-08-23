@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:family_tree/core/theme/app_theme.dart';
 import 'package:family_tree/data/models/person.dart';
 import 'package:family_tree/data/services/link_service.dart';
+import 'package:family_tree/features/auth/session.dart';
 import 'package:family_tree/features/linking/find_myself_sheet.dart';
 import 'package:family_tree/features/linking/link_status.dart';
 
@@ -100,7 +101,14 @@ List<Person> _family() {
 
 Widget _harness(_FakeLinkService service, List<Person> members) {
   return ProviderScope(
-    overrides: [linkServiceProvider.overrideWithValue(service)],
+    overrides: [
+      linkServiceProvider.overrideWithValue(service),
+      // linkStatusProvider answers 'not_linked' without asking the service at
+      // all when nobody is signed in, so without this the sheet would only
+      // ever show the picker and the pending, rejected and verified panels
+      // would never be reached.
+      isSignedInProvider.overrideWithValue(true),
+    ],
     child: MaterialApp(
       theme: AppTheme.lightTheme,
       home: Scaffold(
@@ -182,7 +190,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('You are saying you are'), findsOneWidget);
-    expect(find.text('Your parent'), findsOneWidget);
+    expect(find.text('YOUR PARENT'), findsOneWidget);
     expect(service.requestCount, 0, reason: 'nothing sent until confirmed');
 
     await tester.tap(find.text('Yes, this is me'));

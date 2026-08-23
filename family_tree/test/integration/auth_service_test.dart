@@ -71,8 +71,8 @@ void main() {
   });
 
   test('login with correct credentials succeeds', skip: skip, () async {
-    final user = await AuthService()
-        .signInWithEmail(email: email, password: password);
+    final user =
+        await AuthService().signInWithEmail(email: email, password: password);
     expect(user.email, email);
     expect(AuthService().token, isNotNull);
   });
@@ -108,7 +108,8 @@ void main() {
     expect(prefs.getString('auth_token'), isNull);
   });
 
-  test('updateProfile renames without clearing the photo', skip: skip, () async {
+  test('updateProfile renames without clearing the photo', skip: skip,
+      () async {
     await AuthService().signInWithEmail(email: email, password: password);
     await AuthService().updatePhotoUrl('http://example.com/p.png');
     final renamed = await AuthService().updateDisplayName('Renamed User');

@@ -31,8 +31,9 @@ class PlatformImagePicker {
           .toList();
     } else {
       // Use image_picker on mobile
-      final images = await _imagePicker.pickMultiImage(imageQuality: imageQuality);
-      
+      final images =
+          await _imagePicker.pickMultiImage(imageQuality: imageQuality);
+
       final List<PickedFile> pickedFiles = [];
       for (final image in images) {
         final bytes = await image.readAsBytes();
@@ -55,7 +56,9 @@ class PlatformImagePicker {
         withData: true,
       );
 
-      if (result == null || result.files.isEmpty || result.files.first.bytes == null) {
+      if (result == null ||
+          result.files.isEmpty ||
+          result.files.first.bytes == null) {
         return null;
       }
 
@@ -86,7 +89,7 @@ class PlatformImagePicker {
       source: ImageSource.camera,
       imageQuality: imageQuality,
     );
-    
+
     if (image == null) return null;
 
     final bytes = await image.readAsBytes();

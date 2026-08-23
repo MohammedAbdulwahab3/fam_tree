@@ -144,8 +144,7 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
       setState(() => _error = '"$name" is larger than 25 MB and was skipped.');
       return;
     }
-    final attachment =
-        ComposerAttachment(name: name, bytes: bytes, kind: kind);
+    final attachment = ComposerAttachment(name: name, bytes: bytes, kind: kind);
     setState(() {
       _attachments.add(attachment);
       _error = null;
@@ -223,8 +222,7 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            style: FilledButton.styleFrom(
-                backgroundColor: AppTheme.accentRose),
+            style: FilledButton.styleFrom(backgroundColor: AppTheme.accentRose),
             child: const Text('Discard'),
           ),
         ],
@@ -258,8 +256,7 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
                   ? [AppTheme.surfaceDark, AppTheme.backgroundDark]
                   : [ElegantColors.warmWhite, ElegantColors.cream],
             ),
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(26)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
           ),
           child: Column(
             children: [
@@ -337,8 +334,7 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
               final navigator = Navigator.of(context);
               if (await _confirmDiscard() && mounted) navigator.pop();
             },
-            icon: Icon(Icons.close_rounded,
-                color: context.colors.inkSoft),
+            icon: Icon(Icons.close_rounded, color: context.colors.inkSoft),
           ),
         ],
       ),
@@ -508,10 +504,8 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
 
   Widget _attachmentTile(ComposerAttachment attachment, bool isDark) {
     final tone = switch (attachment.kind) {
-      AttachmentKind.photo =>
-        context.colors.secondary,
-      AttachmentKind.video =>
-        context.colors.rose,
+      AttachmentKind.photo => context.colors.secondary,
+      AttachmentKind.video => context.colors.rose,
       AttachmentKind.file => context.colors.gold,
     };
 
@@ -581,8 +575,7 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
                       ),
                       const SizedBox(width: 7),
                       Text('Uploading…',
-                          style: AppType.sans(
-                              fontSize: 11.5, color: tone)),
+                          style: AppType.sans(fontSize: 11.5, color: tone)),
                     ],
                   )
                 else if (attachment.error != null)
@@ -603,9 +596,8 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
                         attachment.readableSize,
                         style: AppType.sans(
                           fontSize: 11.5,
-                          color: isDark
-                              ? Colors.white54
-                              : ElegantColors.warmGray,
+                          color:
+                              isDark ? Colors.white54 : ElegantColors.warmGray,
                         ),
                       ),
                     ],
@@ -622,8 +614,7 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
           IconButton(
             tooltip: 'Remove',
             icon: const Icon(Icons.close_rounded, size: 18),
-            onPressed: () =>
-                setState(() => _attachments.remove(attachment)),
+            onPressed: () => setState(() => _attachments.remove(attachment)),
           ),
         ],
       ),
@@ -636,8 +627,7 @@ class _PostComposerSheetState extends State<PostComposerSheet> {
       decoration: BoxDecoration(
         color: AppTheme.accentRose.withValues(alpha: isDark ? 0.14 : 0.09),
         borderRadius: BorderRadius.circular(12),
-        border:
-            Border.all(color: AppTheme.accentRose.withValues(alpha: 0.35)),
+        border: Border.all(color: AppTheme.accentRose.withValues(alpha: 0.35)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

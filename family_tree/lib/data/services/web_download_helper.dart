@@ -2,7 +2,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 // Conditional import for web
 // ignore: avoid_web_libraries_in_flutter
-import 'web_download_stub.dart' if (dart.library.html) 'web_download_impl.dart' as download;
+import 'web_download_stub.dart' if (dart.library.html) 'web_download_impl.dart'
+    as download;
 import 'package:family_tree/core/logging.dart';
 
 /// Platform-safe file download utility
@@ -16,7 +17,7 @@ class WebDownloadHelper {
       log('Downloads are not implemented on this platform');
     }
   }
-  
+
   /// Opens HTML content in a new window and triggers print dialog for PDF save
   static void openAndPrint(String htmlContent) {
     if (kIsWeb) {
@@ -25,7 +26,7 @@ class WebDownloadHelper {
       log('Printing is not implemented on this platform');
     }
   }
-  
+
   /// Downloads an image from URL (web only)
   static void downloadImageFromUrl(String imageUrl) {
     if (kIsWeb) {

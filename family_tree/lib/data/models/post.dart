@@ -54,7 +54,7 @@ class Post {
         });
       }
     }
-    
+
     return Post(
       id: json['id'] ?? '',
       familyTreeId: json['familyTreeId'] ?? '',
@@ -66,7 +66,9 @@ class Post {
       videos: List<String>.from(json['videos'] ?? []),
       files: List<String>.from(json['files'] ?? []),
       audioUrl: json['audioUrl'],
-      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : DateTime.now(),
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'])
+          : DateTime.now(),
       reactions: reactionsMap,
     );
   }

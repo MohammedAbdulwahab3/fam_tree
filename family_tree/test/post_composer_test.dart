@@ -28,15 +28,16 @@ Future<void> _open(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-
 /// `FilledButton.icon` builds a private subclass, so `find.byType` misses it —
 /// match the common supertype and locate it by its label instead.
 ButtonStyleButton _publishButton(WidgetTester tester) {
   return tester.widget<ButtonStyleButton>(
-    find.ancestor(
-      of: find.text('Post to the family feed'),
-      matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
-    ).first,
+    find
+        .ancestor(
+          of: find.text('Post to the family feed'),
+          matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
+        )
+        .first,
   );
 }
 
@@ -115,8 +116,8 @@ void main() {
   });
 
   test('the artboard no longer hardcodes empty attachments', () {
-    final source =
-        File('lib/features/admin/admin_family_artboard.dart').readAsStringSync();
+    final source = File('lib/features/admin/admin_family_artboard.dart')
+        .readAsStringSync();
     // The old dialog built every post with these three literals.
     expect(
       source.contains('photos: const [],\n          videos: const [],'),
@@ -129,8 +130,8 @@ void main() {
   });
 
   test('the header row has no create buttons left in it', () {
-    final source =
-        File('lib/features/admin/admin_family_artboard.dart').readAsStringSync();
+    final source = File('lib/features/admin/admin_family_artboard.dart')
+        .readAsStringSync();
     final header = source.substring(
       source.indexOf('Widget _buildArtboardHeader'),
       source.indexOf('Widget _buildInlineSearch'),
@@ -141,8 +142,8 @@ void main() {
   });
 
   test('reload and tools sit left of the title', () {
-    final source =
-        File('lib/features/admin/admin_family_artboard.dart').readAsStringSync();
+    final source = File('lib/features/admin/admin_family_artboard.dart')
+        .readAsStringSync();
     // One row again: the three-band header started the tree halfway down the
     // screen, so everything shares a single bar.
     final header = source.substring(
@@ -164,8 +165,8 @@ void main() {
   });
 
   test('the header is a single row, not stacked bands', () {
-    final source =
-        File('lib/features/admin/admin_family_artboard.dart').readAsStringSync();
+    final source = File('lib/features/admin/admin_family_artboard.dart')
+        .readAsStringSync();
     // The stats band and subtitle ate roughly a third of the viewport.
     expect(source.contains('_headerStats('), isFalse);
     expect(source.contains('_headerTitleRow('), isFalse);

@@ -15,8 +15,13 @@ void main() {
 
   test('spacing is a consistent scale', () {
     final scale = [
-      Insets.xxs, Insets.xs, Insets.sm, Insets.md,
-      Insets.lg, Insets.xl, Insets.xxl,
+      Insets.xxs,
+      Insets.xs,
+      Insets.sm,
+      Insets.md,
+      Insets.lg,
+      Insets.xl,
+      Insets.xxl,
     ];
 
     for (var i = 1; i < scale.length; i++) {
@@ -33,10 +38,20 @@ void main() {
     test('both themes define every role', () {
       for (final palette in [AppColors.light, AppColors.dark]) {
         for (final colour in [
-          palette.ground, palette.surface, palette.surfaceRaised,
-          palette.hairline, palette.ink, palette.inkSoft, palette.inkMuted,
-          palette.accent, palette.accentDeep, palette.accentSoft,
-          palette.onAccent, palette.success, palette.warning, palette.danger,
+          palette.ground,
+          palette.surface,
+          palette.surfaceRaised,
+          palette.hairline,
+          palette.ink,
+          palette.inkSoft,
+          palette.inkMuted,
+          palette.accent,
+          palette.accentDeep,
+          palette.accentSoft,
+          palette.onAccent,
+          palette.success,
+          palette.warning,
+          palette.danger,
         ]) {
           expect(colour.a, 1.0, reason: 'palette colours are opaque');
         }
@@ -57,7 +72,8 @@ void main() {
     });
 
     test('ink reads against its own ground', () {
-      double luminance(int argb) => (argb & 0xFF) * 0.0722 +
+      double luminance(int argb) =>
+          (argb & 0xFF) * 0.0722 +
           ((argb >> 8) & 0xFF) * 0.7152 +
           ((argb >> 16) & 0xFF) * 0.2126;
 
@@ -94,8 +110,8 @@ void main() {
 
     test('buttons are at least the minimum touch size in both', () {
       for (final theme in [AppTheme.lightTheme, AppTheme.darkTheme]) {
-        final size = theme.filledButtonTheme.style?.minimumSize
-            ?.resolve({})?.height;
+        final size =
+            theme.filledButtonTheme.style?.minimumSize?.resolve({})?.height;
         expect(size, greaterThanOrEqualTo(Sizes.control));
       }
     });

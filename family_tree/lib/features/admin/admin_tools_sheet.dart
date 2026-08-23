@@ -117,8 +117,7 @@ class _AdminToolsSheetState extends ConsumerState<AdminToolsSheet> {
       builder: (context, scrollController) => Container(
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF141B24) : ElegantColors.warmWhite,
-          borderRadius:
-              const BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           border: Border.all(
             color: isDark
                 ? Colors.white.withValues(alpha: 0.12)
@@ -132,8 +131,7 @@ class _AdminToolsSheetState extends ConsumerState<AdminToolsSheet> {
               width: 42,
               height: 4,
               decoration: BoxDecoration(
-                color: (context.colors.ink)
-                    .withValues(alpha: 0.22),
+                color: (context.colors.ink).withValues(alpha: 0.22),
                 borderRadius: BorderRadius.circular(999),
               ),
             ),
@@ -175,9 +173,8 @@ class _AdminToolsSheetState extends ConsumerState<AdminToolsSheet> {
                 style: AppType.sans(fontSize: 14.5),
                 decoration: InputDecoration(
                   isDense: true,
-                  hintText: isMembers
-                      ? 'Search by name or email…'
-                      : 'Search posts…',
+                  hintText:
+                      isMembers ? 'Search by name or email…' : 'Search posts…',
                   prefixIcon: const Icon(Icons.search_rounded, size: 20),
                   filled: true,
                   fillColor: isDark
@@ -195,8 +192,8 @@ class _AdminToolsSheetState extends ConsumerState<AdminToolsSheet> {
             Expanded(
               child: _loading
                   ? const Center(
-                      child: CircularProgressIndicator(
-                          color: AppTheme.accentTeal))
+                      child:
+                          CircularProgressIndicator(color: AppTheme.accentTeal))
                   : ListView(
                       controller: scrollController,
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
@@ -317,8 +314,7 @@ class _AdminToolsSheetState extends ConsumerState<AdminToolsSheet> {
                         style: AppType.sans(
                           fontSize: 14.5,
                           fontWeight: FontWeight.w600,
-                          color:
-                              context.colors.ink,
+                          color: context.colors.ink,
                         ),
                       ),
                     ),
@@ -637,10 +633,8 @@ Future<bool> confirmDialog(
     context: context,
     builder: (context) => AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      title: Text(title,
-          style: AppType.sans(fontWeight: FontWeight.w700)),
-      content:
-          Text(message, style: AppType.sans(fontSize: 13.5, height: 1.5)),
+      title: Text(title, style: AppType.sans(fontWeight: FontWeight.w700)),
+      content: Text(message, style: AppType.sans(fontSize: 13.5, height: 1.5)),
       actions: [
         TextButton(
             onPressed: () => Navigator.pop(context, false),

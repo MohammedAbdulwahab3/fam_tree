@@ -74,7 +74,8 @@ class AppPage extends StatelessWidget {
                 ? IconButton(
                     icon: const Icon(Icons.arrow_back_rounded),
                     onPressed: onBack ?? () => Navigator.of(context).pop(),
-                    tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+                    tooltip:
+                        MaterialLocalizations.of(context).backButtonTooltip,
                   )
                 : null),
         title: Column(

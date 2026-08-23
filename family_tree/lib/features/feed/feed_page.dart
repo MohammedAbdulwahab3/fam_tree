@@ -76,8 +76,7 @@ class _FeedPageState extends ConsumerState<FeedPage>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor:
-            context.colors.surface,
+        backgroundColor: context.colors.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
         ),
@@ -150,8 +149,7 @@ class _FeedPageState extends ConsumerState<FeedPage>
                   child: RefreshIndicator(
                     onRefresh: _refresh,
                     color: AppTheme.accentTeal,
-                    backgroundColor:
-                        context.colors.surface,
+                    backgroundColor: context.colors.surface,
                     child: Center(
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 680),
@@ -264,6 +262,10 @@ class _FeedPageState extends ConsumerState<FeedPage>
         return Padding(
           padding: const EdgeInsets.only(bottom: 18),
           child: PostCard(
+            // Keyed on the post so that a refresh which prepends new posts
+            // reuses each card's state against the right post rather than
+            // against whatever now sits at that index.
+            key: ValueKey(post.id),
             post: post,
             currentUserId: user?.uid ?? '',
             currentUserName: user?.displayName ?? 'Anonymous',
@@ -307,8 +309,7 @@ class _FeedPageState extends ConsumerState<FeedPage>
                 fontSize: 18,
                 fontStyle: FontStyle.italic,
                 height: 1.5,
-                color:
-                    context.colors.inkMuted,
+                color: context.colors.inkMuted,
               ),
             ),
           ),
@@ -790,8 +791,7 @@ class _ComposerState extends State<_Composer> {
             onTap: _canPost ? _submit : null,
             borderRadius: BorderRadius.circular(AppTheme.radiusMd),
             child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
               child: _busy
                   ? Row(
                       mainAxisSize: MainAxisSize.min,
@@ -845,7 +845,8 @@ class _Avatar extends StatelessWidget {
   final String? photo;
   final bool isDark;
 
-  const _Avatar({required this.name, required this.photo, required this.isDark});
+  const _Avatar(
+      {required this.name, required this.photo, required this.isDark});
 
   @override
   Widget build(BuildContext context) {
@@ -865,7 +866,8 @@ class _Avatar extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       child: (photo != null && photo!.isNotEmpty)
-          ? Image.network(photo!, fit: BoxFit.cover,
+          ? Image.network(photo!,
+              fit: BoxFit.cover,
               errorBuilder: (_, __, ___) => _initial(initial))
           : _initial(initial),
     );

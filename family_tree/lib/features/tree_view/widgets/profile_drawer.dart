@@ -382,9 +382,8 @@ class _ProfileDrawerState extends ConsumerState<ProfileDrawer>
   Widget _buildAccountActions(bool isDark, Person? linked) {
     if (linked == null) {
       final status = ref.watch(linkStatusProvider).valueOrNull;
-      final state = status == null
-          ? _LinkState.unknown
-          : _LinkState.fromStatus(status);
+      final state =
+          status == null ? _LinkState.unknown : _LinkState.fromStatus(status);
 
       return _LinkCallToAction(
         state: state,
@@ -472,18 +471,16 @@ class _ProfileDrawerState extends ConsumerState<ProfileDrawer>
                 decoration: const InputDecoration(
                   labelText: 'Current password',
                 ),
-                validator: (v) => (v ?? '').isEmpty
-                    ? 'Enter your current password'
-                    : null,
+                validator: (v) =>
+                    (v ?? '').isEmpty ? 'Enter your current password' : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: newController,
                 obscureText: true,
                 decoration: const InputDecoration(labelText: 'New password'),
-                validator: (v) => (v ?? '').length < 6
-                    ? 'At least 6 characters'
-                    : null,
+                validator: (v) =>
+                    (v ?? '').length < 6 ? 'At least 6 characters' : null,
               ),
             ],
           ),
@@ -657,8 +654,7 @@ class _ProfileDrawerState extends ConsumerState<ProfileDrawer>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor:
-            context.colors.surface,
+        backgroundColor: context.colors.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
         ),
@@ -894,8 +890,7 @@ class _IdentityCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
-            color: (context.colors.accent)
-                .withValues(alpha: 0.35),
+            color: (context.colors.accent).withValues(alpha: 0.35),
             blurRadius: 22,
             offset: const Offset(0, 10),
           ),
@@ -1432,9 +1427,7 @@ class _BirthdayStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isToday = days == 0;
-    final color = isToday
-        ? (context.colors.gold)
-        : (context.colors.rose);
+    final color = isToday ? (context.colors.gold) : (context.colors.rose);
 
     final message = isToday
         ? 'Happy birthday! 🎉'
@@ -2007,8 +2000,7 @@ class _PreferencesCard extends ConsumerWidget {
                 ),
                 Switch.adaptive(
                   value: themeMode == ThemeMode.dark,
-                  activeThumbColor:
-                      context.colors.accent,
+                  activeThumbColor: context.colors.accent,
                   onChanged: (_) =>
                       ref.read(themeModeProvider.notifier).toggleTheme(),
                 ),
@@ -2031,8 +2023,7 @@ class _PreferencesCard extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.all(9),
                   decoration: BoxDecoration(
-                    color: (context.colors.secondary)
-                        .withValues(alpha: 0.14),
+                    color: (context.colors.secondary).withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
@@ -2101,9 +2092,7 @@ class _LocaleSwitch extends ConsumerWidget {
                 style: AppType.sans(
                   fontSize: 11.5,
                   fontWeight: FontWeight.w700,
-                  color: selected
-                      ? Colors.white
-                      : (context.colors.inkMuted),
+                  color: selected ? Colors.white : (context.colors.inkMuted),
                 ),
               ),
             ),

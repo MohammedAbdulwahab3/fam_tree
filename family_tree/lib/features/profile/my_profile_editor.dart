@@ -81,8 +81,10 @@ class _MyProfileEditorState extends ConsumerState<MyProfileEditor> {
       _track(TextEditingController(text: _p.currentResidence ?? ''));
   late final _education =
       _track(TextEditingController(text: _p.education ?? ''));
-  late final _email = _track(TextEditingController(text: _p.contactEmail ?? ''));
-  late final _phone = _track(TextEditingController(text: _p.contactPhone ?? ''));
+  late final _email =
+      _track(TextEditingController(text: _p.contactEmail ?? ''));
+  late final _phone =
+      _track(TextEditingController(text: _p.contactPhone ?? ''));
   late final _spouseName =
       _track(TextEditingController(text: _p.spouseName ?? ''));
   final _interest = TextEditingController();
@@ -333,7 +335,6 @@ class _MyProfileEditorState extends ConsumerState<MyProfileEditor> {
                     children: [
                       _photoPicker(you),
                       const SizedBox(height: Insets.sectionGap),
-
                       AppSection(
                         title: you ? 'Your name' : 'Name',
                         icon: Icons.badge_outlined,
@@ -390,9 +391,7 @@ class _MyProfileEditorState extends ConsumerState<MyProfileEditor> {
                           ),
                         ],
                       ),
-
                       const SizedBox(height: Insets.sectionGap),
-
                       AppSection(
                         title: you ? 'Your life' : 'Life',
                         subtitle: 'The part a diagram cannot hold.',
@@ -427,9 +426,7 @@ class _MyProfileEditorState extends ConsumerState<MyProfileEditor> {
                           _interestsField(),
                         ],
                       ),
-
                       const SizedBox(height: Insets.sectionGap),
-
                       AppSection(
                         title: 'Places',
                         icon: Icons.place_outlined,
@@ -448,18 +445,15 @@ class _MyProfileEditorState extends ConsumerState<MyProfileEditor> {
                           ),
                         ],
                       ),
-
                       const SizedBox(height: Insets.sectionGap),
-
                       AppSection(
                         title: 'Family',
                         icon: Icons.favorite_outline_rounded,
                         children: [
                           AppChoiceField<String>(
                             label: 'Marital status',
-                            value: _maritalStatus.isEmpty
-                                ? null
-                                : _maritalStatus,
+                            value:
+                                _maritalStatus.isEmpty ? null : _maritalStatus,
                             optional: true,
                             options: const [
                               AppChoice(value: 'single', label: 'Single'),
@@ -468,8 +462,8 @@ class _MyProfileEditorState extends ConsumerState<MyProfileEditor> {
                               AppChoice(value: 'widowed', label: 'Widowed'),
                             ],
                             onChanged: (v) => _touch(
-                              () => _maritalStatus =
-                                  _maritalStatus == v ? '' : v,
+                              () =>
+                                  _maritalStatus = _maritalStatus == v ? '' : v,
                             ),
                           ),
                           if (_maritalStatus == 'married') ...[
@@ -490,9 +484,7 @@ class _MyProfileEditorState extends ConsumerState<MyProfileEditor> {
                           _adminOnlyNote(),
                         ],
                       ),
-
                       const SizedBox(height: Insets.sectionGap),
-
                       AppSection(
                         title: 'How to reach ${you ? 'you' : 'them'}',
                         subtitle: 'Everyone signed in can see this. Leave it '
@@ -517,12 +509,10 @@ class _MyProfileEditorState extends ConsumerState<MyProfileEditor> {
                           ),
                         ],
                       ),
-
                       if (widget.isAdmin) ...[
                         const SizedBox(height: Insets.sectionGap),
                         _deceasedSection(),
                       ],
-
                       if (_error != null) ...[
                         const SizedBox(height: Insets.lg),
                         AppNotice(message: _error!, tone: NoticeTone.danger),
@@ -623,7 +613,8 @@ class _MyProfileEditorState extends ConsumerState<MyProfileEditor> {
           children: [
             Text('Interests', style: AppType.label.copyWith(color: c.ink)),
             const SizedBox(width: Insets.xs),
-            Text('optional', style: AppType.caption.copyWith(color: c.inkMuted)),
+            Text('optional',
+                style: AppType.caption.copyWith(color: c.inkMuted)),
           ],
         ),
         const SizedBox(height: Insets.xs),
@@ -731,8 +722,7 @@ class _MyProfileEditorState extends ConsumerState<MyProfileEditor> {
                         ),
                         Text(
                           'Their record stays in the tree, marked.',
-                          style:
-                              AppType.bodySmall.copyWith(color: c.inkSoft),
+                          style: AppType.bodySmall.copyWith(color: c.inkSoft),
                         ),
                       ],
                     ),
@@ -752,8 +742,7 @@ class _MyProfileEditorState extends ConsumerState<MyProfileEditor> {
                   label: 'Date of death',
                   optional: true,
                   icon: Icons.local_florist_outlined,
-                  value:
-                      _deathDate == null ? null : _formatDate(_deathDate!),
+                  value: _deathDate == null ? null : _formatDate(_deathDate!),
                   placeholder: 'Choose a date',
                   helper: 'A family often knows before anyone can name the '
                       'date. Leaving it blank is fine.',
@@ -770,8 +759,18 @@ class _MyProfileEditorState extends ConsumerState<MyProfileEditor> {
 
   static String _formatDate(DateTime date) {
     const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December',
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
     ];
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }

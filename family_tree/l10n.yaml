@@ -1,9 +1,10 @@
 # The generated localisations are committed under lib/l10n and imported
-# directly. Without this file, `generate: true` in pubspec.yaml also writes a
-# synthetic package into .dart_tool that nothing imports — two copies of the
-# same classes, one of which silently goes stale.
+# directly, so output-dir points there. Flutter used to also write a synthetic
+# package into .dart_tool that nothing imported — two copies of the same
+# classes, one of which silently went stale — which `synthetic-package: false`
+# turned off. That option no longer has any effect and warns if present:
+# synthetic generation was removed from the tool itself.
 arb-dir: lib/l10n
 template-arb-file: app_en.arb
 output-localization-file: app_localizations.dart
 output-dir: lib/l10n
-synthetic-package: false

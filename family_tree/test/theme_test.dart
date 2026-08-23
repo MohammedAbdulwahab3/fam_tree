@@ -14,25 +14,39 @@ double _contrast(Color a, Color b) {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-/// How warm a colour is: red channel minus blue. The old dark theme was slate
-/// (blue-biased); the unified one should lean warm like the light theme.
-int _warmth(Color c) =>
-    ((c.r * 255).round()) - ((c.b * 255).round());
+/// Hue in degrees, for checking two colours belong to the same family.
+double _hue(Color c) => HSLColor.fromColor(c).hue;
+
+/// How blue a colour is: blue channel minus red. The old dark theme was
+/// Slate-900, which is strongly blue-biased (+27) and read as a different
+/// product from the light theme.
+int _blueBias(Color c) => ((c.b * 255).round()) - ((c.r * 255).round());
 
 void main() {
   group('one identity across both themes', () {
     test('the brand accent is the same hue family in light and dark', () {
-      // Light mode has always been terracotta. Dark mode used to be emerald,
-      // which is what made the two themes look like different products.
-      expect(_warmth(AppColors.light.accent), greaterThan(40),
-          reason: 'light accent should be warm (terracotta)');
-      expect(_warmth(AppColors.dark.accent), greaterThan(40),
-          reason: 'dark accent should be the warm counterpart, not emerald');
+      // The app had three identities: context.colors said one thing, ~120
+      // direct ElegantColors call sites said another, and dark mode was a
+      // third. There is one evergreen accent now — the same green as the
+      // launcher icon, which was already the identity everywhere except
+      // inside the app. Dark mode lifts it rather than changing it.
+      final light = _hue(AppColors.light.accent);
+      final dark = _hue(AppColors.dark.accent);
+
+      expect(light, inInclusiveRange(140, 180),
+          reason: 'the light accent should be the evergreen, not terracotta');
+      expect(dark, inInclusiveRange(140, 180),
+          reason: 'the dark accent should be the same green, not emerald');
+      expect((light - dark).abs(), lessThan(15),
+          reason: 'one hue in both themes, differing only in lightness');
     });
 
-    test('both grounds are warm, not blue-grey slate', () {
-      expect(_warmth(AppColors.light.ground), greaterThan(0));
-      expect(_warmth(AppColors.dark.ground), greaterThan(0),
+    test('neither ground is blue-grey slate', () {
+      // Slate-900 sits at +27 on this measure and reads cold next to the
+      // light theme. Both grounds here are within a couple of points of
+      // neutral, which is what lets the accent carry the whole identity.
+      expect(_blueBias(AppColors.light.ground), lessThan(10));
+      expect(_blueBias(AppColors.dark.ground), lessThan(10),
           reason: 'the dark ground was Slate-900, which is blue-biased');
     });
 

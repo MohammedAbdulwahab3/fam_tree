@@ -52,8 +52,7 @@ class ReviewClaimsPage extends ConsumerWidget {
           }
 
           return RefreshIndicator(
-            onRefresh: () async =>
-                ref.invalidate(pendingLinkRequestsProvider),
+            onRefresh: () async => ref.invalidate(pendingLinkRequestsProvider),
             child: ListView.separated(
               padding: const EdgeInsets.all(Insets.gutter),
               itemCount: list.length + 1,
@@ -79,9 +78,7 @@ class _Intro extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppNotice(
       tone: NoticeTone.pending,
-      title: count == 1
-          ? 'One person is waiting'
-          : '$count people are waiting',
+      title: count == 1 ? 'One person is waiting' : '$count people are waiting',
       message: 'Check the names and relatives match before you approve. '
           'Approving links the account to that record for good — they will '
           'be able to edit it.',
@@ -180,8 +177,7 @@ class _ClaimCardState extends ConsumerState<_ClaimCard> {
           PrimaryButton(
             label: 'Turn down this claim',
             tone: ButtonTone.danger,
-            onPressed: () =>
-                Navigator.of(context).pop(controller.text.trim()),
+            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
           ),
           const SizedBox(height: Insets.xs),
           SecondaryButton(

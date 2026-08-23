@@ -23,8 +23,7 @@ class PreparedImage {
   bool get wasReduced => originalBytes > sizeBytes;
 
   /// e.g. "4.2 MB → 180 KB"
-  String get savingSummary =>
-      '${_human(originalBytes)} → ${_human(sizeBytes)}';
+  String get savingSummary => '${_human(originalBytes)} → ${_human(sizeBytes)}';
 
   static String _human(int bytes) {
     if (bytes < 1024) return '$bytes B';
@@ -101,7 +100,8 @@ class ImagePreparer {
   }
 
   /// Prepare a profile photo, which needs far fewer pixels than a feed photo.
-  static Future<PreparedImage> prepareAvatar(Uint8List bytes, String fileName) =>
+  static Future<PreparedImage> prepareAvatar(
+          Uint8List bytes, String fileName) =>
       prepare(bytes, fileName, maxDimension: maxAvatarEdge);
 
   static String _asJpegName(String fileName) {

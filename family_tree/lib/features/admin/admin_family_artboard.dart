@@ -1,8 +1,6 @@
-import 'dart:convert';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:family_tree/data/models/person.dart';
@@ -31,14 +29,15 @@ typedef ArtboardColors = ElegantColors;
 /// An elegant, high-fidelity view for managing the family tree
 class AdminFamilyArtboard extends ConsumerStatefulWidget {
   final bool showBackButton;
-  
+
   const AdminFamilyArtboard({
-    Key? key,
+    super.key,
     this.showBackButton = true,
-  }) : super(key: key);
+  });
 
   @override
-  ConsumerState<AdminFamilyArtboard> createState() => _AdminFamilyArtboardState();
+  ConsumerState<AdminFamilyArtboard> createState() =>
+      _AdminFamilyArtboardState();
 }
 
 class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
@@ -46,7 +45,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
   final PersonRepository _personRepo = PersonRepository();
   final AdminRepository _adminRepo = AdminRepository();
   late final AnimationController _auroraController;
-  
+
   List<Person> _persons = [];
   List<Person> _filteredPersons = [];
   bool _isLoading = true;
@@ -54,7 +53,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
   final TextEditingController _searchController = TextEditingController();
   String _selectedGeneration = 'All';
   Person? _selectedPerson;
-  
+
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
 
@@ -66,21 +65,24 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
 
   int get _generationCount {
     if (_persons.isEmpty) return 0;
-    return _persons.map(_generationOf).fold<int>(0, (a, b) => a > b ? a : b) + 1;
+    return _persons.map(_generationOf).fold<int>(0, (a, b) => a > b ? a : b) +
+        1;
   }
-  
+
   // Map to cache branch colors for each person
   Map<String, Color> _branchColorMap = {};
 
   // Rebuilt whenever the roster changes; see _generationOf.
   Map<String, Person> _personById = {};
   final Map<String, int> _generationCache = {};
-  
+
   // Stack of focused persons for drill-down navigation
   List<String> _focusStack = [];
-  
-  final ScrollController _verticalScrollController = ScrollController(initialScrollOffset: 500);
-  final ScrollController _horizontalScrollController = ScrollController(initialScrollOffset: 500);
+
+  final ScrollController _verticalScrollController =
+      ScrollController(initialScrollOffset: 500);
+  final ScrollController _horizontalScrollController =
+      ScrollController(initialScrollOffset: 500);
 
   @override
   void initState() {
@@ -113,7 +115,8 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      final persons = await _personRepo.getFamilyMembers(AppConfig.familyTreeId);
+      final persons =
+          await _personRepo.getFamilyMembers(AppConfig.familyTreeId);
       setState(() {
         _persons = persons;
         _filteredPersons = persons;
@@ -124,23 +127,24 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
         _buildBranchColorMap();
       });
       _fadeController.forward();
-      
+
       // Auto-assign displayOrder to members that don't have one
       await _initializeDisplayOrders();
     } catch (e) {
       setState(() => _isLoading = false);
     }
   }
-  
+
   /// Auto-assign displayOrder to all family members who have order 0
   Future<void> _initializeDisplayOrders() async {
     // Group persons by parent
     final Map<String, List<Person>> siblingGroups = {};
-    
+
     // Roots group
-    final roots = _persons.where((p) => p.relationships.parentIds.isEmpty).toList();
+    final roots =
+        _persons.where((p) => p.relationships.parentIds.isEmpty).toList();
     siblingGroups['_roots'] = roots;
-    
+
     // Children of each parent
     for (final person in _persons) {
       for (final parentId in person.relationships.parentIds) {
@@ -148,25 +152,25 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
         siblingGroups[parentId]!.add(person);
       }
     }
-    
+
     // For each group, assign order based on createdAt if everyone has order 0
     for (final entry in siblingGroups.entries) {
       final siblings = entry.value;
-      
+
       // Check if any sibling has a valid order (non-zero)
       final hasOrders = siblings.any((s) => s.displayOrder > 0);
       if (hasOrders) continue; // Skip if already has orders
-      
+
       // Sort by createdAt and assign order numbers
       siblings.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-      
+
       for (int i = 0; i < siblings.length; i++) {
         final person = siblings[i];
         final newOrder = i + 1;
-        
+
         // Update in backend
         await _adminRepo.updatePerson(person.copyWith(displayOrder: newOrder));
-        
+
         // Update local state
         final idx = _persons.indexWhere((p) => p.id == person.id);
         if (idx >= 0) {
@@ -174,48 +178,53 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
         }
       }
     }
-    
+
     // Refresh filtered list
     setState(() {
       _filteredPersons = List.from(_persons);
     });
   }
-  
+
   /// Build a map of person ID to their family branch color
   void _buildBranchColorMap() {
     _branchColorMap = {};
-    
+
     // Find root (Gen 1 - Mohammed)
-    final roots = _persons.where((p) => p.relationships.parentIds.isEmpty).toList();
-    
+    final roots =
+        _persons.where((p) => p.relationships.parentIds.isEmpty).toList();
+
     // Assign gold color to roots
     for (final root in roots) {
       _branchColorMap[root.id] = ArtboardColors.gold;
     }
-    
+
     // Find Gen 2 (children of root) and assign each a unique branch color
-    final gen2 = _persons.where((p) => 
-      roots.any((root) => p.relationships.parentIds.contains(root.id))).toList();
-    
+    final gen2 = _persons
+        .where((p) =>
+            roots.any((root) => p.relationships.parentIds.contains(root.id)))
+        .toList();
+
     for (int i = 0; i < gen2.length; i++) {
-      final branchColor = ArtboardColors.branchColors[i % ArtboardColors.branchColors.length];
+      final branchColor =
+          ArtboardColors.branchColors[i % ArtboardColors.branchColors.length];
       _branchColorMap[gen2[i].id] = branchColor;
       // Propagate this color to all descendants
       _assignBranchColorToDescendants(gen2[i].id, branchColor);
     }
   }
-  
+
   /// Recursively assign branch color to all descendants
   void _assignBranchColorToDescendants(String parentId, Color color) {
-    final children = _persons.where((p) => 
-      p.relationships.parentIds.contains(parentId)).toList();
-    
+    final children = _persons
+        .where((p) => p.relationships.parentIds.contains(parentId))
+        .toList();
+
     for (final child in children) {
       _branchColorMap[child.id] = color;
       _assignBranchColorToDescendants(child.id, color);
     }
   }
-  
+
   /// Get the branch color for a person
   Color _getBranchColor(Person person) {
     return _branchColorMap[person.id] ?? ArtboardColors.warmGray;
@@ -226,11 +235,12 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
       _filteredPersons = _persons.where((p) {
         final matchesSearch = _searchQuery.isEmpty ||
             p.fullName.toLowerCase().contains(_searchQuery.toLowerCase());
-        
+
         if (_selectedGeneration == 'All') return matchesSearch;
-        
+
         // Simple generation detection based on parent chain depth
-        final genNum = int.tryParse(_selectedGeneration.replaceAll('Gen ', '')) ?? 0;
+        final genNum =
+            int.tryParse(_selectedGeneration.replaceAll('Gen ', '')) ?? 0;
         final personGen = _getGenerationNumber(p);
         return matchesSearch && personGen == genNum;
       }).toList();
@@ -239,19 +249,20 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
 
   int _getGenerationNumber(Person person) {
     if (person.relationships.parentIds.isEmpty) return 1;
-    
+
     // Find parent and get their generation
-    final parent = _persons.where((p) => 
-      person.relationships.parentIds.contains(p.id)).firstOrNull;
+    final parent = _persons
+        .where((p) => person.relationships.parentIds.contains(p.id))
+        .firstOrNull;
     if (parent == null) return 1;
-    
+
     return _getGenerationNumber(parent) + 1;
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     return Scaffold(
       backgroundColor: isDark ? AppTheme.backgroundDark : ArtboardColors.cream,
       body: Stack(
@@ -264,24 +275,21 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
           ),
           // Fine engraved pattern on top of it, for the paper feel.
           _buildPatternBackground(),
-          
+
           // Main content
           SafeArea(
             child: Column(
               children: [
                 _buildArtboardHeader(isDark),
                 Expanded(
-                  child: _isLoading
-                      ? _buildLoadingState()
-                      : _buildFamilyGrid(),
+                  child: _isLoading ? _buildLoadingState() : _buildFamilyGrid(),
                 ),
               ],
             ),
           ),
-          
+
           // Selected person detail panel
-          if (_selectedPerson != null)
-            _buildDetailPanel(),
+          if (_selectedPerson != null) _buildDetailPanel(),
         ],
       ),
     );
@@ -540,13 +548,11 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
   Future<void> _showAnnouncementDialog() async {
     final titleController = TextEditingController();
     final messageController = TextEditingController();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final send = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor:
-            context.colors.surface,
+        backgroundColor: context.colors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: Text('Send announcement',
             style: AppType.sans(fontWeight: FontWeight.w700)),
@@ -590,8 +596,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
     if (send != true) return;
     if (titleController.text.trim().isEmpty ||
         messageController.text.trim().isEmpty) {
-      _artboardToast('A title and a message are both required',
-          isError: true);
+      _artboardToast('A title and a message are both required', isError: true);
       return;
     }
 
@@ -609,13 +614,10 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
   /// Download the whole tree. JSON keeps every field; CSV opens in a
   /// spreadsheet.
   Future<void> _exportTree() async {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     final choice = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor:
-            context.colors.surface,
+        backgroundColor: context.colors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: Text('Export tree',
             style: AppType.sans(fontWeight: FontWeight.w700)),
@@ -841,25 +843,19 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
           style: AppType.sans(
             fontSize: 13.5,
             fontWeight: FontWeight.w600,
-            color: selected
-                ? accent
-                : (context.colors.ink),
+            color: selected ? accent : (context.colors.ink),
           ),
           selectedItemBuilder: (context) => _generations
               .map((g) => Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      g == 'All'
-                          ? (compact ? 'All' : 'All generations')
-                          : g,
+                      g == 'All' ? (compact ? 'All' : 'All generations') : g,
                       style: AppType.sans(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w600,
                         color: selected
                             ? accent
-                            : (isDark
-                                ? Colors.white
-                                : ArtboardColors.charcoal),
+                            : (isDark ? Colors.white : ArtboardColors.charcoal),
                       ),
                     ),
                   ))
@@ -898,21 +894,15 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
       ),
     );
   }
-  
+
   // Helper method to get color based on theme
-  
-
-
-
-
-
-
 
   Widget _buildFamilyGrid() {
     // Find root person (no parents = generation 1)
-    final roots = _filteredPersons.where((p) => 
-      p.relationships.parentIds.isEmpty).toList();
-    
+    final roots = _filteredPersons
+        .where((p) => p.relationships.parentIds.isEmpty)
+        .toList();
+
     if (roots.isEmpty && _filteredPersons.isNotEmpty) {
       return _buildFlatGrid();
     }
@@ -924,9 +914,9 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
   /// Focus layout - recursive drill-down approach
   Widget _buildFocusLayout(List<Person> roots) {
     if (roots.isEmpty) return const SizedBox();
-    
+
     final patriarch = roots.first;
-    
+
     // Determine current focused person
     Person? currentPerson;
     if (_focusStack.isEmpty) {
@@ -937,10 +927,11 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
         orElse: () => patriarch,
       );
     }
-    
+
     // Get children of current person
-    final children = _persons.where((p) => 
-      p.relationships.parentIds.contains(currentPerson!.id)).toList();
+    final children = _persons
+        .where((p) => p.relationships.parentIds.contains(currentPerson!.id))
+        .toList();
 
     return FadeTransition(
       opacity: _fadeAnimation,
@@ -957,7 +948,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
             ),
           );
         },
-        child: _buildDrillDownView(currentPerson!, children),
+        child: _buildDrillDownView(currentPerson, children),
       ),
     );
   }
@@ -967,14 +958,15 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
     final generation = _getGenerationNumber(person);
     final isRoot = _focusStack.isEmpty;
     final childCount = children.length;
-    
+
     // Get siblings for navigation (children of parent)
     List<Person> siblings = [];
     int currentIndex = 0;
     if (!isRoot && person.relationships.parentIds.isNotEmpty) {
       final parentId = person.relationships.parentIds.first;
-      siblings = _persons.where((p) => 
-        p.relationships.parentIds.contains(parentId)).toList();
+      siblings = _persons
+          .where((p) => p.relationships.parentIds.contains(parentId))
+          .toList();
       currentIndex = siblings.indexWhere((p) => p.id == person.id);
     }
 
@@ -983,7 +975,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
       children: [
         // Navigation header
         if (!isRoot) _buildDrillDownNav(person, color, siblings, currentIndex),
-        
+
         // Main content - aligned to top, horizontally centered
         Expanded(
           child: SingleChildScrollView(
@@ -993,96 +985,102 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                  // Current person - large card
-                  _buildLargeFocusCard(person, color, generation, isRoot, childCount),
-                  
-                  if (children.isNotEmpty) ...[
-                    const SizedBox(height: 20),
-                    
-                    // Connecting line
-                    Container(
-                      width: 3,
-                      height: 26,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            color.withValues(alpha: 0.55),
-                            color.withValues(alpha: 0.12),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(2),
+                // Current person - large card
+                _buildLargeFocusCard(
+                    person, color, generation, isRoot, childCount),
+
+                if (children.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+
+                  // Connecting line
+                  Container(
+                    width: 3,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          color.withValues(alpha: 0.55),
+                          color.withValues(alpha: 0.12),
+                        ],
                       ),
+                      borderRadius: BorderRadius.circular(2),
                     ),
-                    
-                    const SizedBox(height: 10),
-                    
-                    // Children label
-                    Builder(builder: (context) {
-                      final dark =
-                          Theme.of(context).brightness == Brightness.dark;
-                      return Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 7),
-                        decoration: BoxDecoration(
-                          color: color.withValues(alpha: dark ? 0.18 : 0.1),
-                          borderRadius: BorderRadius.circular(30),
-                          border:
-                              Border.all(color: color.withValues(alpha: 0.35)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.child_care_rounded,
-                                size: 14, color: color),
-                            const SizedBox(width: 7),
-                            Text(
-                              '${children.length} '
-                              '${children.length == 1 ? "child" : "children"}',
-                              style: AppType.sans(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                                color: dark ? Colors.white : color,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-                    
-                    const SizedBox(height: 18),
-                    
-                    // Children cards - dynamic spacing
-                    Wrap(
-                      spacing: _getCardSpacing(childCount),
-                      runSpacing: _getCardSpacing(childCount),
-                      alignment: WrapAlignment.center,
-                      children: children.asMap().entries.map((entry) => 
-                        _buildChildCard(entry.value, entry.key, childCount)
-                      ).toList(),
-                    ),
-                  
-                    const SizedBox(height: 32),
-                  
-                    // Hint
-                    if (children.any((c) => _persons.any((p) => p.relationships.parentIds.contains(c.id))))
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  // Children label
+                  Builder(builder: (context) {
+                    final dark =
+                        Theme.of(context).brightness == Brightness.dark;
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: dark ? 0.18 : 0.1),
+                        borderRadius: BorderRadius.circular(30),
+                        border:
+                            Border.all(color: color.withValues(alpha: 0.35)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.touch_app_rounded, size: 18, color: ArtboardColors.warmGray),
-                          const SizedBox(width: 8),
+                          Icon(Icons.child_care_rounded,
+                              size: 14, color: color),
+                          const SizedBox(width: 7),
                           Text(
-                            'Tap to explore descendants',
+                            '${children.length} '
+                            '${children.length == 1 ? "child" : "children"}',
                             style: AppType.sans(
-                              fontSize: 14,
-                              color: ArtboardColors.warmGray,
-                              fontStyle: FontStyle.italic,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: dark ? Colors.white : color,
                             ),
                           ),
                         ],
                       ),
-                  ] else ...[
+                    );
+                  }),
+
+                  const SizedBox(height: 18),
+
+                  // Children cards - dynamic spacing
+                  Wrap(
+                    spacing: _getCardSpacing(childCount),
+                    runSpacing: _getCardSpacing(childCount),
+                    alignment: WrapAlignment.center,
+                    children: children
+                        .asMap()
+                        .entries
+                        .map((entry) =>
+                            _buildChildCard(entry.value, entry.key, childCount))
+                        .toList(),
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Hint
+                  if (children.any((c) => _persons
+                      .any((p) => p.relationships.parentIds.contains(c.id))))
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.touch_app_rounded,
+                            size: 18, color: ArtboardColors.warmGray),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Tap to explore descendants',
+                          style: AppType.sans(
+                            fontSize: 14,
+                            color: ArtboardColors.warmGray,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
+                    ),
+                ] else ...[
                   const SizedBox(height: 60),
                   // No children message
                   Container(
@@ -1093,7 +1091,10 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                     ),
                     child: Column(
                       children: [
-                        Icon(Icons.family_restroom_rounded, size: 40, color: ArtboardColors.warmGray.withValues(alpha: 0.5)),
+                        Icon(Icons.family_restroom_rounded,
+                            size: 40,
+                            color:
+                                ArtboardColors.warmGray.withValues(alpha: 0.5)),
                         const SizedBox(height: 12),
                         Text(
                           'No children recorded',
@@ -1106,13 +1107,13 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                     ),
                   ),
                 ],
-                
+
                 const SizedBox(height: 40),
               ],
             ),
           ),
         ),
-        
+
         // Bottom navigation
       ],
     );
@@ -1242,18 +1243,19 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
     if (count <= 3) return 180;
     return 160;
   }
-  
+
   // Avatar and label stay legible however many siblings share the row; the
   // layout gains rows instead of shrinking type.
   double _getChildAvatarSize(int count) => count <= 3 ? 52 : 44;
 
   double _getChildFontSize(int count) => count <= 3 ? 14.5 : 13.5;
 
-  Widget _buildLargeFocusCard(Person person, Color color, int generation, bool isRoot, int childCount) {
+  Widget _buildLargeFocusCard(
+      Person person, Color color, int generation, bool isRoot, int childCount) {
     final avatarSize = childCount > 6 ? 55.0 : 70.0;
     final nameFontSize = childCount > 6 ? 18.0 : 22.0;
     final maxWidth = childCount > 6 ? 380.0 : 420.0;
-    
+
     return Container(
       constraints: BoxConstraints(maxWidth: maxWidth),
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
@@ -1262,7 +1264,10 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color.withValues(alpha: 0.3), width: 1.5),
         boxShadow: [
-          BoxShadow(color: color.withValues(alpha: 0.12), blurRadius: 20, offset: const Offset(0, 8)),
+          BoxShadow(
+              color: color.withValues(alpha: 0.12),
+              blurRadius: 20,
+              offset: const Offset(0, 8)),
         ],
       ),
       child: Row(
@@ -1279,19 +1284,25 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
               ),
               shape: BoxShape.circle,
               boxShadow: [
-                BoxShadow(color: color.withValues(alpha: 0.35), blurRadius: 10, offset: const Offset(0, 4)),
+                BoxShadow(
+                    color: color.withValues(alpha: 0.35),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4)),
               ],
             ),
             child: Center(
               child: Text(
                 person.firstName[0].toUpperCase(),
-                style: AppType.sans(fontSize: avatarSize * 0.4, fontWeight: FontWeight.w700, color: Colors.white),
+                style: AppType.sans(
+                    fontSize: avatarSize * 0.4,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white),
               ),
             ),
           ),
-          
+
           const SizedBox(width: 16),
-          
+
           // Info
           Expanded(
             child: Column(
@@ -1299,7 +1310,8 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
               children: [
                 // Badge
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: color,
                     borderRadius: BorderRadius.circular(12),
@@ -1308,7 +1320,8 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (isRoot) ...[
-                        const Icon(Icons.star_rounded, size: 12, color: Colors.white),
+                        const Icon(Icons.star_rounded,
+                            size: 12, color: Colors.white),
                         const SizedBox(width: 4),
                       ],
                       Text(
@@ -1323,46 +1336,55 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                     ],
                   ),
                 ),
-                
+
                 const SizedBox(height: 5),
-                
+
                 // Name - dynamic size
                 Text(
                   person.fullName,
-                  style: AppType.sans(fontSize: nameFontSize, fontWeight: FontWeight.w700, color: ArtboardColors.charcoal),
+                  style: AppType.sans(
+                      fontSize: nameFontSize,
+                      fontWeight: FontWeight.w700,
+                      color: ArtboardColors.charcoal),
                 ),
-                
+
                 if (person.lifespan.isNotEmpty)
                   Text(
                     person.lifespan,
-                    style: AppType.sans(fontSize: 12, color: ArtboardColors.warmGray),
+                    style: AppType.sans(
+                        fontSize: 12, color: ArtboardColors.warmGray),
                   ),
-                
+
                 const SizedBox(height: 4),
-                
+
                 // Stats
                 Text(
                   '${_getDescendantCount(person)} descendants',
-                  style: AppType.sans(fontSize: 12, fontWeight: FontWeight.w600, color: color),
+                  style: AppType.sans(
+                      fontSize: 12, fontWeight: FontWeight.w600, color: color),
                 ),
               ],
             ),
           ),
-          
+
           // Actions
           Column(
             children: [
-              _buildMiniAction(Icons.edit_rounded, ArtboardColors.sage, () => _showEditDialog(person)),
+              _buildMiniAction(Icons.edit_rounded, ArtboardColors.sage,
+                  () => _showEditDialog(person)),
               const SizedBox(height: 6),
-              _buildMiniAction(Icons.person_add_alt_rounded, color, () => _showUnifiedAddDialog(preSelectedParent: person)),
+              _buildMiniAction(Icons.person_add_alt_rounded, color,
+                  () => _showUnifiedAddDialog(preSelectedParent: person)),
               const SizedBox(height: 6),
               // Moving somebody between branches, and recording a marriage.
               // Without this the only way to correct a relative filed under
               // the wrong parent was to delete them and everything below.
-              _buildMiniAction(Icons.account_tree_rounded, ArtboardColors.softBlue, () => _editRelationships(person)),
+              _buildMiniAction(Icons.account_tree_rounded,
+                  ArtboardColors.softBlue, () => _editRelationships(person)),
               if (!isRoot) ...[
                 const SizedBox(height: 6),
-                _buildMiniAction(Icons.delete_outline_rounded, ArtboardColors.rust, () => _confirmDelete(person)),
+                _buildMiniAction(Icons.delete_outline_rounded,
+                    ArtboardColors.rust, () => _confirmDelete(person)),
               ],
             ],
           ),
@@ -1375,12 +1397,12 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
     final color = _getBranchColor(person);
     final descendantCount = _getDescendantCount(person);
     final hasChildren = descendantCount > 0;
-    
+
     // Dynamic sizing based on total children
     final cardWidth = _getChildCardWidth(totalChildren);
     final avatarSize = _getChildAvatarSize(totalChildren);
     final fontSize = _getChildFontSize(totalChildren);
-    
+
     return LongPressDraggable<Person>(
       data: person,
       delay: const Duration(milliseconds: 300),
@@ -1451,7 +1473,9 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                 duration: Duration(milliseconds: 200 + (index * 40)),
                 curve: Curves.easeOutBack,
                 builder: (context, value, child) {
-                  return Transform.scale(scale: value, child: Opacity(opacity: value, child: child));
+                  return Transform.scale(
+                      scale: value,
+                      child: Opacity(opacity: value, child: child));
                 },
                 child: Container(
                   width: cardWidth,
@@ -1460,15 +1484,15 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                     color: _cardSurface(context),
                     borderRadius: BorderRadius.circular(18),
                     border: Border.all(
-                      color: isHovering ? color : color.withValues(alpha: 0.3), 
-                      width: isHovering ? 2 : 1
-                    ),
+                        color:
+                            isHovering ? color : color.withValues(alpha: 0.3),
+                        width: isHovering ? 2 : 1),
                     boxShadow: [
                       BoxShadow(
-                        color: color.withValues(alpha: isHovering ? 0.2 : 0.08), 
-                        blurRadius: isHovering ? 16 : 10, 
-                        offset: const Offset(0, 4)
-                      ),
+                          color:
+                              color.withValues(alpha: isHovering ? 0.2 : 0.08),
+                          blurRadius: isHovering ? 16 : 10,
+                          offset: const Offset(0, 4)),
                     ],
                   ),
                   child: Column(
@@ -1485,46 +1509,60 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                             colors: [color.withValues(alpha: 0.85), color],
                           ),
                           shape: BoxShape.circle,
-                          boxShadow: [BoxShadow(color: color.withValues(alpha: 0.25), blurRadius: 8, offset: const Offset(0, 2))],
+                          boxShadow: [
+                            BoxShadow(
+                                color: color.withValues(alpha: 0.25),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2))
+                          ],
                         ),
                         child: Center(
                           child: Text(
                             person.firstName[0].toUpperCase(),
-                            style: AppType.sans(fontSize: avatarSize * 0.44, fontWeight: FontWeight.w700, color: Colors.white),
+                            style: AppType.sans(
+                                fontSize: avatarSize * 0.44,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white),
                           ),
                         ),
                       ),
-                      
+
                       SizedBox(height: 10),
-                      
+
                       // Name
                       Text(
                         person.firstName,
-                        style: AppType.sans(fontSize: fontSize, fontWeight: FontWeight.w700, color: ArtboardColors.charcoal),
+                        style: AppType.sans(
+                            fontSize: fontSize,
+                            fontWeight: FontWeight.w700,
+                            color: ArtboardColors.charcoal),
                         textAlign: TextAlign.center,
                         overflow: TextOverflow.ellipsis,
                         maxLines: 1,
                       ),
-                        Text(
-                          person.lastName,
-                          style: AppType.sans(fontSize: fontSize - 2, color: ArtboardColors.warmGray),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      
+                      Text(
+                        person.lastName,
+                        style: AppType.sans(
+                            fontSize: fontSize - 2,
+                            color: ArtboardColors.warmGray),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+
                       SizedBox(height: 8),
-                      
+
                       // Descendants or explore
                       Text(
                         hasChildren ? '$descendantCount desc.' : 'No children',
                         style: AppType.sans(
-                          fontSize: 11, 
-                          fontWeight: hasChildren ? FontWeight.w600 : FontWeight.w400,
+                          fontSize: 11,
+                          fontWeight:
+                              hasChildren ? FontWeight.w600 : FontWeight.w400,
                           color: hasChildren ? color : ArtboardColors.warmGray,
                         ),
                       ),
-                      
+
                       SizedBox(height: 8),
-                      
+
                       // Admin Actions Row - Edit/Delete
                       FittedBox(
                         fit: BoxFit.scaleDown,
@@ -1538,7 +1576,8 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                               child: Container(
                                 padding: EdgeInsets.all(8),
                                 decoration: BoxDecoration(
-                                  color: ArtboardColors.sage.withValues(alpha: 0.15),
+                                  color: ArtboardColors.sage
+                                      .withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Icon(
@@ -1551,16 +1590,24 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                             SizedBox(width: 10),
                             // Explore/View button
                             GestureDetector(
-                              onTap: () => setState(() => _focusStack.add(person.id)),
+                              onTap: () =>
+                                  setState(() => _focusStack.add(person.id)),
                               child: Container(
-                                padding: EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                                padding: EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 7),
                                 decoration: BoxDecoration(
-                                  color: hasChildren ? color : ArtboardColors.warmGray.withValues(alpha: 0.3),
+                                  color: hasChildren
+                                      ? color
+                                      : ArtboardColors.warmGray
+                                          .withValues(alpha: 0.3),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Text(
                                   hasChildren ? 'Explore' : 'View',
-                                  style: AppType.sans(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white),
+                                  style: AppType.sans(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white),
                                 ),
                               ),
                             ),
@@ -1595,13 +1642,9 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
     );
   }
 
-
-
-
   /// Compact vertical list layout
 
   /// Horizontal tree layout
-
 
   /// Horizontal tree node (original tree layout)
 
@@ -1609,11 +1652,10 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
 
   /// Compact vertical tree - much easier to read
 
-
-
   int _getDescendantCount(Person person) {
-    final children = _persons.where((p) => 
-      p.relationships.parentIds.contains(person.id)).toList();
+    final children = _persons
+        .where((p) => p.relationships.parentIds.contains(person.id))
+        .toList();
     int count = children.length;
     for (final child in children) {
       count += _getDescendantCount(child);
@@ -1637,8 +1679,6 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
     );
   }
 
-
-
   Widget _buildMiniAction(IconData icon, Color color, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
@@ -1657,7 +1697,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
     final generation = _getGenerationNumber(person);
     final branchColor = _getBranchColor(person);
     final isSelected = _selectedPerson?.id == person.id;
-    
+
     return LongPressDraggable<Person>(
       data: person,
       delay: const Duration(milliseconds: 300),
@@ -1684,7 +1724,10 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                     height: 60,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [branchColor.withValues(alpha: 0.8), branchColor],
+                        colors: [
+                          branchColor.withValues(alpha: 0.8),
+                          branchColor
+                        ],
                       ),
                       shape: BoxShape.circle,
                     ),
@@ -1716,7 +1759,8 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
       ),
       childWhenDragging: Opacity(
         opacity: 0.3,
-        child: _buildCardContent(person, index, generation, branchColor, isSelected),
+        child: _buildCardContent(
+            person, index, generation, branchColor, isSelected),
       ),
       onDragStarted: () {
         setState(() => _selectedPerson = person);
@@ -1730,7 +1774,8 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
           final isHovering = candidateData.isNotEmpty;
           return AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            transform: Matrix4.identity()..scale(isHovering ? 1.05 : (isSelected ? 1.02 : 1.0)),
+            transform: Matrix4.identity()
+              ..scale(isHovering ? 1.05 : (isSelected ? 1.02 : 1.0)),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(24),
               boxShadow: isHovering
@@ -1743,21 +1788,22 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                     ]
                   : [],
             ),
-            child: _buildCardContent(person, index, generation, branchColor, isSelected),
+            child: _buildCardContent(
+                person, index, generation, branchColor, isSelected),
           );
         },
       ),
     );
   }
-  
-  Widget _buildCardContent(Person person, int index, int generation, Color branchColor, bool isSelected) {
+
+  Widget _buildCardContent(Person person, int index, int generation,
+      Color branchColor, bool isSelected) {
     return GestureDetector(
       onTap: () => setState(() => _selectedPerson = person),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOutCubic,
-        transform: Matrix4.identity()
-          ..scale(isSelected ? 1.02 : 1.0),
+        transform: Matrix4.identity()..scale(isSelected ? 1.02 : 1.0),
         decoration: BoxDecoration(
           color: _cardSurface(context),
           borderRadius: BorderRadius.circular(24),
@@ -1767,7 +1813,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
           ),
           boxShadow: [
             BoxShadow(
-              color: isSelected 
+              color: isSelected
                   ? branchColor.withValues(alpha: 0.2)
                   : ArtboardColors.sienna.withValues(alpha: 0.08),
               blurRadius: isSelected ? 24 : 16,
@@ -1793,7 +1839,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                 ),
               ),
             ),
-            
+
             // Content
             Padding(
               padding: const EdgeInsets.all(20),
@@ -1802,7 +1848,8 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                 children: [
                   // Generation badge
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: branchColor.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(20),
@@ -1817,9 +1864,9 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                       ),
                     ),
                   ),
-                  
+
                   const Spacer(),
-                  
+
                   // Avatar
                   Center(
                     child: Container(
@@ -1855,9 +1902,9 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                       ),
                     ),
                   ),
-                  
+
                   const Spacer(),
-                  
+
                   // Name
                   Text(
                     person.firstName,
@@ -1877,9 +1924,9 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                       fontStyle: FontStyle.italic,
                     ),
                   ),
-                  
+
                   const SizedBox(height: 8),
-                  
+
                   // Lifespan
                   if (person.lifespan.isNotEmpty)
                     Row(
@@ -1899,9 +1946,9 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                         ),
                       ],
                     ),
-                  
+
                   const Spacer(),
-                  
+
                   // Action buttons
                   Row(
                     children: [
@@ -1945,7 +1992,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
     final person = _selectedPerson!;
     final generation = _getGenerationNumber(person);
     final branchColor = _getBranchColor(person);
-    
+
     return Positioned(
       right: 0,
       top: 0,
@@ -1992,7 +2039,8 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
                             color: branchColor.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(20),
@@ -2025,7 +2073,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                       ],
                     ),
                     const SizedBox(height: 24),
-                    
+
                     // Avatar
                     Container(
                       width: 100,
@@ -2034,7 +2082,10 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                         gradient: LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
-                          colors: [branchColor.withValues(alpha: 0.8), branchColor],
+                          colors: [
+                            branchColor.withValues(alpha: 0.8),
+                            branchColor
+                          ],
                         ),
                         shape: BoxShape.circle,
                         boxShadow: [
@@ -2057,7 +2108,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                       ),
                     ),
                     const SizedBox(height: 16),
-                    
+
                     Text(
                       person.fullName,
                       style: AppType.sans(
@@ -2079,7 +2130,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                   ],
                 ),
               ),
-              
+
               // Details
               Expanded(
                 child: SingleChildScrollView(
@@ -2087,14 +2138,15 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildDetailSection('Bio', person.bio ?? 'No biography added yet.'),
+                      _buildDetailSection(
+                          'Bio', person.bio ?? 'No biography added yet.'),
                       const SizedBox(height: 20),
                       _buildRelationshipSection(person),
                     ],
                   ),
                 ),
               ),
-              
+
               // Actions
               Container(
                 padding: const EdgeInsets.all(24),
@@ -2154,10 +2206,12 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
   }
 
   Widget _buildRelationshipSection(Person person) {
-    final parents = _persons.where((p) => 
-      person.relationships.parentIds.contains(p.id)).toList();
-    final children = _persons.where((p) => 
-      person.relationships.childrenIds.contains(p.id)).toList();
+    final parents = _persons
+        .where((p) => person.relationships.parentIds.contains(p.id))
+        .toList();
+    final children = _persons
+        .where((p) => person.relationships.childrenIds.contains(p.id))
+        .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2172,7 +2226,6 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
           ),
         ),
         const SizedBox(height: 12),
-        
         if (parents.isNotEmpty) ...[
           Text(
             'Parents',
@@ -2186,7 +2239,6 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
           ...parents.map((p) => _buildRelationChip(p)),
           const SizedBox(height: 16),
         ],
-        
         if (children.isNotEmpty) ...[
           Text(
             'Children (${children.length})',
@@ -2253,7 +2305,8 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
     );
   }
 
-  Widget _buildPanelButton(String label, IconData icon, Color color, VoidCallback onTap) {
+  Widget _buildPanelButton(
+      String label, IconData icon, Color color, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -2288,8 +2341,6 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
     );
   }
 
-
-
   Widget _buildLoadingState() {
     return Center(
       child: Column(
@@ -2300,7 +2351,8 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
             height: 48,
             child: CircularProgressIndicator(
               strokeWidth: 3,
-              valueColor: AlwaysStoppedAnimation<Color>(ArtboardColors.terracotta),
+              valueColor:
+                  AlwaysStoppedAnimation<Color>(ArtboardColors.terracotta),
             ),
           ),
           const SizedBox(height: 24),
@@ -2317,11 +2369,9 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
     );
   }
 
-
   // ═══════════════════════════════════════════════════════════════════════════
   // UNIFIED ADD MEMBER DIALOG - Clean, Single Dialog for All Cases
   // ═══════════════════════════════════════════════════════════════════════════
-  
 
   void _showUnifiedAddDialog({Person? preSelectedParent}) {
     final firstNameController = TextEditingController();
@@ -2332,7 +2382,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
     final bool canAddAsRoot = _persons.isEmpty;
     bool addAsRoot = canAddAsRoot;
     int selectedOrder = 1; // Birth order (1 = first child, 2 = second, etc.)
-    
+
     // Pre-fill father name
     if (selectedParent != null) {
       lastNameController.text = selectedParent.firstName;
@@ -2342,12 +2392,16 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
-          final accentColor = addAsRoot ? ArtboardColors.gold 
-            : (selectedParent != null ? _getBranchColor(selectedParent!) : ArtboardColors.sage);
+          final accentColor = addAsRoot
+              ? ArtboardColors.gold
+              : (selectedParent != null
+                  ? _getBranchColor(selectedParent)
+                  : ArtboardColors.sage);
 
           return AlertDialog(
             backgroundColor: ArtboardColors.warmWhite,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             title: Row(
               children: [
                 Container(
@@ -2397,7 +2451,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                             ),
                             child: Center(
                               child: Text(
-                                selectedParent!.firstName[0].toUpperCase(),
+                                selectedParent.firstName[0].toUpperCase(),
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
@@ -2407,7 +2461,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                           ),
                           const SizedBox(width: 10),
                           Text(
-                            'Child of ${selectedParent!.firstName}',
+                            'Child of ${selectedParent.firstName}',
                             style: AppType.sans(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -2419,7 +2473,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                     ),
                     const SizedBox(height: 16),
                   ],
-                  
+
                   // First Name
                   TextField(
                     controller: firstNameController,
@@ -2427,7 +2481,8 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                     decoration: InputDecoration(
                       labelText: 'First Name *',
                       labelStyle: AppType.sans(color: ArtboardColors.warmGray),
-                      prefixIcon: const Icon(Icons.person_rounded, color: ArtboardColors.warmGray, size: 20),
+                      prefixIcon: const Icon(Icons.person_rounded,
+                          color: ArtboardColors.warmGray, size: 20),
                       filled: true,
                       fillColor: ArtboardColors.cream,
                       border: OutlineInputBorder(
@@ -2437,7 +2492,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                     ),
                   ),
                   const SizedBox(height: 12),
-                  
+
                   // Father/Family Name
                   TextField(
                     controller: lastNameController,
@@ -2445,7 +2500,8 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                     decoration: InputDecoration(
                       labelText: addAsRoot ? 'Family Name *' : 'Father Name',
                       labelStyle: AppType.sans(color: ArtboardColors.warmGray),
-                      prefixIcon: const Icon(Icons.person_outline_rounded, color: ArtboardColors.warmGray, size: 20),
+                      prefixIcon: const Icon(Icons.person_outline_rounded,
+                          color: ArtboardColors.warmGray, size: 20),
                       filled: true,
                       fillColor: ArtboardColors.cream,
                       border: OutlineInputBorder(
@@ -2455,27 +2511,31 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                     ),
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Birth Order Selection (only for children, not roots)
-                  if (!addAsRoot && selectedParent != null) ...[ 
+                  if (!addAsRoot && selectedParent != null) ...[
                     Builder(
                       builder: (context) {
                         // Get current siblings (children of selected parent)
-                        final siblings = _persons.where((p) => 
-                          p.relationships.parentIds.contains(selectedParent!.id)).toList();
+                        final siblings = _persons
+                            .where((p) => p.relationships.parentIds
+                                .contains(selectedParent.id))
+                            .toList();
                         final siblingCount = siblings.length;
-                        final maxOrder = siblingCount + 1; // New child can be 1st to (n+1)th
-                        
+                        final maxOrder =
+                            siblingCount + 1; // New child can be 1st to (n+1)th
+
                         // Ensure selectedOrder is valid
                         if (selectedOrder > maxOrder) {
                           WidgetsBinding.instance.addPostFrameCallback((_) {
                             setDialogState(() => selectedOrder = maxOrder);
                           });
                         }
-                        
+
                         return Row(
                           children: [
-                            Icon(Icons.format_list_numbered, color: accentColor, size: 20),
+                            Icon(Icons.format_list_numbered,
+                                color: accentColor, size: 20),
                             const SizedBox(width: 8),
                             Text(
                               'Birth Order',
@@ -2487,7 +2547,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              '(${siblingCount} existing)',
+                              '($siblingCount existing)',
                               style: AppType.sans(
                                 fontSize: 12,
                                 color: ArtboardColors.warmGray,
@@ -2495,7 +2555,8 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                             ),
                             const Spacer(),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 4),
                               decoration: BoxDecoration(
                                 color: accentColor.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(8),
@@ -2509,17 +2570,24 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                                   color: accentColor,
                                 ),
                                 dropdownColor: ArtboardColors.warmWhite,
-                                items: List.generate(maxOrder, (i) => i + 1).map((n) => 
-                                  DropdownMenuItem(
-                                    value: n,
-                                    child: Text(
-                                      n == 1 ? '1st' : 
-                                      n == 2 ? '2nd' : 
-                                      n == 3 ? '3rd' : '${n}th',
-                                    ),
-                                  ),
-                                ).toList(),
-                                onChanged: (val) => setDialogState(() => selectedOrder = val ?? 1),
+                                items: List.generate(maxOrder, (i) => i + 1)
+                                    .map(
+                                      (n) => DropdownMenuItem(
+                                        value: n,
+                                        child: Text(
+                                          n == 1
+                                              ? '1st'
+                                              : n == 2
+                                                  ? '2nd'
+                                                  : n == 3
+                                                      ? '3rd'
+                                                      : '${n}th',
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (val) => setDialogState(
+                                    () => selectedOrder = val ?? 1),
                               ),
                             ),
                           ],
@@ -2528,7 +2596,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                     ),
                     const SizedBox(height: 16),
                   ],
-                  
+
                   // Gender Selection - Simple buttons
                   Row(
                     children: [
@@ -2538,22 +2606,34 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             decoration: BoxDecoration(
-                              color: gender == 'male' ? Colors.blue.withValues(alpha: 0.15) : ArtboardColors.cream,
+                              color: gender == 'male'
+                                  ? Colors.blue.withValues(alpha: 0.15)
+                                  : ArtboardColors.cream,
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: gender == 'male' ? Colors.blue : Colors.transparent,
+                                color: gender == 'male'
+                                    ? Colors.blue
+                                    : Colors.transparent,
                                 width: 2,
                               ),
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.male, color: gender == 'male' ? Colors.blue : ArtboardColors.warmGray),
+                                Icon(Icons.male,
+                                    color: gender == 'male'
+                                        ? Colors.blue
+                                        : ArtboardColors.warmGray),
                                 const SizedBox(width: 6),
-                                Text('Male', style: TextStyle(
-                                  color: gender == 'male' ? Colors.blue : ArtboardColors.warmGray,
-                                  fontWeight: gender == 'male' ? FontWeight.bold : FontWeight.normal,
-                                )),
+                                Text('Male',
+                                    style: TextStyle(
+                                      color: gender == 'male'
+                                          ? Colors.blue
+                                          : ArtboardColors.warmGray,
+                                      fontWeight: gender == 'male'
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                    )),
                               ],
                             ),
                           ),
@@ -2566,22 +2646,34 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             decoration: BoxDecoration(
-                              color: gender == 'female' ? Colors.pink.withValues(alpha: 0.15) : ArtboardColors.cream,
+                              color: gender == 'female'
+                                  ? Colors.pink.withValues(alpha: 0.15)
+                                  : ArtboardColors.cream,
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: gender == 'female' ? Colors.pink : Colors.transparent,
+                                color: gender == 'female'
+                                    ? Colors.pink
+                                    : Colors.transparent,
                                 width: 2,
                               ),
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.female, color: gender == 'female' ? Colors.pink : ArtboardColors.warmGray),
+                                Icon(Icons.female,
+                                    color: gender == 'female'
+                                        ? Colors.pink
+                                        : ArtboardColors.warmGray),
                                 const SizedBox(width: 6),
-                                Text('Female', style: TextStyle(
-                                  color: gender == 'female' ? Colors.pink : ArtboardColors.warmGray,
-                                  fontWeight: gender == 'female' ? FontWeight.bold : FontWeight.normal,
-                                )),
+                                Text('Female',
+                                    style: TextStyle(
+                                      color: gender == 'female'
+                                          ? Colors.pink
+                                          : ArtboardColors.warmGray,
+                                      fontWeight: gender == 'female'
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                    )),
                               ],
                             ),
                           ),
@@ -2595,102 +2687,124 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
             actions: [
               TextButton(
                 onPressed: isLoading ? null : () => Navigator.pop(context),
-                child: Text('Cancel', style: TextStyle(color: ArtboardColors.warmGray)),
+                child: Text('Cancel',
+                    style: TextStyle(color: ArtboardColors.warmGray)),
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: accentColor,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
-                onPressed: isLoading ? null : () async {
-                  if (firstNameController.text.trim().isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Please enter first name'), backgroundColor: Colors.red),
-                    );
-                    return;
-                  }
-                  if (lastNameController.text.trim().isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Please enter family/father name'), backgroundColor: Colors.red),
-                    );
-                    return;
-                  }
-                  
-                  setDialogState(() => isLoading = true);
-                  
-                  // Use user-selected order for children, auto-calculate for roots
-                  int newDisplayOrder = selectedOrder;
-                  if (addAsRoot) {
-                    // For roots, calculate based on existing roots
-                    final roots = _persons.where((p) => p.relationships.parentIds.isEmpty).toList();
-                    if (roots.isNotEmpty) {
-                      final maxOrder = roots.map((s) => s.displayOrder).reduce((a, b) => a > b ? a : b);
-                      newDisplayOrder = maxOrder + 1;
-                    } else {
-                      newDisplayOrder = 1;
-                    }
-                  } else if (selectedParent != null) {
-                    // Shift existing siblings at or above selectedOrder up by 1
-                    final siblings = _persons.where((p) => 
-                      p.relationships.parentIds.contains(selectedParent!.id) &&
-                      p.displayOrder >= selectedOrder
-                    ).toList();
-                    
-                    // Sort by order descending so we shift from top to bottom
-                    siblings.sort((a, b) => b.displayOrder.compareTo(a.displayOrder));
-                    
-                    for (final sibling in siblings) {
-                      await _adminRepo.updatePerson(
-                        sibling.copyWith(displayOrder: sibling.displayOrder + 1)
-                      );
-                    }
-                  }
-                  
-                  final newPerson = Person(
-                    id: '',
-                    familyTreeId: AppConfig.familyTreeId,
-                    firstName: firstNameController.text.trim(),
-                    lastName: lastNameController.text.trim(),
-                    gender: gender,
-                    relationships: Relationships(
-                      parentIds: addAsRoot ? [] : [selectedParent!.id],
-                    ),
-                    displayOrder: newDisplayOrder,
-                    createdAt: DateTime.now(),
-                    updatedAt: DateTime.now(),
-                  );
-                  
-                  try {
-                    // One request. The parent's side of the link is derived by
-                    // the server from the child's parentIds, so the second call
-                    // that used to append to the parent's childrenIds — and
-                    // left the tree inconsistent whenever it failed — is gone.
-                    await _adminRepo.addPerson(newPerson);
+                onPressed: isLoading
+                    ? null
+                    : () async {
+                        if (firstNameController.text.trim().isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text('Please enter first name'),
+                                backgroundColor: Colors.red),
+                          );
+                          return;
+                        }
+                        if (lastNameController.text.trim().isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content:
+                                    Text('Please enter family/father name'),
+                                backgroundColor: Colors.red),
+                          );
+                          return;
+                        }
 
-                    if (!mounted) return;
-                    Navigator.pop(context);
-                    _loadData();
+                        setDialogState(() => isLoading = true);
 
-                    ScaffoldMessenger.of(this.context).showSnackBar(
-                      SnackBar(
-                        content: Text('${firstNameController.text} added'),
-                        backgroundColor: accentColor,
-                      ),
-                    );
-                  } catch (e) {
-                    if (!mounted) return;
-                    setDialogState(() => isLoading = false);
-                    ScaffoldMessenger.of(this.context).showSnackBar(
-                      SnackBar(
-                        content: Text(readableError(e)),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                },
+                        // Use user-selected order for children, auto-calculate for roots
+                        int newDisplayOrder = selectedOrder;
+                        if (addAsRoot) {
+                          // For roots, calculate based on existing roots
+                          final roots = _persons
+                              .where((p) => p.relationships.parentIds.isEmpty)
+                              .toList();
+                          if (roots.isNotEmpty) {
+                            final maxOrder = roots
+                                .map((s) => s.displayOrder)
+                                .reduce((a, b) => a > b ? a : b);
+                            newDisplayOrder = maxOrder + 1;
+                          } else {
+                            newDisplayOrder = 1;
+                          }
+                        } else if (selectedParent != null) {
+                          // Shift existing siblings at or above selectedOrder up by 1
+                          final siblings = _persons
+                              .where((p) =>
+                                  p.relationships.parentIds
+                                      .contains(selectedParent.id) &&
+                                  p.displayOrder >= selectedOrder)
+                              .toList();
+
+                          // Sort by order descending so we shift from top to bottom
+                          siblings.sort((a, b) =>
+                              b.displayOrder.compareTo(a.displayOrder));
+
+                          for (final sibling in siblings) {
+                            await _adminRepo.updatePerson(sibling.copyWith(
+                                displayOrder: sibling.displayOrder + 1));
+                          }
+                        }
+
+                        final newPerson = Person(
+                          id: '',
+                          familyTreeId: AppConfig.familyTreeId,
+                          firstName: firstNameController.text.trim(),
+                          lastName: lastNameController.text.trim(),
+                          gender: gender,
+                          relationships: Relationships(
+                            parentIds: addAsRoot ? [] : [selectedParent!.id],
+                          ),
+                          displayOrder: newDisplayOrder,
+                          createdAt: DateTime.now(),
+                          updatedAt: DateTime.now(),
+                        );
+
+                        try {
+                          // One request. The parent's side of the link is derived by
+                          // the server from the child's parentIds, so the second call
+                          // that used to append to the parent's childrenIds — and
+                          // left the tree inconsistent whenever it failed — is gone.
+                          await _adminRepo.addPerson(newPerson);
+
+                          if (!mounted) return;
+                          Navigator.pop(context);
+                          _loadData();
+
+                          ScaffoldMessenger.of(this.context).showSnackBar(
+                            SnackBar(
+                              content:
+                                  Text('${firstNameController.text} added'),
+                              backgroundColor: accentColor,
+                            ),
+                          );
+                        } catch (e) {
+                          if (!mounted) return;
+                          setDialogState(() => isLoading = false);
+                          ScaffoldMessenger.of(this.context).showSnackBar(
+                            SnackBar(
+                              content: Text(readableError(e)),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      },
                 child: isLoading
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('Add', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                    : const Text('Add',
+                        style: TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.bold)),
               ),
             ],
           );
@@ -2698,33 +2812,34 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
       ),
     );
   }
-  
 
-  
   // Drag-drop swap method - swaps displayOrder to change sibling order
   void _swapPersons(Person draggedPerson, Person targetPerson) async {
     final tempOrder = draggedPerson.displayOrder;
-    
+
     // Create updated persons with swapped displayOrder
-    final updatedDragged = draggedPerson.copyWith(displayOrder: targetPerson.displayOrder);
+    final updatedDragged =
+        draggedPerson.copyWith(displayOrder: targetPerson.displayOrder);
     final updatedTarget = targetPerson.copyWith(displayOrder: tempOrder);
-    
+
     // Immediately update local state for instant visual feedback
     setState(() {
       final draggedIndex = _persons.indexWhere((p) => p.id == draggedPerson.id);
       final targetIndex = _persons.indexWhere((p) => p.id == targetPerson.id);
-      
+
       if (draggedIndex >= 0) {
         _persons[draggedIndex] = updatedDragged;
       }
       if (targetIndex >= 0) {
         _persons[targetIndex] = updatedTarget;
       }
-      
+
       // Also update filtered list
-      final draggedFilteredIndex = _filteredPersons.indexWhere((p) => p.id == draggedPerson.id);
-      final targetFilteredIndex = _filteredPersons.indexWhere((p) => p.id == targetPerson.id);
-      
+      final draggedFilteredIndex =
+          _filteredPersons.indexWhere((p) => p.id == draggedPerson.id);
+      final targetFilteredIndex =
+          _filteredPersons.indexWhere((p) => p.id == targetPerson.id);
+
       if (draggedFilteredIndex >= 0) {
         _filteredPersons[draggedFilteredIndex] = updatedDragged;
       }
@@ -2732,7 +2847,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
         _filteredPersons[targetFilteredIndex] = updatedTarget;
       }
     });
-    
+
     // Persist to backend (async, no await needed for UI)
     try {
       await _personRepo.updatePerson(updatedDragged);
@@ -2757,13 +2872,15 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
   void _showEditDialog(Person person) {
     final firstNameController = TextEditingController(text: person.firstName);
     final lastNameController = TextEditingController(text: person.lastName);
-    final birthYearController = TextEditingController(text: person.birthDate?.year.toString() ?? '');
-    final deathYearController = TextEditingController(text: person.deathDate?.year.toString() ?? '');
+    final birthYearController =
+        TextEditingController(text: person.birthDate?.year.toString() ?? '');
+    final deathYearController =
+        TextEditingController(text: person.deathDate?.year.toString() ?? '');
     final bioController = TextEditingController(text: person.bio ?? '');
     String gender = person.gender ?? 'male';
     int displayOrder = person.displayOrder > 0 ? person.displayOrder : 1;
     bool isLoading = false;
-    
+
     final color = _getBranchColor(person);
     final gen = _getGenerationNumber(person);
     final isRoot = person.relationships.parentIds.isEmpty;
@@ -2773,7 +2890,8 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => Dialog(
           backgroundColor: ArtboardColors.warmWhite,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           child: Container(
             width: 450,
             constraints: const BoxConstraints(maxHeight: 600),
@@ -2785,7 +2903,8 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     color: color.withValues(alpha: 0.1),
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(24)),
                   ),
                   child: Row(
                     children: [
@@ -2823,14 +2942,18 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                             Row(
                               children: [
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 2),
                                   decoration: BoxDecoration(
                                     color: isRoot ? ArtboardColors.gold : color,
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
                                     isRoot ? '★ PATRIARCH' : 'Gen $gen',
-                                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white),
+                                    style: const TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
@@ -2861,37 +2984,51 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                     padding: const EdgeInsets.all(20),
                     child: Column(
                       children: [
-                        _buildTextField(firstNameController, 'First Name *', Icons.person),
+                        _buildTextField(
+                            firstNameController, 'First Name *', Icons.person),
                         const SizedBox(height: 12),
-                        _buildTextField(lastNameController, 'Father Name *', Icons.person_outline),
+                        _buildTextField(lastNameController, 'Father Name *',
+                            Icons.person_outline),
                         const SizedBox(height: 12),
                         Row(
                           children: [
-                            Expanded(child: _buildTextField(birthYearController, 'Birth Year', Icons.cake, 1, true)),
+                            Expanded(
+                                child: _buildTextField(birthYearController,
+                                    'Birth Year', Icons.cake, 1, true)),
                             const SizedBox(width: 12),
-                            Expanded(child: _buildTextField(deathYearController, 'Death Year', Icons.event, 1, true)),
+                            Expanded(
+                                child: _buildTextField(deathYearController,
+                                    'Death Year', Icons.event, 1, true)),
                           ],
                         ),
                         const SizedBox(height: 12),
-                        _buildGenderSelector(gender, (val) => setDialogState(() => gender = val)),
+                        _buildGenderSelector(gender,
+                            (val) => setDialogState(() => gender = val)),
                         const SizedBox(height: 12),
                         // Birth Order (only for non-roots)
                         if (!isRoot) ...[
                           Builder(
                             builder: (context) {
                               // Get siblings (children of same parent, excluding self)
-                              final siblings = _persons.where((p) =>
-                                p.id != person.id &&
-                                p.relationships.parentIds.any((pid) => 
-                                  person.relationships.parentIds.contains(pid))
-                              ).toList();
-                              final siblingCount = siblings.length + 1; // Including self
-                              
+                              final siblings = _persons
+                                  .where((p) =>
+                                      p.id != person.id &&
+                                      p.relationships.parentIds.any((pid) =>
+                                          person.relationships.parentIds
+                                              .contains(pid)))
+                                  .toList();
+                              final siblingCount =
+                                  siblings.length + 1; // Including self
+
                               // Get current order label
-                              final currentOrderLabel = person.displayOrder == 1 ? '1st' :
-                                person.displayOrder == 2 ? '2nd' :
-                                person.displayOrder == 3 ? '3rd' : '${person.displayOrder}th';
-                              
+                              final currentOrderLabel = person.displayOrder == 1
+                                  ? '1st'
+                                  : person.displayOrder == 2
+                                      ? '2nd'
+                                      : person.displayOrder == 3
+                                          ? '3rd'
+                                          : '${person.displayOrder}th';
+
                               return Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
@@ -2903,7 +3040,8 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                                   children: [
                                     Row(
                                       children: [
-                                        Icon(Icons.format_list_numbered, color: color, size: 20),
+                                        Icon(Icons.format_list_numbered,
+                                            color: color, size: 20),
                                         const SizedBox(width: 10),
                                         Text(
                                           'Current: $currentOrderLabel child',
@@ -2934,14 +3072,19 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                                         ),
                                         const SizedBox(width: 10),
                                         Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 12, vertical: 4),
                                           decoration: BoxDecoration(
                                             color: Colors.white,
-                                            borderRadius: BorderRadius.circular(8),
-                                            border: Border.all(color: color.withValues(alpha: 0.3)),
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                            border: Border.all(
+                                                color: color.withValues(
+                                                    alpha: 0.3)),
                                           ),
                                           child: DropdownButton<int>(
-                                            value: displayOrder.clamp(1, siblingCount),
+                                            value: displayOrder.clamp(
+                                                1, siblingCount),
                                             underline: const SizedBox(),
                                             isDense: true,
                                             style: AppType.sans(
@@ -2949,18 +3092,27 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                                               fontWeight: FontWeight.bold,
                                               color: color,
                                             ),
-                                            dropdownColor: ArtboardColors.warmWhite,
-                                            items: List.generate(siblingCount, (i) => i + 1).map((n) => 
-                                              DropdownMenuItem(
-                                                value: n,
-                                                child: Text(
-                                                  n == 1 ? '1st' : 
-                                                  n == 2 ? '2nd' : 
-                                                  n == 3 ? '3rd' : '${n}th',
-                                                ),
-                                              ),
-                                            ).toList(),
-                                            onChanged: (val) => setDialogState(() => displayOrder = val ?? 1),
+                                            dropdownColor:
+                                                ArtboardColors.warmWhite,
+                                            items: List.generate(
+                                                    siblingCount, (i) => i + 1)
+                                                .map(
+                                                  (n) => DropdownMenuItem(
+                                                    value: n,
+                                                    child: Text(
+                                                      n == 1
+                                                          ? '1st'
+                                                          : n == 2
+                                                              ? '2nd'
+                                                              : n == 3
+                                                                  ? '3rd'
+                                                                  : '${n}th',
+                                                    ),
+                                                  ),
+                                                )
+                                                .toList(),
+                                            onChanged: (val) => setDialogState(
+                                                () => displayOrder = val ?? 1),
                                           ),
                                         ),
                                       ],
@@ -2972,7 +3124,8 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                           ),
                           const SizedBox(height: 12),
                         ],
-                        _buildTextField(bioController, 'Biography', Icons.notes, 3),
+                        _buildTextField(
+                            bioController, 'Biography', Icons.notes, 3),
                       ],
                     ),
                   ),
@@ -2983,107 +3136,144 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: ArtboardColors.cream,
-                    borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
+                    borderRadius: const BorderRadius.vertical(
+                        bottom: Radius.circular(24)),
                   ),
                   child: Row(
                     children: [
                       TextButton(
-                        onPressed: isLoading ? null : () => Navigator.pop(context),
-                        child: Text('Cancel', style: AppType.sans(color: ArtboardColors.warmGray)),
+                        onPressed:
+                            isLoading ? null : () => Navigator.pop(context),
+                        child: Text('Cancel',
+                            style:
+                                AppType.sans(color: ArtboardColors.warmGray)),
                       ),
                       const Spacer(),
                       ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: color,
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
                         ),
-                        onPressed: isLoading ? null : () async {
-                          if (firstNameController.text.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Please enter first name'), backgroundColor: ArtboardColors.rust),
-                            );
-                            return;
-                          }
-                          
-                          setDialogState(() => isLoading = true);
-                          
-                          DateTime? birthDate;
-                          DateTime? deathDate;
-                          if (birthYearController.text.isNotEmpty) {
-                            birthDate = DateTime(int.tryParse(birthYearController.text) ?? 1900);
-                          }
-                          if (deathYearController.text.isNotEmpty) {
-                            deathDate = DateTime(int.tryParse(deathYearController.text) ?? 2000);
-                          }
-                          
-                          try {
-                            // If displayOrder changed, swap with the sibling who has that order
-                            if (displayOrder != person.displayOrder && !isRoot) {
-                              // Find siblings (children of same parent)
-                              final siblings = _persons.where((p) =>
-                                p.id != person.id &&
-                                p.relationships.parentIds.any((pid) => 
-                                  person.relationships.parentIds.contains(pid))
-                              ).toList();
-                              
-                              // Find sibling with the target order
-                              final siblingToSwap = siblings.firstWhere(
-                                (s) => s.displayOrder == displayOrder,
-                                orElse: () => person, // No swap needed if no one has that order
-                              );
-                              
-                              if (siblingToSwap.id != person.id) {
-                                // Swap: give sibling the current person's old order
-                                await _adminRepo.updatePerson(
-                                  siblingToSwap.copyWith(displayOrder: person.displayOrder)
-                                );
-                              }
-                            }
-                            
-                            final updated = person.copyWith(
-                              firstName: firstNameController.text.trim(),
-                              lastName: lastNameController.text.trim(),
-                              gender: gender,
-                              birthDate: birthDate,
-                              deathDate: deathDate,
-                              bio: bioController.text.trim().isEmpty ? null : bioController.text.trim(),
-                              displayOrder: displayOrder,
-                              updatedAt: DateTime.now(),
-                            );
-                          
-                            await _adminRepo.updatePerson(updated);
+                        onPressed: isLoading
+                            ? null
+                            : () async {
+                                if (firstNameController.text.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                        content:
+                                            Text('Please enter first name'),
+                                        backgroundColor: ArtboardColors.rust),
+                                  );
+                                  return;
+                                }
 
-                            if (!mounted) return;
-                            Navigator.pop(context);
-                            _loadData();
-                            setState(() => _selectedPerson = null);
-                            
-                            ScaffoldMessenger.of(this.context).showSnackBar(
-                              SnackBar(
-                                content: Row(children: [
-                                  const Icon(Icons.check_circle, color: Colors.white),
-                                  const SizedBox(width: 8),
-                                  Text('${firstNameController.text} updated!'),
-                                ]),
-                                backgroundColor: ArtboardColors.sage,
-                              ),
-                            );
-                          } catch (e) {
-                            if (!mounted) return;
-                            setDialogState(() => isLoading = false);
-                            ScaffoldMessenger.of(this.context).showSnackBar(
-                              SnackBar(content: Text('Error: $e'), backgroundColor: ArtboardColors.rust),
-                            );
-                          }
-                        },
+                                setDialogState(() => isLoading = true);
+
+                                DateTime? birthDate;
+                                DateTime? deathDate;
+                                if (birthYearController.text.isNotEmpty) {
+                                  birthDate = DateTime(
+                                      int.tryParse(birthYearController.text) ??
+                                          1900);
+                                }
+                                if (deathYearController.text.isNotEmpty) {
+                                  deathDate = DateTime(
+                                      int.tryParse(deathYearController.text) ??
+                                          2000);
+                                }
+
+                                try {
+                                  // If displayOrder changed, swap with the sibling who has that order
+                                  if (displayOrder != person.displayOrder &&
+                                      !isRoot) {
+                                    // Find siblings (children of same parent)
+                                    final siblings = _persons
+                                        .where((p) =>
+                                            p.id != person.id &&
+                                            p.relationships.parentIds.any(
+                                                (pid) => person
+                                                    .relationships.parentIds
+                                                    .contains(pid)))
+                                        .toList();
+
+                                    // Find sibling with the target order
+                                    final siblingToSwap = siblings.firstWhere(
+                                      (s) => s.displayOrder == displayOrder,
+                                      orElse: () =>
+                                          person, // No swap needed if no one has that order
+                                    );
+
+                                    if (siblingToSwap.id != person.id) {
+                                      // Swap: give sibling the current person's old order
+                                      await _adminRepo.updatePerson(
+                                          siblingToSwap.copyWith(
+                                              displayOrder:
+                                                  person.displayOrder));
+                                    }
+                                  }
+
+                                  final updated = person.copyWith(
+                                    firstName: firstNameController.text.trim(),
+                                    lastName: lastNameController.text.trim(),
+                                    gender: gender,
+                                    birthDate: birthDate,
+                                    deathDate: deathDate,
+                                    bio: bioController.text.trim().isEmpty
+                                        ? null
+                                        : bioController.text.trim(),
+                                    displayOrder: displayOrder,
+                                    updatedAt: DateTime.now(),
+                                  );
+
+                                  await _adminRepo.updatePerson(updated);
+
+                                  if (!mounted) return;
+                                  Navigator.pop(context);
+                                  _loadData();
+                                  setState(() => _selectedPerson = null);
+
+                                  ScaffoldMessenger.of(this.context)
+                                      .showSnackBar(
+                                    SnackBar(
+                                      content: Row(children: [
+                                        const Icon(Icons.check_circle,
+                                            color: Colors.white),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                            '${firstNameController.text} updated!'),
+                                      ]),
+                                      backgroundColor: ArtboardColors.sage,
+                                    ),
+                                  );
+                                } catch (e) {
+                                  if (!mounted) return;
+                                  setDialogState(() => isLoading = false);
+                                  ScaffoldMessenger.of(this.context)
+                                      .showSnackBar(
+                                    SnackBar(
+                                        content: Text('Error: $e'),
+                                        backgroundColor: ArtboardColors.rust),
+                                  );
+                                }
+                              },
                         child: isLoading
-                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                          : Row(mainAxisSize: MainAxisSize.min, children: [
-                              const Icon(Icons.save_rounded, size: 18, color: Colors.white),
-                              const SizedBox(width: 6),
-                              Text('Save Changes', style: AppType.sans(fontWeight: FontWeight.w700, color: Colors.white)),
-                            ]),
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: Colors.white))
+                            : Row(mainAxisSize: MainAxisSize.min, children: [
+                                const Icon(Icons.save_rounded,
+                                    size: 18, color: Colors.white),
+                                const SizedBox(width: 6),
+                                Text('Save Changes',
+                                    style: AppType.sans(
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white)),
+                              ]),
                       ),
                     ],
                   ),
@@ -3119,11 +3309,11 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
     }
     return found;
   }
-  
+
   void _confirmDelete(Person person) {
     final descendants = _getAllDescendants(person);
     final totalToDelete = descendants.length + 1;
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -3154,11 +3344,13 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                 decoration: BoxDecoration(
                   color: ArtboardColors.rust.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: ArtboardColors.rust.withValues(alpha: 0.3)),
+                  border: Border.all(
+                      color: ArtboardColors.rust.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.warning_rounded, color: ArtboardColors.rust, size: 20),
+                    Icon(Icons.warning_rounded,
+                        color: ArtboardColors.rust, size: 20),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -3187,7 +3379,8 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: ArtboardColors.rust,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
             ),
             onPressed: () async {
               try {
@@ -3208,7 +3401,8 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                 });
                 ScaffoldMessenger.of(this.context).showSnackBar(
                   SnackBar(
-                    content: Text('Deleted $totalToDelete family member${totalToDelete > 1 ? 's' : ''}'),
+                    content: Text(
+                        'Deleted $totalToDelete family member${totalToDelete > 1 ? 's' : ''}'),
                     backgroundColor: ArtboardColors.sage,
                   ),
                 );
@@ -3231,12 +3425,13 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
       ),
     );
   }
-  
+
   /// Show dialog to add multiple children at once
 
   /// Batch delete selected persons with cascade
 
-  Widget _buildTextField(TextEditingController controller, String label, [IconData? icon, int maxLines = 1, bool isNumber = false]) {
+  Widget _buildTextField(TextEditingController controller, String label,
+      [IconData? icon, int maxLines = 1, bool isNumber = false]) {
     return TextField(
       controller: controller,
       maxLines: maxLines,
@@ -3250,10 +3445,13 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
         labelStyle: AppType.sans(
           color: ArtboardColors.warmGray,
         ),
-        prefixIcon: icon != null ? Icon(icon, color: ArtboardColors.warmGray, size: 20) : null,
+        prefixIcon: icon != null
+            ? Icon(icon, color: ArtboardColors.warmGray, size: 20)
+            : null,
         filled: true,
         fillColor: ArtboardColors.cream,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: ArtboardColors.champagne),
@@ -3301,20 +3499,20 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
 /// Custom painter for subtle background pattern
 class _PatternPainter extends CustomPainter {
   final bool isDark;
-  
+
   _PatternPainter({this.isDark = false});
-  
+
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = (isDark 
-          ? Colors.white.withValues(alpha: 0.03) 
+      ..color = (isDark
+          ? Colors.white.withValues(alpha: 0.03)
           : ArtboardColors.champagne.withValues(alpha: 0.3))
       ..strokeWidth = 1
       ..style = PaintingStyle.stroke;
 
     const spacing = 40.0;
-    
+
     // Draw subtle diagonal lines
     for (double i = -size.height; i < size.width + size.height; i += spacing) {
       canvas.drawLine(

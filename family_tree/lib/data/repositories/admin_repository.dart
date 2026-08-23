@@ -24,7 +24,8 @@ class AdminRepository {
   /// update the parent to list them — that left the tree inconsistent whenever
   /// the second request failed.
   Future<String> addPerson(Person person) async {
-    final response = await _api.post('/api/admin/persons', body: person.toJson());
+    final response =
+        await _api.post('/api/admin/persons', body: person.toJson());
     ApiService.ensureOk(response, whileDoing: 'adding the person');
     PersonRepository.invalidate();
 
@@ -59,7 +60,9 @@ class AdminRepository {
     final response = await _api.post('/api/admin/posts', body: post.toJson());
     ApiService.ensureOk(response, whileDoing: 'publishing the post');
 
-    return (jsonDecode(response.body) as Map<String, dynamic>)['id'] as String? ?? '';
+    return (jsonDecode(response.body) as Map<String, dynamic>)['id']
+            as String? ??
+        '';
   }
 
   Future<void> deletePost(String postId) async {
@@ -116,7 +119,8 @@ class AdminRepository {
     final response = await _api.post('/api/admin/users/$userId/reset-code');
     ApiService.ensureOk(response, whileDoing: 'creating a reset code');
 
-    return (jsonDecode(response.body) as Map<String, dynamic>)['code'] as String;
+    return (jsonDecode(response.body) as Map<String, dynamic>)['code']
+        as String;
   }
 
   // ===== ANNOUNCEMENTS =====

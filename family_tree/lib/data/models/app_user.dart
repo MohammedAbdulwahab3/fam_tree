@@ -1,3 +1,7 @@
+// Amharic names are grapheme clusters, not code units, so an initial is taken
+// with `characters` rather than `[0]`.
+import 'package:characters/characters.dart';
+
 /// An account: who signed in, what they are allowed to do, and whether they
 /// have been matched to a person in the family tree.
 ///

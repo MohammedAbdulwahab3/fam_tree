@@ -5,7 +5,6 @@ import 'package:family_tree/core/design/design.dart';
 import 'package:family_tree/data/models/person.dart';
 import 'package:family_tree/data/repositories/person_repository.dart';
 import 'package:family_tree/data/services/api_service.dart';
-import 'package:family_tree/features/auth/session.dart';
 import 'package:family_tree/features/linking/link_status.dart';
 
 /// "Which of these people is you?"
@@ -28,8 +27,7 @@ Future<void> showFindMyselfSheet(
     context: context,
     title: 'Find yourself in the tree',
     initialSize: 0.9,
-    body: (context, scroll) =>
-        _FindMyself(people: people, scroll: scroll),
+    body: (context, scroll) => _FindMyself(people: people, scroll: scroll),
   );
 }
 
@@ -485,7 +483,6 @@ class _ConfirmStep extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: Insets.lg),
-
               if (parents.isNotEmpty)
                 _People(
                   title: parents.length == 1 ? 'Your parent' : 'Your parents',
@@ -502,7 +499,6 @@ class _ConfirmStep extends StatelessWidget {
                   localeTag: localeTag,
                 ),
               ],
-
               const SizedBox(height: Insets.lg),
               const AppNotice(
                 tone: NoticeTone.info,
@@ -510,7 +506,6 @@ class _ConfirmStep extends StatelessWidget {
                     'If it is not right, they will tell you why and you can '
                     'pick somebody else.',
               ),
-
               if (error != null) ...[
                 const SizedBox(height: Insets.md),
                 AppNotice(message: error!, tone: NoticeTone.danger),

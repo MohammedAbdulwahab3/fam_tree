@@ -57,15 +57,18 @@ class _TreeControlsState extends State<TreeControls> {
       setState(() => _searchResults = []);
       return;
     }
-    
+
     final lowercaseQuery = query.toLowerCase();
     setState(() {
-      _searchResults = widget.persons.where((p) {
-        return p.fullName.toLowerCase().contains(lowercaseQuery) ||
-               (p.birthDate?.year.toString() ?? '').contains(lowercaseQuery);
-      }).take(5).toList();
+      _searchResults = widget.persons
+          .where((p) {
+            return p.fullName.toLowerCase().contains(lowercaseQuery) ||
+                (p.birthDate?.year.toString() ?? '').contains(lowercaseQuery);
+          })
+          .take(5)
+          .toList();
     });
-    
+
     widget.onSearch(query);
   }
 
@@ -87,7 +90,7 @@ class _TreeControlsState extends State<TreeControls> {
         // Collapse toggle for mobile
         if (isMobile) _buildCollapseToggle(isDark),
         if (isMobile) const SizedBox(height: 8),
-        
+
         // Search bar (expandable)
         _isSearchExpanded
             ? _buildExpandedSearch(isDark)
@@ -126,7 +129,7 @@ class _TreeControlsState extends State<TreeControls> {
                 isDark: isDark,
               ),
               const SizedBox(height: 4),
-              
+
               // Zoom indicator
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -141,34 +144,34 @@ class _TreeControlsState extends State<TreeControls> {
                   ),
                 ),
               ),
-              
+
               _buildControlButton(
                 icon: Icons.remove,
                 tooltip: 'Zoom Out',
                 onTap: widget.onZoomOut,
                 isDark: isDark,
               ),
-              
+
               const Divider(height: 16),
-              
+
               _buildControlButton(
                 icon: Icons.fit_screen,
                 tooltip: 'Fit All',
                 onTap: widget.onZoomFit,
                 isDark: isDark,
               ),
-              
+
               const SizedBox(height: 4),
-              
+
               _buildControlButton(
                 icon: Icons.restart_alt,
                 tooltip: 'Reset View',
                 onTap: widget.onZoomReset,
                 isDark: isDark,
               ),
-              
+
               const Divider(height: 16),
-              
+
               // Minimap toggle
               _buildControlButton(
                 icon: widget.isMinimapVisible ? Icons.map : Icons.map_outlined,
@@ -221,7 +224,7 @@ class _TreeControlsState extends State<TreeControls> {
                     ),
                   ),
                 ),
-                
+
                 // All generations button
                 _buildGenerationButton(
                   label: 'All',
@@ -229,9 +232,9 @@ class _TreeControlsState extends State<TreeControls> {
                   isSelected: widget.selectedGeneration == null,
                   isDark: isDark,
                 ),
-                
+
                 const SizedBox(height: 4),
-                
+
                 // Generation buttons
                 ...List.generate(maxGeneration + 1, (index) {
                   return Padding(
@@ -406,9 +409,8 @@ class _TreeControlsState extends State<TreeControls> {
                 Icon(
                   Icons.search,
                   size: 20,
-                  color: isDark
-                      ? AppTheme.textMutedDark
-                      : AppTheme.textMutedLight,
+                  color:
+                      isDark ? AppTheme.textMutedDark : AppTheme.textMutedLight,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -442,14 +444,13 @@ class _TreeControlsState extends State<TreeControls> {
                     _performSearch('');
                     setState(() => _isSearchExpanded = false);
                   },
-                  color: isDark
-                      ? AppTheme.textMutedDark
-                      : AppTheme.textMutedLight,
+                  color:
+                      isDark ? AppTheme.textMutedDark : AppTheme.textMutedLight,
                 ),
               ],
             ),
           ),
-          
+
           // Search results
           if (_searchResults.isNotEmpty) ...[
             Divider(
@@ -551,7 +552,7 @@ class _TreeControlsState extends State<TreeControls> {
   int _getPersonGeneration(Person person) {
     // Simple generation calculation based on parent hierarchy
     if (person.relationships.parentIds.isEmpty) return 0;
-    
+
     int maxParentGen = -1;
     for (final parentId in person.relationships.parentIds) {
       final parent = widget.persons.firstWhere(
@@ -592,9 +593,8 @@ class _TreeControlsState extends State<TreeControls> {
         ),
         child: Icon(
           _isPanelExpanded ? Icons.chevron_right : Icons.tune,
-          color: isDark
-              ? AppTheme.textSecondaryDark
-              : AppTheme.textSecondaryLight,
+          color:
+              isDark ? AppTheme.textSecondaryDark : AppTheme.textSecondaryLight,
         ),
       ),
     );

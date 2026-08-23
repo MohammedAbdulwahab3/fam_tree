@@ -26,7 +26,8 @@ class PersonDetailsDialog extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<PersonDetailsDialog> createState() => _PersonDetailsDialogState();
+  ConsumerState<PersonDetailsDialog> createState() =>
+      _PersonDetailsDialogState();
 }
 
 class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
@@ -36,11 +37,11 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
   late AnimationController _shimmerController;
   late Animation<double> _scaleAnimation;
   late Animation<Offset> _slideAnimation;
-  
+
   @override
   void initState() {
     super.initState();
-    
+
     // Scale animation for entrance
     _scaleController = AnimationController(
       duration: const Duration(milliseconds: 400),
@@ -50,7 +51,7 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
       parent: _scaleController,
       curve: Curves.elasticOut,
     );
-    
+
     // Slide animation for content
     _slideController = AnimationController(
       duration: const Duration(milliseconds: 600),
@@ -63,20 +64,20 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
       parent: _slideController,
       curve: Curves.easeOutCubic,
     ));
-    
+
     // Shimmer animation for decorative elements
     _shimmerController = AnimationController(
       duration: const Duration(milliseconds: 2000),
       vsync: this,
     )..repeat();
-    
+
     // Start animations
     _scaleController.forward();
     Future.delayed(const Duration(milliseconds: 150), () {
       if (mounted) _slideController.forward();
     });
   }
-  
+
   @override
   void dispose() {
     _scaleController.dispose();
@@ -98,7 +99,6 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
 
     return Builder(
       builder: (context) {
-
         return Center(
           child: ScaleTransition(
             scale: _scaleAnimation,
@@ -124,7 +124,8 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
                           colors: isDark
                               ? [
                                   AppTheme.surfaceDark.withValues(alpha: 0.95),
-                                  AppTheme.backgroundDark.withValues(alpha: 0.9),
+                                  AppTheme.backgroundDark
+                                      .withValues(alpha: 0.9),
                                 ]
                               : [
                                   Colors.white.withValues(alpha: 0.95),
@@ -152,23 +153,27 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          _buildAnimatedHeader(context, canEdit, isDark, genColor),
+                          _buildAnimatedHeader(
+                              context, canEdit, isDark, genColor),
                           Flexible(
                             child: SlideTransition(
                               position: _slideAnimation,
                               child: FadeTransition(
                                 opacity: _slideController,
                                 child: SingleChildScrollView(
-                                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                                  padding:
+                                      const EdgeInsets.fromLTRB(24, 0, 24, 24),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       if (widget.person.isDeceased) ...[
                                         _buildMemorialBanner(isDark),
                                         const SizedBox(height: 18),
                                       ],
                                       _buildInfoCards(isDark, genColor),
-                                      if (widget.person.bio != null && widget.person.bio!.isNotEmpty) ...[
+                                      if (widget.person.bio != null &&
+                                          widget.person.bio!.isNotEmpty) ...[
                                         const SizedBox(height: 20),
                                         _buildBioSection(isDark),
                                       ],
@@ -176,17 +181,26 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
                                         const SizedBox(height: 20),
                                         _buildProfileDetails(isDark),
                                       ],
-                                      if (widget.person.interests.isNotEmpty) ...[
+                                      if (widget
+                                          .person.interests.isNotEmpty) ...[
                                         const SizedBox(height: 20),
                                         _buildInterests(isDark),
                                       ],
                                       if (widget.spouses.isNotEmpty) ...[
                                         const SizedBox(height: 20),
-                                        _buildFamilySection('Spouse', widget.spouses, Icons.favorite, isDark),
+                                        _buildFamilySection(
+                                            'Spouse',
+                                            widget.spouses,
+                                            Icons.favorite,
+                                            isDark),
                                       ],
                                       if (widget.children.isNotEmpty) ...[
                                         const SizedBox(height: 20),
-                                        _buildFamilySection('Children', widget.children, Icons.child_care, isDark),
+                                        _buildFamilySection(
+                                            'Children',
+                                            widget.children,
+                                            Icons.child_care,
+                                            isDark),
                                       ],
                                     ],
                                   ),
@@ -216,14 +230,8 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
     return ((currentYear - year) / 25).floor().clamp(0, 5);
   }
 
-  Widget _buildAnimatedHeader(BuildContext context, bool canEdit, bool isDark, Color genColor) {
-    final dateFormat = DateFormat('MMMM d, yyyy');
-    final birthDate = widget.person.birthDate != null 
-        ? dateFormat.format(widget.person.birthDate!) 
-        : 'Unknown';
-    final isAlive = widget.person.deathDate == null;
-    final age = _calculateAge();
-
+  Widget _buildAnimatedHeader(
+      BuildContext context, bool canEdit, bool isDark, Color genColor) {
     return SizedBox(
       height: 200,
       child: Stack(
@@ -235,7 +243,8 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
             builder: (context, child) {
               return Container(
                 decoration: BoxDecoration(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(32)),
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -246,7 +255,9 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
                     ],
                     stops: [
                       0,
-                      0.5 + 0.3 * math.sin(_shimmerController.value * 2 * math.pi),
+                      0.5 +
+                          0.3 *
+                              math.sin(_shimmerController.value * 2 * math.pi),
                       1,
                     ],
                   ),
@@ -254,7 +265,7 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
               );
             },
           ),
-          
+
           // Decorative circles
           Positioned(
             top: -30,
@@ -279,21 +290,22 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
               },
             ),
           ),
-          
+
           // Close button
           Positioned(
             top: 12,
             right: 12,
             child: _buildCloseButton(context, isDark),
           ),
-          
+
           // View only badge
           if (!canEdit)
             Positioned(
               top: 12,
               left: 12,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(20),
@@ -301,7 +313,8 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.visibility, size: 14, color: Colors.white.withValues(alpha: 0.8)),
+                    Icon(Icons.visibility,
+                        size: 14, color: Colors.white.withValues(alpha: 0.8)),
                     const SizedBox(width: 4),
                     Text(
                       'View Only',
@@ -315,7 +328,7 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
                 ),
               ),
             ),
-          
+
           // Profile section
           Positioned(
             bottom: -50,
@@ -361,18 +374,18 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
                         ),
                       ),
                       child: ClipOval(
-                        child: (widget.person.profilePhotoUrl?.isNotEmpty ??
-                                false)
-                            ? Image.network(
-                                widget.person.profilePhotoUrl!,
-                                fit: BoxFit.cover,
-                                width: 100,
-                                height: 100,
-                                alignment: const Alignment(0, -0.2),
-                                errorBuilder: (_, __, ___) =>
-                                    _buildAvatarPlaceholder(isDark),
-                              )
-                            : _buildAvatarPlaceholder(isDark),
+                        child:
+                            (widget.person.profilePhotoUrl?.isNotEmpty ?? false)
+                                ? Image.network(
+                                    widget.person.profilePhotoUrl!,
+                                    fit: BoxFit.cover,
+                                    width: 100,
+                                    height: 100,
+                                    alignment: const Alignment(0, -0.2),
+                                    errorBuilder: (_, __, ___) =>
+                                        _buildAvatarPlaceholder(isDark),
+                                  )
+                                : _buildAvatarPlaceholder(isDark),
                       ),
                     ),
                   ),
@@ -418,8 +431,8 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
 
   Widget _buildInfoCards(bool isDark, Color genColor) {
     final dateFormat = DateFormat('MMM d, yyyy');
-    final birthDate = widget.person.birthDate != null 
-        ? dateFormat.format(widget.person.birthDate!) 
+    final birthDate = widget.person.birthDate != null
+        ? dateFormat.format(widget.person.birthDate!)
         : 'Unknown';
     final age = _calculateAge();
     final isAlive = widget.person.deathDate == null;
@@ -467,17 +480,21 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
                   runSpacing: 8,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 4),
                       decoration: BoxDecoration(
                         color: genColor.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: genColor.withValues(alpha: 0.3)),
+                        border:
+                            Border.all(color: genColor.withValues(alpha: 0.3)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            isAlive ? Icons.cake_rounded : Icons.history_rounded,
+                            isAlive
+                                ? Icons.cake_rounded
+                                : Icons.history_rounded,
                             size: 14,
                             color: genColor,
                           ),
@@ -495,7 +512,8 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
                     ),
                     if (isAlive)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: AppTheme.success.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(20),
@@ -528,9 +546,9 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
               ],
             ),
           ),
-          
+
           const SizedBox(height: 20),
-          
+
           // Info cards
           Row(
             children: [
@@ -548,7 +566,8 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
                 child: _buildInfoCard(
                   icon: Icons.family_restroom_rounded,
                   label: 'Family',
-                  value: '${widget.spouses.length + widget.children.length} members',
+                  value:
+                      '${widget.spouses.length + widget.children.length} members',
                   isDark: isDark,
                   color: AppTheme.accentTeal,
                 ),
@@ -570,8 +589,8 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark 
-            ? Colors.white.withValues(alpha: 0.05) 
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.05)
             : Colors.black.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
@@ -602,7 +621,8 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
-                    color: isDark ? Colors.white54 : AppTheme.textSecondaryLight,
+                    color:
+                        isDark ? Colors.white54 : AppTheme.textSecondaryLight,
                   ),
                 ),
               ),
@@ -626,14 +646,15 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
 
   String _calculateAge() {
     if (widget.person.birthDate == null) return 'Unknown';
-    
+
     final birth = widget.person.birthDate!;
     final end = widget.person.deathDate ?? DateTime.now();
     int age = end.year - birth.year;
-    if (end.month < birth.month || (end.month == birth.month && end.day < birth.day)) {
+    if (end.month < birth.month ||
+        (end.month == birth.month && end.day < birth.day)) {
       age--;
     }
-    
+
     if (widget.person.deathDate != null) {
       return 'Lived $age years';
     }
@@ -641,8 +662,7 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
   }
 
   /// Whether the person has filled in any of the self-authored detail.
-  bool get _hasProfileDetail =>
-      _detailRows.isNotEmpty;
+  bool get _hasProfileDetail => _detailRows.isNotEmpty;
 
   /// The profile fields that actually have a value, as label/icon/value rows.
   List<(IconData, String, String)> get _detailRows {
@@ -738,9 +758,8 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
                       style: TextStyle(
                         fontSize: 13.5,
                         height: 1.35,
-                        color: isDark
-                            ? Colors.white
-                            : AppTheme.textPrimaryLight,
+                        color:
+                            isDark ? Colors.white : AppTheme.textPrimaryLight,
                       ),
                     ),
                   ),
@@ -828,8 +847,8 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
           runSpacing: 8,
           children: widget.person.interests
               .map((interest) => Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 7),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                     decoration: BoxDecoration(
                       color: AppTheme.accentTeal
                           .withValues(alpha: isDark ? 0.16 : 0.10),
@@ -842,9 +861,8 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
                       interest,
                       style: TextStyle(
                         fontSize: 12.5,
-                        color: isDark
-                            ? Colors.white
-                            : AppTheme.textPrimaryLight,
+                        color:
+                            isDark ? Colors.white : AppTheme.textPrimaryLight,
                       ),
                     ),
                   ))
@@ -858,12 +876,14 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark 
-            ? Colors.white.withValues(alpha: 0.03) 
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.03)
             : Colors.black.withValues(alpha: 0.02),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05),
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.1)
+              : Colors.black.withValues(alpha: 0.05),
         ),
       ),
       child: Column(
@@ -901,7 +921,8 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
     );
   }
 
-  Widget _buildFamilySection(String title, List<Person> relatives, IconData icon, bool isDark) {
+  Widget _buildFamilySection(
+      String title, List<Person> relatives, IconData icon, bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -969,12 +990,14 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: isDark 
-                ? Colors.white.withValues(alpha: 0.05) 
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.05)
                 : Colors.black.withValues(alpha: 0.03),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05),
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.1)
+                  : Colors.black.withValues(alpha: 0.05),
             ),
           ),
           child: Row(
@@ -1034,7 +1057,9 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
                         DateFormat('MMM yyyy').format(relative.birthDate!),
                         style: TextStyle(
                           fontSize: 12,
-                          color: isDark ? Colors.white54 : AppTheme.textSecondaryLight,
+                          color: isDark
+                              ? Colors.white54
+                              : AppTheme.textSecondaryLight,
                         ),
                       ),
                   ],
@@ -1083,13 +1108,16 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
     );
   }
 
-  Widget _buildFooter(BuildContext context, bool canEdit, bool isDark, Color genColor) {
+  Widget _buildFooter(
+      BuildContext context, bool canEdit, bool isDark, Color genColor) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         border: Border(
           top: BorderSide(
-            color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05),
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.1)
+                : Colors.black.withValues(alpha: 0.05),
           ),
         ),
       ),
@@ -1189,7 +1217,9 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isDark ? Colors.white.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.1),
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.2)
+                  : Colors.black.withValues(alpha: 0.1),
             ),
           ),
           child: Text(

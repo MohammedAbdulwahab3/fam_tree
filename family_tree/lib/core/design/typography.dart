@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 /// One typeface, doing every job.
 ///
@@ -13,14 +12,21 @@ import 'package:google_fonts/google_fonts.dart';
 /// heading in English. Hierarchy comes from size and weight rather than from
 /// switching faces, which is both the more minimal choice and the more legible
 /// one for a reader who is not looking closely.
+///
+/// Both families are bundled under `assets/fonts` and declared in the pubspec.
+/// They used to be fetched at runtime by `google_fonts`, which meant a first
+/// launch on a slow connection showed system type — and Amharic in particular
+/// fell back to whatever the device had, which is the exact problem this class
+/// exists to solve.
 class AppType {
   const AppType._();
 
+  /// The bundled Latin family. Every style in the app is set in it.
+  static const String family = 'Manrope';
+
   /// Ethiopic is a fallback rather than a separate style, so mixed text — a
   /// name in Amharic inside an English sentence — sets on one baseline.
-  static List<String> get _fallback => [
-        GoogleFonts.notoSansEthiopic().fontFamily!,
-      ];
+  static const List<String> fallback = ['Noto Sans Ethiopic'];
 
   static TextStyle _face({
     required double size,
@@ -28,12 +34,14 @@ class AppType {
     required FontWeight weight,
     double tracking = 0,
   }) {
-    return GoogleFonts.manrope(
+    return TextStyle(
+      fontFamily: family,
+      fontFamilyFallback: fallback,
       fontSize: size,
       height: height / size,
       fontWeight: weight,
       letterSpacing: tracking,
-    ).copyWith(fontFamilyFallback: _fallback);
+    );
   }
 
   /// A screen's one big statement. Used once per screen at most.
@@ -112,7 +120,9 @@ class AppType {
     Paint? foreground,
     Paint? background,
   }) {
-    return GoogleFonts.manrope(
+    return TextStyle(
+      fontFamily: family,
+      fontFamilyFallback: fallback,
       fontSize: fontSize,
       fontWeight: fontWeight,
       fontStyle: fontStyle,
@@ -130,7 +140,7 @@ class AppType {
       textBaseline: textBaseline,
       foreground: foreground,
       background: background,
-    ).copyWith(fontFamilyFallback: _fallback);
+    );
   }
 
   /// The Material text theme, so anything that has not been given an explicit

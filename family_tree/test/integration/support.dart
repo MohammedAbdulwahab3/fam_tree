@@ -63,7 +63,8 @@ class Backend {
         }),
       );
     } catch (error) {
-      throw StateError('No backend at $url — start it with `go run .`. ($error)');
+      throw StateError(
+          'No backend at $url — start it with `go run .`. ($error)');
     }
 
     if (response.statusCode != 200) {
@@ -71,7 +72,8 @@ class Backend {
         'Sign-in failed with ${response.statusCode}: ${response.body}',
       );
     }
-    return (jsonDecode(response.body) as Map<String, dynamic>)['token'] as String;
+    return (jsonDecode(response.body) as Map<String, dynamic>)['token']
+        as String;
   }
 
   /// Register a throwaway account and return its id and token.

@@ -8,7 +8,7 @@ import 'package:family_tree/providers/theme_provider.dart';
 class ThemeToggleButton extends ConsumerWidget {
   final double size;
   final bool showLabel;
-  
+
   const ThemeToggleButton({
     super.key,
     this.size = 40,
@@ -19,7 +19,7 @@ class ThemeToggleButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
     final isDark = themeMode == ThemeMode.dark;
-    
+
     return GestureDetector(
       onTap: () => ref.read(themeModeProvider.notifier).toggleTheme(),
       child: AnimatedContainer(
@@ -27,21 +27,19 @@ class ThemeToggleButton extends ConsumerWidget {
         curve: Curves.easeInOut,
         padding: EdgeInsets.all(size * 0.2),
         decoration: BoxDecoration(
-          color: isDark 
+          color: isDark
               ? AppTheme.surfaceDark.withValues(alpha: 0.8)
               : ElegantColors.warmWhite.withValues(alpha: 0.9),
           borderRadius: BorderRadius.circular(size / 2),
           border: Border.all(
-            color: isDark 
+            color: isDark
                 ? AppTheme.primaryLight.withValues(alpha: 0.3)
                 : ElegantColors.terracotta.withValues(alpha: 0.3),
             width: 1.5,
           ),
           boxShadow: [
             BoxShadow(
-              color: isDark 
-                  ? Colors.black26 
-                  : Colors.black12,
+              color: isDark ? Colors.black26 : Colors.black12,
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -60,9 +58,7 @@ class ThemeToggleButton extends ConsumerWidget {
                 isDark ? Icons.dark_mode : Icons.light_mode,
                 key: ValueKey(isDark),
                 size: size * 0.5,
-                color: isDark 
-                    ? AppTheme.accentGold 
-                    : ElegantColors.terracotta,
+                color: isDark ? AppTheme.accentGold : ElegantColors.terracotta,
               ),
             ),
             if (showLabel) ...[
@@ -72,9 +68,7 @@ class ThemeToggleButton extends ConsumerWidget {
                 style: TextStyle(
                   fontSize: size * 0.3,
                   fontWeight: FontWeight.w500,
-                  color: isDark 
-                      ? AppTheme.textPrimary 
-                      : ElegantColors.charcoal,
+                  color: isDark ? AppTheme.textPrimary : ElegantColors.charcoal,
                 ),
               ),
             ],
@@ -89,7 +83,7 @@ class ThemeToggleButton extends ConsumerWidget {
 class ThemeToggleIcon extends ConsumerWidget {
   final double size;
   final Color? color;
-  
+
   const ThemeToggleIcon({
     super.key,
     this.size = 24,
@@ -100,7 +94,7 @@ class ThemeToggleIcon extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
     final isDark = themeMode == ThemeMode.dark;
-    
+
     return IconButton(
       icon: AnimatedSwitcher(
         duration: const Duration(milliseconds: 200),
@@ -108,7 +102,8 @@ class ThemeToggleIcon extends ConsumerWidget {
           isDark ? Icons.light_mode : Icons.dark_mode,
           key: ValueKey(isDark),
           size: size,
-          color: color ?? (isDark ? AppTheme.accentGold : ElegantColors.charcoal),
+          color:
+              color ?? (isDark ? AppTheme.accentGold : ElegantColors.charcoal),
         ),
       ),
       tooltip: isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode',

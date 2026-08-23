@@ -48,12 +48,10 @@ class PrimaryButton extends StatelessWidget {
       style: FilledButton.styleFrom(
         backgroundColor: destructive ? c.danger : c.accent,
         foregroundColor: destructive ? Colors.white : c.onAccent,
-        disabledBackgroundColor: busy
-            ? (destructive ? c.danger : c.accent)
-            : c.hairline,
-        disabledForegroundColor: busy
-            ? (destructive ? Colors.white : c.onAccent)
-            : c.inkMuted,
+        disabledBackgroundColor:
+            busy ? (destructive ? c.danger : c.accent) : c.hairline,
+        disabledForegroundColor:
+            busy ? (destructive ? Colors.white : c.onAccent) : c.inkMuted,
         minimumSize: const Size(0, Sizes.controlLarge),
         shape: const RoundedRectangleBorder(borderRadius: Corners.medium),
         textStyle: AppType.label.copyWith(fontSize: 17),

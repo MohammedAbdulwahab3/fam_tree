@@ -29,6 +29,16 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
   }
 
+  // The default test surface is 800x600 and the form scrolls, so in sign-up
+  // mode — which carries a third field — the button below it starts off
+  // screen. Tapping without scrolling first silently misses.
+  Future<void> tapAndSettle(WidgetTester tester, Finder finder) async {
+    await tester.ensureVisible(finder);
+    await tester.pump();
+    await tester.tap(finder);
+    await tester.pump(const Duration(milliseconds: 300));
+  }
+
   group('renders', () {
     for (final entry in {
       'phone': const Size(390, 844),
@@ -69,8 +79,7 @@ void main() {
       await pumpPage(tester, _harness());
       expect(find.byType(TextFormField), findsNWidgets(2));
 
-      await tester.tap(find.text('Create an account'));
-      await tester.pump(const Duration(milliseconds: 300));
+      await tapAndSettle(tester, find.text('Create an account'));
 
       expect(find.text('Create your account'), findsOneWidget);
       expect(find.byType(TextFormField), findsNWidgets(3));
@@ -94,8 +103,8 @@ void main() {
 
       await tester.enterText(find.byType(TextFormField).at(1), 'a@b.com');
       await tester.enterText(find.byType(TextFormField).at(2), '123');
-      await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
-      await tester.pump(const Duration(milliseconds: 300));
+      await tapAndSettle(
+          tester, find.widgetWithText(FilledButton, 'Create account'));
 
       expect(find.text('Please use at least 6 characters.'), findsOneWidget);
     });

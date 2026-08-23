@@ -109,9 +109,7 @@ class _ChangePasswordFormState extends State<_ChangePasswordForm> {
             suffix: IconButton(
               onPressed: () => setState(() => _show = !_show),
               icon: Icon(
-                _show
-                    ? Icons.visibility_off_rounded
-                    : Icons.visibility_rounded,
+                _show ? Icons.visibility_off_rounded : Icons.visibility_rounded,
               ),
               tooltip: _show ? 'Hide passwords' : 'Show passwords',
             ),

@@ -114,7 +114,7 @@ class ApiService {
     if (suspended) {
       failure = AuthFailure(
         AuthFailureKind.suspended,
-        serverMessage ?? 'This account has been suspended.',
+        serverMessage,
       );
     } else if (serverMessage != null &&
         serverMessage.toLowerCase().contains('no longer exists')) {
@@ -136,7 +136,6 @@ class ApiService {
   /// Where the backend lives. Set at build time — see [AppConfig].
   static const String baseUrl = AppConfig.apiBaseUrl;
 
-  
   // Singleton pattern
   static final ApiService _instance = ApiService._internal();
   factory ApiService() => _instance;
@@ -356,12 +355,14 @@ class ApiService {
 
     // Pump the counted stream into the outgoing request.
     unawaited(
-      counted.listen(
-        streamed.sink.add,
-        onError: streamed.sink.addError,
-        onDone: streamed.sink.close,
-        cancelOnError: true,
-      ).asFuture<void>(),
+      counted
+          .listen(
+            streamed.sink.add,
+            onError: streamed.sink.addError,
+            onDone: streamed.sink.close,
+            cancelOnError: true,
+          )
+          .asFuture<void>(),
     );
 
     return _client.send(streamed);

@@ -84,6 +84,12 @@ switch between. `FAMILY_TREE_ID` sets it on both sides.
 an unchanged poll costs a round trip and no body, and hands the canvas back the
 identical list so it does not relayout.
 
+**The type is bundled, not fetched.** Manrope and Noto Sans Ethiopic are
+committed under `family_tree/assets/fonts` rather than downloaded on first
+launch. A face that arrives over the network arrives late on a poor connection,
+and until it does, Amharic renders in whatever the device happens to have —
+which is the thing choosing one bilingual family was meant to prevent.
+
 **Notifications are in-app only.** There is no push channel and no mail server.
 An admin reaching somebody by phone is what stands in for a verification email —
 which is why a forgotten password is recovered with a code an admin issues, and

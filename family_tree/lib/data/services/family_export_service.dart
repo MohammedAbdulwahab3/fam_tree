@@ -1,11 +1,8 @@
 import 'dart:convert';
-import 'dart:typed_data';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:family_tree/data/models/person.dart';
 
 /// Service for exporting family tree data in various formats
 class FamilyExportService {
-  
   /// Export family tree as JSON
   static String exportAsJson(List<Person> members) {
     final data = {
@@ -17,21 +14,24 @@ class FamilyExportService {
     };
     return const JsonEncoder.withIndent('  ').convert(data);
   }
-  
+
   /// Export family tree as CSV
   static String exportAsCsv(List<Person> members) {
     final buffer = StringBuffer();
-    
+
     // Header
-    buffer.writeln('ID,First Name,Last Name,Birth Date,Death Date,Gender,Bio,Generation,Parent IDs,Spouse ID,Children');
-    
+    buffer.writeln(
+        'ID,First Name,Last Name,Birth Date,Death Date,Gender,Bio,Generation,Parent IDs,Spouse ID,Children');
+
     // Data rows
     for (final person in members) {
       final generation = _getGeneration(person, members);
       final parentIds = person.relationships.parentIds.join(';');
       final spouseIds = person.relationships.spouseIds.join(';');
-      final childCount = members.where((p) => p.relationships.parentIds.contains(person.id)).length;
-      
+      final childCount = members
+          .where((p) => p.relationships.parentIds.contains(person.id))
+          .length;
+
       buffer.writeln([
         person.id,
         '"${person.firstName}"',
@@ -46,14 +46,15 @@ class FamilyExportService {
         childCount,
       ].join(','));
     }
-    
+
     return buffer.toString();
   }
-  
+
   /// Export family tree as beautiful HTML with visual tree hierarchy
   static String exportAsHtmlTree(List<Person> members, String familyName) {
-    final roots = members.where((p) => p.relationships.parentIds.isEmpty).toList();
-    
+    final roots =
+        members.where((p) => p.relationships.parentIds.isEmpty).toList();
+
     return '''
 <!DOCTYPE html>
 <html lang="en">
@@ -447,20 +448,22 @@ class FamilyExportService {
 </html>
 ''';
   }
-  
+
   /// Generate recursive tree hierarchy HTML
-  static String _generateTreeHierarchy(List<Person> allMembers, List<Person> persons) {
+  static String _generateTreeHierarchy(
+      List<Person> allMembers, List<Person> persons) {
     if (persons.isEmpty) return '';
-    
+
     final buffer = StringBuffer();
     buffer.write('<ul>');
-    
+
     for (final person in persons) {
       final isRoot = person.relationships.parentIds.isEmpty;
       // Get children and sort them by the order in parent's childrenIds list
       final childrenIds = person.relationships.childrenIds;
-      final children = allMembers.where((p) => 
-        p.relationships.parentIds.contains(person.id)).toList();
+      final children = allMembers
+          .where((p) => p.relationships.parentIds.contains(person.id))
+          .toList();
       // Sort children to match the order in childrenIds
       children.sort((a, b) {
         final indexA = childrenIds.indexOf(a.id);
@@ -470,8 +473,9 @@ class FamilyExportService {
         if (indexB == -1) return -1;
         return indexA.compareTo(indexB);
       });
-      final genderClass = person.gender?.toLowerCase() == 'female' ? 'female' : 'male';
-      
+      final genderClass =
+          person.gender?.toLowerCase() == 'female' ? 'female' : 'male';
+
       buffer.write('<li>');
       buffer.write('''
         <div class="person ${isRoot ? 'root' : ''} $genderClass">
@@ -481,18 +485,18 @@ class FamilyExportService {
             ${children.isNotEmpty ? '<div class="children-count">${children.length} ${children.length == 1 ? 'child' : 'children'}</div>' : ''}
         </div>
       ''');
-      
+
       if (children.isNotEmpty) {
         buffer.write(_generateTreeHierarchy(allMembers, children));
       }
-      
+
       buffer.write('</li>');
     }
-    
+
     buffer.write('</ul>');
     return buffer.toString();
   }
-  
+
   /// Export as printable member list
   static String exportAsMemberList(List<Person> members, String familyName) {
     return '''
@@ -567,7 +571,7 @@ class FamilyExportService {
 </html>
 ''';
   }
-  
+
   static Map<String, dynamic> _personToMap(Person p) {
     return {
       'id': p.id,
@@ -585,17 +589,18 @@ class FamilyExportService {
       },
     };
   }
-  
+
   static int _getGeneration(Person person, List<Person> allMembers) {
     if (person.relationships.parentIds.isEmpty) return 1;
-    
-    final parent = allMembers.where((p) => 
-      person.relationships.parentIds.contains(p.id)).firstOrNull;
+
+    final parent = allMembers
+        .where((p) => person.relationships.parentIds.contains(p.id))
+        .firstOrNull;
     if (parent == null) return 1;
-    
+
     return _getGeneration(parent, allMembers) + 1;
   }
-  
+
   static int _calculateGenerations(List<Person> members) {
     int maxGen = 0;
     for (final person in members) {
@@ -603,37 +608,5 @@ class FamilyExportService {
       if (gen > maxGen) maxGen = gen;
     }
     return maxGen;
-  }
-  
-  static String _generateHtmlGenerations(List<Person> members) {
-    final maxGen = _calculateGenerations(members);
-    final buffer = StringBuffer();
-    
-    for (int gen = 1; gen <= maxGen; gen++) {
-      final genMembers = members.where((p) => _getGeneration(p, members) == gen).toList();
-      if (genMembers.isEmpty) continue;
-      
-      buffer.write('<div class="generation">');
-      buffer.write('<span class="gen-label">Gen $gen</span>');
-      
-      for (final person in genMembers) {
-        final isRoot = person.relationships.parentIds.isEmpty;
-        final childCount = members.where((p) => p.relationships.parentIds.contains(person.id)).length;
-        
-        buffer.write('''
-        <div class="person-card${isRoot ? ' root' : ''}">
-            <div class="person-avatar">${person.firstName[0].toUpperCase()}</div>
-            <div class="person-name">${person.fullName}</div>
-            <div class="person-dates">${person.birthDate ?? 'Unknown'}${person.deathDate != null ? ' - ${person.deathDate}' : ''}</div>
-            <span class="person-gender">${person.gender == 'Male' ? '♂' : '♀'} ${person.gender}</span>
-            ${childCount > 0 ? '<div class="person-children">$childCount ${childCount == 1 ? 'child' : 'children'}</div>' : ''}
-        </div>
-        ''');
-      }
-      
-      buffer.write('</div>');
-    }
-    
-    return buffer.toString();
   }
 }

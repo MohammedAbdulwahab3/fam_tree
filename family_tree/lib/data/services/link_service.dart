@@ -9,7 +9,7 @@ class LinkService {
   Future<LinkStatus> getMyLinkStatus() async {
     try {
       final response = await _apiService.get('/api/link-requests/my-status');
-      
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return LinkStatus.fromJson(data);
@@ -50,7 +50,7 @@ class LinkService {
   Future<List<LinkRequest>> getPendingRequests() async {
     try {
       final response = await _apiService.get('/api/admin/link-requests');
-      
+
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
         return data.map((json) => LinkRequest.fromJson(json)).toList();
@@ -76,7 +76,8 @@ class LinkService {
         '/api/admin/link-requests/$requestId',
         body: {
           'status': status,
-          if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+          if (reason != null && reason.trim().isNotEmpty)
+            'reason': reason.trim(),
         },
       );
 
@@ -194,8 +195,9 @@ class LinkRequester {
         email: json['email'] ?? '',
         role: json['role'] ?? 'member',
         photoUrl: json['profilePhotoUrl'] ?? '',
-        joinedAt:
-            json['joinedAt'] != null ? DateTime.tryParse(json['joinedAt']) : null,
+        joinedAt: json['joinedAt'] != null
+            ? DateTime.tryParse(json['joinedAt'])
+            : null,
         isVerified: json['isVerified'] ?? false,
       );
 }

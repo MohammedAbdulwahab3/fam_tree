@@ -118,8 +118,7 @@ class AuthService {
   }
 
   /// Update the signed-in user's display name.
-  Future<AppUser> updateDisplayName(String name) =>
-      updateProfile(name: name);
+  Future<AppUser> updateDisplayName(String name) => updateProfile(name: name);
 
   /// Update the signed-in user's profile photo.
   Future<AppUser> updatePhotoUrl(String photoUrl) =>

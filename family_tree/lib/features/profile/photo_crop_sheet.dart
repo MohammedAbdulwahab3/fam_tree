@@ -125,7 +125,8 @@ class _PhotoCropSheetState extends State<PhotoCropSheet> {
       final pixelsPerFrameUnit = rotated.width / display.width;
 
       final cropSide = (_frame / _zoom) * pixelsPerFrameUnit;
-      final centreX = rotated.width / 2 - (_offset.dx / _zoom) * pixelsPerFrameUnit;
+      final centreX =
+          rotated.width / 2 - (_offset.dx / _zoom) * pixelsPerFrameUnit;
       final centreY =
           rotated.height / 2 - (_offset.dy / _zoom) * pixelsPerFrameUnit;
 
@@ -365,11 +366,9 @@ class _PhotoCropSheetState extends State<PhotoCropSheet> {
         children: [
           Expanded(
             child: OutlinedButton(
-              onPressed:
-                  _working ? null : () => Navigator.pop(context, null),
+              onPressed: _working ? null : () => Navigator.pop(context, null),
               style: OutlinedButton.styleFrom(
-                foregroundColor:
-                    context.colors.inkSoft,
+                foregroundColor: context.colors.inkSoft,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(13),

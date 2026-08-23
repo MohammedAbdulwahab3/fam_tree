@@ -47,6 +47,7 @@ void main() {
     };
 
     expect(families, hasLength(1), reason: 'one face does every job');
+    expect(families.single, AppType.family);
   });
 
   // The drop-in exists so that fixing the script problem did not require
@@ -81,9 +82,14 @@ void main() {
     );
 
     for (final style in [
-      theme.displayLarge, theme.headlineMedium, theme.titleLarge,
-      theme.bodyLarge, theme.bodyMedium, theme.bodySmall,
-      theme.labelLarge, theme.labelSmall,
+      theme.displayLarge,
+      theme.headlineMedium,
+      theme.titleLarge,
+      theme.bodyLarge,
+      theme.bodyMedium,
+      theme.bodySmall,
+      theme.labelLarge,
+      theme.labelSmall,
     ]) {
       expect(style, isNotNull);
       expect(style!.fontFamilyFallback, isNotEmpty);

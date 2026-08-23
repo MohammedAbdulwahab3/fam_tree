@@ -57,9 +57,7 @@ class WelcomePage extends ConsumerWidget {
                       const Center(child: TreeMark(size: 72)),
                       const SizedBox(height: Insets.lg),
                       Text(
-                        user == null
-                            ? 'Welcome'
-                            : 'Welcome, ${user.firstName}',
+                        user == null ? 'Welcome' : 'Welcome, ${user.firstName}',
                         style: AppType.title.copyWith(color: c.ink),
                         textAlign: TextAlign.center,
                       ),
@@ -72,7 +70,6 @@ class WelcomePage extends ConsumerWidget {
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: Insets.xl),
-
                       status.when(
                         loading: () => const Padding(
                           padding: EdgeInsets.symmetric(vertical: Insets.xl),
@@ -93,7 +90,6 @@ class WelcomePage extends ConsumerWidget {
                             ),
                         },
                       ),
-
                       const SizedBox(height: Insets.lg),
                       Divider(color: c.hairline),
                       const SizedBox(height: Insets.sm),

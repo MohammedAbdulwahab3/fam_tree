@@ -6,7 +6,13 @@ import 'package:family_tree/core/theme/app_colors.dart';
 /// The app's mark: a small line-art family tree — one root, a branch bar, and
 /// three descendants — inside a softly glowing rounded tile.
 class TreeMark extends StatelessWidget {
-  final bool isDark;
+  /// Whether to draw for a dark ground.
+  ///
+  /// Defaults to the ambient theme, which is what every ordinary caller wants.
+  /// It is only worth passing when the mark sits on a panel that is dark
+  /// regardless of the theme, as it does in the landing hero.
+  final bool? isDark;
+
   final double size;
 
   /// Multiplies the outer glow; used by the landing hero to pulse.
@@ -14,13 +20,14 @@ class TreeMark extends StatelessWidget {
 
   const TreeMark({
     super.key,
-    required this.isDark,
     required this.size,
+    this.isDark,
     this.glow = 1.0,
   });
 
   @override
   Widget build(BuildContext context) {
+    final dark = isDark ?? Theme.of(context).brightness == Brightness.dark;
     return Container(
       width: size,
       height: size,
@@ -31,8 +38,8 @@ class TreeMark extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            AppTheme.primaryLight.withValues(alpha: isDark ? 0.22 : 0.16),
-            AppTheme.accentCyan.withValues(alpha: isDark ? 0.16 : 0.10),
+            AppTheme.primaryLight.withValues(alpha: dark ? 0.22 : 0.16),
+            AppTheme.accentCyan.withValues(alpha: dark ? 0.16 : 0.10),
           ],
         ),
         border: Border.all(
@@ -40,8 +47,8 @@ class TreeMark extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.accentTeal
-                .withValues(alpha: ((isDark ? 0.28 : 0.18) * glow).clamp(0.0, 1.0)),
+            color: AppTheme.accentTeal.withValues(
+                alpha: ((dark ? 0.28 : 0.18) * glow).clamp(0.0, 1.0)),
             blurRadius: 26 * glow,
             spreadRadius: (glow - 1) * 8,
             offset: const Offset(0, 10),
@@ -50,7 +57,7 @@ class TreeMark extends StatelessWidget {
       ),
       child: CustomPaint(
         painter: _TreeMarkPainter(
-          isDark: isDark,
+          isDark: dark,
           trunk: context.colors.accent,
           canopy: context.colors.secondary,
         ),

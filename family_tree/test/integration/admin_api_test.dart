@@ -54,7 +54,8 @@ void main() {
 
   test('a suspension revokes an already-issued token', skip: skip, () async {
     expect(
-      (await http.get(Uri.parse('$base/api/persons'), headers: _auth(victimToken)))
+      (await http.get(Uri.parse('$base/api/persons'),
+              headers: _auth(victimToken)))
           .statusCode,
       200,
     );
@@ -68,7 +69,8 @@ void main() {
 
     // The token was minted before the ban and must stop working anyway.
     expect(
-      (await http.get(Uri.parse('$base/api/persons'), headers: _auth(victimToken)))
+      (await http.get(Uri.parse('$base/api/persons'),
+              headers: _auth(victimToken)))
           .statusCode,
       403,
     );
@@ -94,7 +96,8 @@ void main() {
     );
     expect(r.statusCode, 200);
     expect(
-      (await http.get(Uri.parse('$base/api/persons'), headers: _auth(victimToken)))
+      (await http.get(Uri.parse('$base/api/persons'),
+              headers: _auth(victimToken)))
           .statusCode,
       200,
     );
@@ -164,7 +167,8 @@ void main() {
     });
   });
 
-  test('announcement reaches every user as a notification', skip: skip, () async {
+  test('announcement reaches every user as a notification', skip: skip,
+      () async {
     final r = await http.post(
       Uri.parse('$base/api/admin/announcements'),
       headers: _auth(adminToken),

@@ -208,10 +208,8 @@ class _PersonNodeState extends State<PersonNode>
                         AppTheme.primaryLight.withValues(alpha: 0.1),
                       ]
                     : [
-                        (context.colors.ink)
-                            .withValues(alpha: 0.05),
-                        (context.colors.ink)
-                            .withValues(alpha: 0.02),
+                        (context.colors.ink).withValues(alpha: 0.05),
+                        (context.colors.ink).withValues(alpha: 0.02),
                       ],
               ),
             ),
@@ -413,10 +411,8 @@ class _PersonNodeState extends State<PersonNode>
                         AppTheme.primaryLight.withValues(alpha: 0.1),
                       ]
                     : [
-                        (context.colors.ink)
-                            .withValues(alpha: 0.05),
-                        (context.colors.ink)
-                            .withValues(alpha: 0.02),
+                        (context.colors.ink).withValues(alpha: 0.05),
+                        (context.colors.ink).withValues(alpha: 0.02),
                       ],
               ),
             ),

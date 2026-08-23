@@ -16,8 +16,8 @@ import 'package:family_tree/core/logging.dart';
 import 'package:family_tree/core/design/typography.dart';
 
 // Notifications state provider
-final notificationsProvider =
-    StateNotifierProvider<NotificationsNotifier, AsyncValue<List<NotificationModel>>>(
+final notificationsProvider = StateNotifierProvider<NotificationsNotifier,
+    AsyncValue<List<NotificationModel>>>(
   (ref) => NotificationsNotifier(
     onCountChanged: () => ref.invalidate(unreadCountProvider),
   ),
@@ -31,7 +31,8 @@ final notificationsProvider =
 final unreadCountProvider = StreamProvider<int>((ref) async* {
   Future<int> fetch() async {
     try {
-      final response = await ApiService().get('/api/notifications/unread-count');
+      final response =
+          await ApiService().get('/api/notifications/unread-count');
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return (data['count'] as num).toInt();
@@ -50,7 +51,8 @@ final unreadCountProvider = StreamProvider<int>((ref) async* {
   }
 });
 
-class NotificationsNotifier extends StateNotifier<AsyncValue<List<NotificationModel>>> {
+class NotificationsNotifier
+    extends StateNotifier<AsyncValue<List<NotificationModel>>> {
   NotificationsNotifier({void Function()? onCountChanged})
       : _onCountChanged = onCountChanged,
         super(const AsyncValue.loading()) {
@@ -65,13 +67,15 @@ class NotificationsNotifier extends StateNotifier<AsyncValue<List<NotificationMo
     try {
       state = const AsyncValue.loading();
       final response = await ApiService().get('/api/notifications');
-      
+
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
-        final notifications = data.map((json) => NotificationModel.fromJson(json)).toList();
+        final notifications =
+            data.map((json) => NotificationModel.fromJson(json)).toList();
         state = AsyncValue.data(notifications);
       } else {
-        state = AsyncValue.error('Failed to load notifications', StackTrace.current);
+        state = AsyncValue.error(
+            'Failed to load notifications', StackTrace.current);
       }
     } catch (e, stack) {
       state = AsyncValue.error(e, stack);
@@ -98,7 +102,8 @@ class NotificationsNotifier extends StateNotifier<AsyncValue<List<NotificationMo
           await ApiService().delete('/api/notifications/$notificationId');
       // A notification that is already gone is the outcome the swipe wanted.
       if (response.statusCode != 404) {
-        ApiService.ensureOk(response, whileDoing: 'dismissing the notification');
+        ApiService.ensureOk(response,
+            whileDoing: 'dismissing the notification');
       }
       _onCountChanged?.call();
       return null;
@@ -210,7 +215,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
     final onSurface = context.colors.ink;
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(context.gutter - 8, 8, context.gutter - 8, 4),
+      padding:
+          EdgeInsets.fromLTRB(context.gutter - 8, 8, context.gutter - 8, 4),
       child: Row(
         children: [
           IconButton(
@@ -259,8 +265,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
                 ),
               ),
               style: TextButton.styleFrom(
-                foregroundColor:
-                    context.colors.secondary,
+                foregroundColor: context.colors.secondary,
               ),
             ),
           IconButton(
@@ -343,8 +348,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
         height: 86,
         margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
-          color: (context.colors.ink)
-              .withValues(alpha: isDark ? 0.05 : 0.04),
+          color: (context.colors.ink).withValues(alpha: isDark ? 0.05 : 0.04),
           borderRadius: BorderRadius.circular(16),
         ),
       ),
@@ -380,14 +384,14 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
     // Navigate using GoRouter
     // We assume the app uses GoRouter as seen in main.dart
     final router = GoRouter.of(context);
-    
+
     switch (notification.entityType) {
       case 'post':
       case 'comment':
       case 'reaction':
         // Navigate to Feed tab in GroupPage
         // Ideally we would pass the post ID to scroll to it
-        router.go('/group'); 
+        router.go('/group');
         break;
       case 'event':
       case 'event_reminder':
@@ -415,14 +419,17 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
     );
   }
 }
+
 class NotificationSettingsDialog extends ConsumerStatefulWidget {
   const NotificationSettingsDialog({super.key});
 
   @override
-  ConsumerState<NotificationSettingsDialog> createState() => _NotificationSettingsDialogState();
+  ConsumerState<NotificationSettingsDialog> createState() =>
+      _NotificationSettingsDialogState();
 }
 
-class _NotificationSettingsDialogState extends ConsumerState<NotificationSettingsDialog> {
+class _NotificationSettingsDialogState
+    extends ConsumerState<NotificationSettingsDialog> {
   bool _isLoading = true;
   NotificationPreference? _preference;
 
@@ -550,7 +557,6 @@ class _NotificationSettingsDialogState extends ConsumerState<NotificationSetting
     );
   }
 }
-
 
 /// One notification row.
 class NotificationCard extends StatelessWidget {
@@ -736,8 +742,7 @@ class _CenteredMessage extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: (context.colors.secondary)
-                    .withValues(alpha: 0.12),
+                color: (context.colors.secondary).withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
               child: Icon(

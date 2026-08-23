@@ -71,7 +71,8 @@ class TreeLayoutService {
 
         // Never let a person become their own descendant, however the data got
         // that way.
-        if (parentId == person.id || _isDescendantOf(claimedBy, parentId, person.id)) {
+        if (parentId == person.id ||
+            _isDescendantOf(claimedBy, parentId, person.id)) {
           continue;
         }
 
@@ -123,7 +124,8 @@ class TreeLayoutService {
   }
 
   /// Assign positions, top-down, centring each parent over its children.
-  static void _place(_TreeNode node, double x, double y, double levelSeparation) {
+  static void _place(
+      _TreeNode node, double x, double y, double levelSeparation) {
     node.finalX = x + (node.width - nodeWidth) / 2;
     node.finalY = y;
 

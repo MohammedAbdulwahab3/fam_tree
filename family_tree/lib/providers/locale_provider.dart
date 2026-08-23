@@ -41,7 +41,6 @@ class AppLocaleNotifier extends StateNotifier<Locale> {
   }
 }
 
-final appLocaleProvider =
-    StateNotifierProvider<AppLocaleNotifier, Locale>(
+final appLocaleProvider = StateNotifierProvider<AppLocaleNotifier, Locale>(
   (ref) => AppLocaleNotifier(),
 );

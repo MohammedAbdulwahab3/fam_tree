@@ -168,7 +168,7 @@ class AccountPage extends ConsumerWidget {
                   value: themeMode == ThemeMode.dark,
                   onChanged: (on) => ref
                       .read(themeModeProvider.notifier)
-                      .setMode(on ? ThemeMode.dark : ThemeMode.light),
+                      .setTheme(on ? ThemeMode.dark : ThemeMode.light),
                 ),
               ),
             ],

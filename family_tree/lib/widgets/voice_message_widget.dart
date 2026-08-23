@@ -33,7 +33,6 @@ class _VoiceRecorderButtonState extends State<VoiceRecorderButton>
     with SingleTickerProviderStateMixin {
   final AudioRecorder _recorder = AudioRecorder();
   bool _isRecording = false;
-  String? _currentPath;
   Duration _recordDuration = Duration.zero;
   Timer? _timer;
   late AnimationController _pulseController;
@@ -59,11 +58,11 @@ class _VoiceRecorderButtonState extends State<VoiceRecorderButton>
     try {
       final hasPermission = await _recorder.hasPermission();
       debugPrint('VoiceRecorder: Has permission: $hasPermission');
-      
+
       if (hasPermission) {
         String? path;
         RecordConfig config;
-        
+
         if (kIsWeb) {
           // For web, use opus codec which is well-supported by browsers
           config = const RecordConfig(
@@ -76,24 +75,25 @@ class _VoiceRecorderButtonState extends State<VoiceRecorderButton>
         } else {
           // For mobile, use AAC
           final directory = await getTemporaryDirectory();
-          path = '${directory.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+          path =
+              '${directory.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
           config = const RecordConfig(
             encoder: AudioEncoder.aacLc,
             bitRate: 128000,
             sampleRate: 44100,
           );
         }
-        
-        debugPrint('VoiceRecorder: Starting recording... path=$path, isWeb=$kIsWeb');
+
+        debugPrint(
+            'VoiceRecorder: Starting recording... path=$path, isWeb=$kIsWeb');
         await _recorder.start(config, path: path ?? '');
         debugPrint('VoiceRecorder: Recording started!');
-        
+
         setState(() {
           _isRecording = true;
-          _currentPath = path;
           _recordDuration = Duration.zero;
         });
-        
+
         _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
           setState(() {
             _recordDuration += const Duration(seconds: 1);
@@ -129,13 +129,14 @@ class _VoiceRecorderButtonState extends State<VoiceRecorderButton>
       debugPrint('VoiceRecorder: Stopping recording...');
       final path = await _recorder.stop();
       debugPrint('VoiceRecorder: Recording stopped, path: $path');
-      
+
       setState(() {
         _isRecording = false;
       });
-      
+
       if (path != null && path.isNotEmpty && _recordDuration.inSeconds >= 1) {
-        debugPrint('VoiceRecorder: Recording complete, calling callback with path');
+        debugPrint(
+            'VoiceRecorder: Recording complete, calling callback with path');
         widget.onRecordComplete(path);
       } else if (_recordDuration.inSeconds < 1) {
         // Too short - delete file (only on mobile)
@@ -153,7 +154,7 @@ class _VoiceRecorderButtonState extends State<VoiceRecorderButton>
           );
         }
       }
-      
+
       _recordDuration = Duration.zero;
     } catch (e) {
       debugPrint('VoiceRecorder: Error stopping recording: $e');
@@ -187,7 +188,8 @@ class _VoiceRecorderButtonState extends State<VoiceRecorderButton>
                     width: 8,
                     height: 8,
                     decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.5 + _pulseController.value * 0.5),
+                      color: Colors.red.withValues(
+                          alpha: 0.5 + _pulseController.value * 0.5),
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -219,7 +221,8 @@ class _VoiceRecorderButtonState extends State<VoiceRecorderButton>
               height: _isRecording ? widget.size * 1.2 : widget.size,
               decoration: BoxDecoration(
                 gradient: _isRecording
-                    ? const LinearGradient(colors: [Colors.red, Colors.redAccent])
+                    ? const LinearGradient(
+                        colors: [Colors.red, Colors.redAccent])
                     : (context.colors.brandGradient),
                 shape: BoxShape.circle,
                 boxShadow: [
@@ -278,16 +281,16 @@ class _VoiceMessagePlayerState extends State<VoiceMessagePlayer> {
   Future<void> _initPlayer() async {
     try {
       debugPrint('VoicePlayer: Initializing with URL: ${widget.audioUrl}');
-      
+
       _player.onDurationChanged.listen((d) {
         debugPrint('VoicePlayer: Duration changed: $d');
         if (mounted) setState(() => _duration = d);
       });
-      
+
       _player.onPositionChanged.listen((p) {
         if (mounted) setState(() => _position = p);
       });
-      
+
       _player.onPlayerComplete.listen((_) {
         debugPrint('VoicePlayer: Playback complete');
         if (mounted) {
@@ -297,7 +300,7 @@ class _VoiceMessagePlayerState extends State<VoiceMessagePlayer> {
           });
         }
       });
-      
+
       _player.onPlayerStateChanged.listen((state) {
         debugPrint('VoicePlayer: State changed: $state');
         if (mounted) {
@@ -308,7 +311,7 @@ class _VoiceMessagePlayerState extends State<VoiceMessagePlayer> {
       // Set the appropriate source based on URL type
       final url = widget.audioUrl;
       Source source;
-      
+
       if (url.startsWith('blob:') || url.startsWith('data:')) {
         // Web blob URL or data URL
         debugPrint('VoicePlayer: Using UrlSource for blob/data URL');
@@ -326,7 +329,7 @@ class _VoiceMessagePlayerState extends State<VoiceMessagePlayer> {
         debugPrint('VoicePlayer: Using UrlSource as default');
         source = UrlSource(url);
       }
-      
+
       await _player.setSource(source);
       debugPrint('VoicePlayer: Source set successfully');
       setState(() => _isLoading = false);
@@ -408,16 +411,19 @@ class _VoiceMessagePlayerState extends State<VoiceMessagePlayer> {
                       ),
                     )
                   : _error != null
-                      ? const Icon(Icons.error_outline, color: Colors.red, size: 24)
+                      ? const Icon(Icons.error_outline,
+                          color: Colors.red, size: 24)
                       : Icon(
-                          _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                          _isPlaying
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded,
                           color: Colors.white,
                           size: 24,
                         ),
             ),
           ),
           const SizedBox(width: 12),
-          
+
           // Waveform / Progress bar
           Expanded(
             child: Column(
@@ -439,7 +445,9 @@ class _VoiceMessagePlayerState extends State<VoiceMessagePlayer> {
                         decoration: BoxDecoration(
                           color: isBeforeProgress
                               ? (context.colors.accent)
-                              : (widget.isDark ? Colors.white24 : Colors.grey.shade300),
+                              : (widget.isDark
+                                  ? Colors.white24
+                                  : Colors.grey.shade300),
                           borderRadius: BorderRadius.circular(2),
                         ),
                       );
@@ -447,7 +455,7 @@ class _VoiceMessagePlayerState extends State<VoiceMessagePlayer> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                
+
                 // Duration
                 Text(
                   '${_formatDuration(_position)} / ${_formatDuration(_duration)}',

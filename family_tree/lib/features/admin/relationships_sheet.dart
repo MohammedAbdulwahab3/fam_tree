@@ -144,8 +144,7 @@ class _RelationshipsFormState extends State<_RelationshipsForm> {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final parents =
-        _parentIds.map(_index.byId).whereType<Person>().toList();
+    final parents = _parentIds.map(_index.byId).whereType<Person>().toList();
 
     return Column(
       children: [
@@ -170,14 +169,17 @@ class _RelationshipsFormState extends State<_RelationshipsForm> {
                         person: parent,
                         index: _index,
                         onRemove: () => _touch(
-                          () => _parentIds =
-                              _parentIds.where((id) => id != parent.id).toList(),
+                          () => _parentIds = _parentIds
+                              .where((id) => id != parent.id)
+                              .toList(),
                         ),
                       ),
                     ),
                   if (_parentIds.length < 2)
                     SecondaryButton(
-                      label: parents.isEmpty ? 'Set a parent' : 'Add the other parent',
+                      label: parents.isEmpty
+                          ? 'Set a parent'
+                          : 'Add the other parent',
                       icon: Icons.add_rounded,
                       onPressed: () => _pickPerson(
                         title: 'Who is the parent?',
@@ -202,9 +204,7 @@ class _RelationshipsFormState extends State<_RelationshipsForm> {
                   ],
                 ],
               ),
-
               const SizedBox(height: Insets.sectionGap),
-
               AppSection(
                 title: 'Marriages',
                 subtitle: 'Only people who are in the tree. A spouse who is '
@@ -247,7 +247,6 @@ class _RelationshipsFormState extends State<_RelationshipsForm> {
                   ),
                 ],
               ),
-
               if (_error != null) ...[
                 const SizedBox(height: Insets.lg),
                 AppNotice(message: _error!, tone: NoticeTone.danger),
@@ -485,8 +484,8 @@ class _PersonPickerState extends State<_PersonPicker> {
                               children: [
                                 Text(
                                   person.fullName,
-                                  style: AppType.bodyStrong
-                                      .copyWith(color: c.ink),
+                                  style:
+                                      AppType.bodyStrong.copyWith(color: c.ink),
                                 ),
                                 Text(
                                   parents.isEmpty
