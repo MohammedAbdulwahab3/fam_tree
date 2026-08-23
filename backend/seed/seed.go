@@ -4,13 +4,17 @@ import (
 	"log"
 	"time"
 
+	"family-tree-backend/config"
 	"family-tree-backend/models"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
-const DefaultFamilyTreeID = "main-family-tree"
+// DefaultFamilyTreeID is kept as an alias so callers reading this package keep
+// working; the value lives in config so the seeder and the register handler
+// cannot disagree about which tree new members join.
+var DefaultFamilyTreeID = config.FamilyTreeID()
 
 type Node struct {
 	FirstName string
@@ -295,7 +299,6 @@ func SeedDatabase(db *gorm.DB) {
 	}
 
 	allPersons := make([]models.Person, 0, 200)
-	childrenMap := make(map[string][]string)
 
 	var buildSubtree func(nd Node, parentID string, displayOrder int, gen int)
 	buildSubtree = func(nd Node, parentID string, displayOrder int, gen int) {
@@ -324,46 +327,30 @@ func SeedDatabase(db *gorm.DB) {
 			UpdatedAt:    time.Now(),
 		}
 
-		personIdx := len(allPersons)
 		allPersons = append(allPersons, p)
-
-		if parentID != "" {
-			childrenMap[parentID] = append(childrenMap[parentID], personID)
-		}
 
 		for i, child := range nd.Children {
 			buildSubtree(child, personID, i, gen+1)
 		}
-		_ = personIdx
 	}
 
 	for i, root := range familyTreeNodes {
 		buildSubtree(root, "", i, 0)
 	}
 
-	// Link children back to parent relationships
-	for i := range allPersons {
-		pID := allPersons[i].ID
-		if kids, exists := childrenMap[pID]; exists && len(kids) > 0 {
-			allPersons[i].Relationships.ChildrenIDs = kids
-		}
+	// Children are derived from ParentIDs on read, so nothing writes the other
+	// direction here.
+	if err := db.CreateInBatches(allPersons, 100).Error; err != nil {
+		log.Fatalf("Could not seed people: %v", err)
 	}
 
-	// Batch insert all persons into DB
-	for i, person := range allPersons {
-		if err := db.Create(&person).Error; err != nil {
-			log.Printf("Error creating person %d (%s %s): %v", i, person.FirstName, person.LastName, err)
-		}
-	}
-
-	// Create default admin user if missing
-	adminUser := models.User{
-		ID:    "admin-default",
-		Email: "admin@familytree.com",
-		Name:  "Admin",
-		Role:  models.RoleAdmin,
-	}
-	db.FirstOrCreate(&adminUser, models.User{ID: "admin-default"})
-
-	log.Printf("✅ Mammaduu Family Tree seeded successfully with %d persons!", len(allPersons))
+	// No admin is created here. The one this used to insert had an empty
+	// password hash, so bcrypt rejected every sign-in attempt against it — an
+	// account that looked like a way in and was not one.
+	//
+	// Register through the app, then promote yourself:
+	//     go run ./cmd/make_admin you@example.com
+	log.Printf("Seeded %d people into %q.", len(allPersons), DefaultFamilyTreeID)
+	log.Println("No admin was created. Register in the app, then run: " +
+		"go run ./cmd/make_admin <your-email>")
 }

@@ -14,65 +14,27 @@ type NotificationHandler struct {
 	DB *gorm.DB
 }
 
-// RegisterDeviceToken registers a new FCM device token for a user
-func (h *NotificationHandler) RegisterDeviceToken(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
-		return
+// defaultPreference is what a member who has never opened the settings screen
+// implicitly has: everything on.
+func defaultPreference(userID string) models.NotificationPreference {
+	now := time.Now()
+	return models.NotificationPreference{
+		ID:              uuid.New().String(),
+		UserID:          userID,
+		PostsEnabled:    true,
+		CommentsEnabled: true,
+		MentionsEnabled: true,
+		CreatedAt:       now,
+		UpdatedAt:       now,
 	}
-
-	var req struct {
-		Token    string `json:"token" binding:"required"`
-		Platform string `json:"platform" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Check if token already exists
-	var existingToken models.DeviceToken
-	result := h.DB.Where("token = ?", req.Token).First(&existingToken)
-
-	if result.Error == nil {
-		// Update existing token
-		existingToken.UserID = userID.(string)
-		existingToken.Platform = req.Platform
-		existingToken.LastUpdated = time.Now()
-		h.DB.Save(&existingToken)
-		c.JSON(http.StatusOK, existingToken)
-		return
-	}
-
-	// Create new token
-	token := models.DeviceToken{
-		ID:          uuid.New().String(),
-		UserID:      userID.(string),
-		Token:       req.Token,
-		Platform:    req.Platform,
-		LastUpdated: time.Now(),
-		CreatedAt:   time.Now(),
-	}
-
-	if err := h.DB.Create(&token).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusCreated, token)
 }
 
-// GetNotifications retrieves all notifications for the current user
+// GetNotifications retrieves the caller's notifications, newest first.
 func (h *NotificationHandler) GetNotifications(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
-		return
-	}
+	userID := c.GetString("userID")
 
 	var notifications []models.Notification
-	if err := h.DB.Where("user_id = ?", userID.(string)).
+	if err := h.DB.Where("user_id = ?", userID).
 		Order("created_at DESC").
 		Limit(100).
 		Find(&notifications).Error; err != nil {
@@ -83,18 +45,13 @@ func (h *NotificationHandler) GetNotifications(c *gin.Context) {
 	c.JSON(http.StatusOK, notifications)
 }
 
-// MarkAsRead marks a notification as read
+// MarkAsRead marks one of the caller's notifications as read.
 func (h *NotificationHandler) MarkAsRead(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
-		return
-	}
-
+	userID := c.GetString("userID")
 	notifID := c.Param("id")
 
 	var notification models.Notification
-	if err := h.DB.Where("id = ? AND user_id = ?", notifID, userID.(string)).
+	if err := h.DB.Where("id = ? AND user_id = ?", notifID, userID).
 		First(&notification).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Notification not found"})
 		return
@@ -111,18 +68,13 @@ func (h *NotificationHandler) MarkAsRead(c *gin.Context) {
 	c.JSON(http.StatusOK, notification)
 }
 
-// MarkAllAsRead marks all notifications as read for the current user
+// MarkAllAsRead marks all of the caller's notifications as read.
 func (h *NotificationHandler) MarkAllAsRead(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
-		return
-	}
+	userID := c.GetString("userID")
 
-	now := time.Now()
 	if err := h.DB.Model(&models.Notification{}).
-		Where("user_id = ? AND read_at IS NULL", userID.(string)).
-		Update("read_at", now).Error; err != nil {
+		Where("user_id = ? AND read_at IS NULL", userID).
+		Update("read_at", time.Now()).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -130,30 +82,16 @@ func (h *NotificationHandler) MarkAllAsRead(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "All notifications marked as read"})
 }
 
-// GetPreferences retrieves notification preferences for the current user
+// GetPreferences retrieves the caller's notification preferences, creating the
+// all-on default row on first read.
 func (h *NotificationHandler) GetPreferences(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
-		return
-	}
+	userID := c.GetString("userID")
 
 	var pref models.NotificationPreference
-	err := h.DB.Where("user_id = ?", userID.(string)).First(&pref).Error
+	err := h.DB.Where("user_id = ?", userID).First(&pref).Error
 
 	if err == gorm.ErrRecordNotFound {
-		// Create default preferences
-		pref = models.NotificationPreference{
-			ID:              uuid.New().String(),
-			UserID:          userID.(string),
-			EventsEnabled:   true,
-			PostsEnabled:    true,
-			MessagesEnabled: true,
-			CommentsEnabled: true,
-			MentionsEnabled: true,
-			CreatedAt:       time.Now(),
-			UpdatedAt:       time.Now(),
-		}
+		pref = defaultPreference(userID)
 		h.DB.Create(&pref)
 	} else if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -163,7 +101,7 @@ func (h *NotificationHandler) GetPreferences(c *gin.Context) {
 	c.JSON(http.StatusOK, pref)
 }
 
-// UpdatePreferences updates notification preferences for the current user.
+// UpdatePreferences updates the caller's notification preferences.
 //
 // Two details matter here and both used to be wrong.
 //
@@ -176,20 +114,12 @@ func (h *NotificationHandler) GetPreferences(c *gin.Context) {
 // statement meant turning a notification off silently stored "on", and the
 // switch sprang back the next time the screen loaded.
 func (h *NotificationHandler) UpdatePreferences(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
-		return
-	}
+	userID := c.GetString("userID")
 
 	var req struct {
-		EventsEnabled   *bool      `json:"eventsEnabled"`
-		PostsEnabled    *bool      `json:"postsEnabled"`
-		MessagesEnabled *bool      `json:"messagesEnabled"`
-		CommentsEnabled *bool      `json:"commentsEnabled"`
-		MentionsEnabled *bool      `json:"mentionsEnabled"`
-		QuietHoursStart *time.Time `json:"quietHoursStart"`
-		QuietHoursEnd   *time.Time `json:"quietHoursEnd"`
+		PostsEnabled    *bool `json:"postsEnabled"`
+		CommentsEnabled *bool `json:"commentsEnabled"`
+		MentionsEnabled *bool `json:"mentionsEnabled"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -197,22 +127,10 @@ func (h *NotificationHandler) UpdatePreferences(c *gin.Context) {
 	}
 
 	var pref models.NotificationPreference
-	err := h.DB.Where("user_id = ?", userID.(string)).First(&pref).Error
+	err := h.DB.Where("user_id = ?", userID).First(&pref).Error
 
 	if err == gorm.ErrRecordNotFound {
-		// Everything on, which is what a member who has never opened the
-		// settings implicitly has.
-		pref = models.NotificationPreference{
-			ID:              uuid.New().String(),
-			UserID:          userID.(string),
-			EventsEnabled:   true,
-			PostsEnabled:    true,
-			MessagesEnabled: true,
-			CommentsEnabled: true,
-			MentionsEnabled: true,
-			CreatedAt:       time.Now(),
-			UpdatedAt:       time.Now(),
-		}
+		pref = defaultPreference(userID)
 		if err := h.DB.Create(&pref).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -223,14 +141,8 @@ func (h *NotificationHandler) UpdatePreferences(c *gin.Context) {
 	}
 
 	changes := map[string]interface{}{"updated_at": time.Now()}
-	if req.EventsEnabled != nil {
-		changes["events_enabled"] = *req.EventsEnabled
-	}
 	if req.PostsEnabled != nil {
 		changes["posts_enabled"] = *req.PostsEnabled
-	}
-	if req.MessagesEnabled != nil {
-		changes["messages_enabled"] = *req.MessagesEnabled
 	}
 	if req.CommentsEnabled != nil {
 		changes["comments_enabled"] = *req.CommentsEnabled
@@ -238,9 +150,6 @@ func (h *NotificationHandler) UpdatePreferences(c *gin.Context) {
 	if req.MentionsEnabled != nil {
 		changes["mentions_enabled"] = *req.MentionsEnabled
 	}
-	// Quiet hours are cleared by sending null, so these are always written.
-	changes["quiet_hours_start"] = req.QuietHoursStart
-	changes["quiet_hours_end"] = req.QuietHoursEnd
 
 	if err := h.DB.Model(&models.NotificationPreference{}).
 		Where("id = ?", pref.ID).Updates(changes).Error; err != nil {
@@ -252,17 +161,13 @@ func (h *NotificationHandler) UpdatePreferences(c *gin.Context) {
 	c.JSON(http.StatusOK, pref)
 }
 
-// GetUnreadCount returns the count of unread notifications
+// GetUnreadCount returns the count of the caller's unread notifications.
 func (h *NotificationHandler) GetUnreadCount(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
-		return
-	}
+	userID := c.GetString("userID")
 
 	var count int64
 	if err := h.DB.Model(&models.Notification{}).
-		Where("user_id = ? AND read_at IS NULL", userID.(string)).
+		Where("user_id = ? AND read_at IS NULL", userID).
 		Count(&count).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -276,15 +181,10 @@ func (h *NotificationHandler) GetUnreadCount(c *gin.Context) {
 // rather than as a refusal, which is also what the swipe-to-dismiss gesture in
 // the app expects.
 func (h *NotificationHandler) DeleteNotification(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
-		return
-	}
-
+	userID := c.GetString("userID")
 	notifID := c.Param("id")
 
-	result := h.DB.Where("id = ? AND user_id = ?", notifID, userID.(string)).
+	result := h.DB.Where("id = ? AND user_id = ?", notifID, userID).
 		Delete(&models.Notification{})
 	if result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
@@ -300,13 +200,9 @@ func (h *NotificationHandler) DeleteNotification(c *gin.Context) {
 
 // DeleteAllNotifications clears the caller's whole list.
 func (h *NotificationHandler) DeleteAllNotifications(c *gin.Context) {
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
-		return
-	}
+	userID := c.GetString("userID")
 
-	result := h.DB.Where("user_id = ?", userID.(string)).Delete(&models.Notification{})
+	result := h.DB.Where("user_id = ?", userID).Delete(&models.Notification{})
 	if result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
 		return

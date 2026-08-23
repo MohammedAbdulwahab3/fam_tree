@@ -1,9 +1,19 @@
+// Command make_admin promotes an account to admin.
+//
+// This is the only way to create the first admin. It has to run against the
+// database directly, which is the point: an HTTP route that grants admin is a
+// route anyone can call, and the one that used to exist here accepted a shared
+// secret hardcoded in this repository.
+//
+//	go run ./cmd/make_admin you@example.com   # by email or id
+//	go run ./cmd/make_admin                   # the most recently registered
 package main
 
 import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"family-tree-backend/models"
 
@@ -12,56 +22,41 @@ import (
 )
 
 func main() {
-	// Get database URL from environment or use default
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
 		dbURL = "host=127.0.0.1 user=postgres password=postgres dbname=family_tree port=5432 sslmode=disable"
 	}
 
-	// Connect to database
 	db, err := gorm.Open(postgres.Open(dbURL), &gorm.Config{})
 	if err != nil {
-		log.Fatal("Failed to connect to database:", err)
+		log.Fatal("Failed to connect to database: ", err)
 	}
 
-	// Check if user email/ID is provided as argument
+	var user models.User
+
 	if len(os.Args) < 2 {
-		// No argument provided, make the most recently created user an admin
-		var user models.User
 		if result := db.Order("created_at DESC").First(&user); result.Error != nil {
-			log.Fatal("Failed to find any users:", result.Error)
+			log.Fatal("No users exist yet. Register in the app first.")
 		}
-
-		fmt.Printf("Found most recent user: %s (%s)\n", user.Email, user.Name)
-		fmt.Printf("Current role: %s\n", user.Role)
-
-		// Update to admin
-		user.Role = models.RoleAdmin
-		if result := db.Save(&user); result.Error != nil {
-			log.Fatal("Failed to update user role:", result.Error)
+	} else {
+		identifier := strings.ToLower(strings.TrimSpace(os.Args[1]))
+		if result := db.Where("email = ?", identifier).
+			Or("id = ?", os.Args[1]).First(&user); result.Error != nil {
+			log.Fatalf("No user matches %q.", os.Args[1])
 		}
+	}
 
-		fmt.Printf("✅ Successfully updated %s to admin role!\n", user.Email)
+	if user.IsAdmin() {
+		fmt.Printf("%s (%s) is already an admin.\n", user.Email, user.Name)
 		return
 	}
 
-	// User provided email or ID as argument
-	userIdentifier := os.Args[1]
+	fmt.Printf("Found %s (%s), currently %s.\n", user.Email, user.Name, user.Role)
 
-	var user models.User
-	// Try to find by email first, then by ID
-	if result := db.Where("email = ?", userIdentifier).Or("id = ?", userIdentifier).First(&user); result.Error != nil {
-		log.Fatal("Failed to find user:", result.Error)
+	if err := db.Model(&models.User{}).Where("id = ?", user.ID).
+		Update("role", models.RoleAdmin).Error; err != nil {
+		log.Fatal("Failed to update role: ", err)
 	}
 
-	fmt.Printf("Found user: %s (%s)\n", user.Email, user.Name)
-	fmt.Printf("Current role: %s\n", user.Role)
-
-	// Update to admin
-	user.Role = models.RoleAdmin
-	if result := db.Save(&user); result.Error != nil {
-		log.Fatal("Failed to update user role:", result.Error)
-	}
-
-	fmt.Printf("✅ Successfully updated %s to admin role!\n", user.Email)
+	fmt.Printf("%s is now an admin.\n", user.Email)
 }

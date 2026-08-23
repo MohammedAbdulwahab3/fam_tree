@@ -8,8 +8,8 @@ import (
 
 type Post struct {
 	ID           string          `gorm:"primaryKey" json:"id"`
-	FamilyTreeID string          `json:"familyTreeId"`
-	UserID       string          `json:"userId"`
+	FamilyTreeID string          `gorm:"index" json:"familyTreeId"`
+	UserID       string          `gorm:"index" json:"userId"`
 	UserName     string          `json:"userName"`
 	UserPhoto    string          `json:"userPhoto"`
 	Content      string          `json:"content"`
@@ -18,37 +18,7 @@ type Post struct {
 	Files        JSONStringArray `gorm:"type:text" json:"files"`
 	AudioURL     string          `json:"audioUrl"`
 	Reactions    []Reaction      `gorm:"foreignKey:PostID" json:"reactions"`
-	CreatedAt    time.Time       `json:"createdAt"`
-	UpdatedAt    time.Time       `json:"updatedAt"`
-	DeletedAt    gorm.DeletedAt  `gorm:"index" json:"-"`
-}
-
-type Message struct {
-	ID           string         `gorm:"primaryKey" json:"id"`
-	FamilyTreeID string         `json:"familyTreeId"`
-	UserID       string         `json:"userId"`
-	UserName     string         `json:"userName"`
-	UserPhoto    string         `json:"userPhoto"`
-	Text         string         `json:"text"`
-	Type         string         `json:"type"` // text, image, video
-	MediaURL     string         `json:"mediaUrl"`
-	SentAt       time.Time      `json:"sentAt"`
-	IsRead       bool           `json:"isRead"`
-	CreatedAt    time.Time      `json:"createdAt"`
-	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
-}
-
-type Event struct {
-	ID           string          `gorm:"primaryKey" json:"id"`
-	FamilyTreeID string          `json:"familyTreeId"`
-	Title        string          `json:"title"`
-	Description  string          `json:"description"`
-	Location     string          `json:"location"`
-	MapLink      string          `json:"mapLink"`
-	DateTime     time.Time       `json:"dateTime"`
-	CreatedBy    string          `json:"createdBy"`
-	Attendees    JSONStringArray `gorm:"type:text" json:"attendees"`
-	CreatedAt    time.Time       `json:"createdAt"`
+	CreatedAt    time.Time       `gorm:"index" json:"createdAt"`
 	UpdatedAt    time.Time       `json:"updatedAt"`
 	DeletedAt    gorm.DeletedAt  `gorm:"index" json:"-"`
 }
@@ -64,11 +34,20 @@ type Comment struct {
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
+// Reaction is one member's reaction to one post.
+//
+// The (post_id, user_id) pair is unique so that two taps arriving at the same
+// moment cannot produce two rows for the same person. The toggle handler
+// depends on that constraint rather than on a read-then-write, which used to
+// lose a reaction whenever two members reacted simultaneously.
+//
+// Deliberately has no DeletedAt: removing a reaction is a hard delete. A
+// soft-deleted row would keep occupying the unique index, so the same person
+// could never react to that post again.
 type Reaction struct {
-	ID        string         `gorm:"primaryKey" json:"id"`
-	PostID    string         `gorm:"index" json:"postId"`
-	UserID    string         `json:"userId"`
-	Emoji     string         `json:"emoji"`
-	CreatedAt time.Time      `json:"createdAt"`
-	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+	ID        string    `gorm:"primaryKey" json:"id"`
+	PostID    string    `gorm:"index:idx_reaction_post_user,unique" json:"postId"`
+	UserID    string    `gorm:"index:idx_reaction_post_user,unique" json:"userId"`
+	Emoji     string    `json:"emoji"`
+	CreatedAt time.Time `json:"createdAt"`
 }

@@ -12,13 +12,10 @@ import (
 type NotificationType string
 
 const (
-	NotificationEventReminder NotificationType = "event_reminder"
-	NotificationNewPost       NotificationType = "new_post"
-	NotificationNewComment    NotificationType = "new_comment"
-	NotificationNewMessage    NotificationType = "new_message"
-	NotificationEventRSVP     NotificationType = "event_rsvp"
-	NotificationMention       NotificationType = "mention"
-	NotificationAnnouncement  NotificationType = "announcement"
+	NotificationNewPost      NotificationType = "new_post"
+	NotificationNewComment   NotificationType = "new_comment"
+	NotificationMention      NotificationType = "mention"
+	NotificationAnnouncement NotificationType = "announcement"
 )
 
 // JSONMap is a custom type for storing JSON data
@@ -45,12 +42,16 @@ func (j JSONMap) Value() (driver.Value, error) {
 	return json.Marshal(j)
 }
 
-// Notification represents a notification sent to a user
+// Notification represents a notification sent to a user.
+//
+// Notifications are recorded here and read by the app's notifications screen.
+// There is no device-push channel: the app polls, so a row in this table is the
+// whole delivery mechanism.
 type Notification struct {
 	ID         string           `gorm:"primaryKey" json:"id"`
 	UserID     string           `gorm:"index" json:"userId"`
 	Type       NotificationType `json:"type"`
-	EntityType string           `json:"entityType"` // event, post, message
+	EntityType string           `json:"entityType"` // post, comment, link_request, announcement
 	EntityID   string           `json:"entityId"`
 	Title      string           `json:"title"`
 	Body       string           `json:"body"`
@@ -61,28 +62,20 @@ type Notification struct {
 	DeletedAt  gorm.DeletedAt   `gorm:"index" json:"-"`
 }
 
-// DeviceToken represents a user's FCM device token
-type DeviceToken struct {
-	ID          string         `gorm:"primaryKey" json:"id"`
-	UserID      string         `gorm:"index" json:"userId"`
-	Token       string         `gorm:"uniqueIndex" json:"token"`
-	Platform    string         `json:"platform"` // android, ios, web
-	LastUpdated time.Time      `json:"lastUpdated"`
-	CreatedAt   time.Time      `json:"createdAt"`
-	DeletedAt   gorm.DeletedAt `gorm:"index" json:"-"`
-}
-
-// NotificationPreference represents user's notification settings
+// NotificationPreference represents a user's notification settings.
+//
+// The switches deliberately carry no `default:true` tag. GORM omits a
+// false-valued field from an INSERT when the column has a default, so a row
+// built in Go with a switch turned off was stored with it turned on — which is
+// why turning a notification off used to spring back the next time the settings
+// screen loaded. The all-on default a new member gets is set explicitly in
+// handlers.defaultPreference instead, where it is visible.
 type NotificationPreference struct {
 	ID              string         `gorm:"primaryKey" json:"id"`
 	UserID          string         `gorm:"uniqueIndex" json:"userId"`
-	EventsEnabled   bool           `gorm:"default:true" json:"eventsEnabled"`
-	PostsEnabled    bool           `gorm:"default:true" json:"postsEnabled"`
-	MessagesEnabled bool           `gorm:"default:true" json:"messagesEnabled"`
-	CommentsEnabled bool           `gorm:"default:true" json:"commentsEnabled"`
-	MentionsEnabled bool           `gorm:"default:true" json:"mentionsEnabled"`
-	QuietHoursStart *time.Time     `json:"quietHoursStart"` // Time of day (only hour and minute matter)
-	QuietHoursEnd   *time.Time     `json:"quietHoursEnd"`
+	PostsEnabled    bool           `json:"postsEnabled"`
+	CommentsEnabled bool           `json:"commentsEnabled"`
+	MentionsEnabled bool           `json:"mentionsEnabled"`
 	CreatedAt       time.Time      `json:"createdAt"`
 	UpdatedAt       time.Time      `json:"updatedAt"`
 	DeletedAt       gorm.DeletedAt `gorm:"index" json:"-"`
