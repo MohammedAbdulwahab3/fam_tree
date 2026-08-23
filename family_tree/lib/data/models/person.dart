@@ -350,9 +350,22 @@ class LocalizedPersonName {
 }
 
 /// Family relationships for a person
+/// A person's family connections.
+///
+/// [parentIds] is the single source of truth for descent. [childrenIds] is
+/// derived by the server from everyone else's [parentIds] and arrives with the
+/// tree — it is never sent back, and writing to it has no effect.
+///
+/// Both directions used to be written by the app, in two separate requests:
+/// create the child with a parent, then update the parent to list the child.
+/// A failure between the two left a person who both had a parent and counted
+/// as a root, and the layout and the canvas then disagreed about where to draw
+/// them.
 class Relationships {
   final List<String> parentIds;
   final List<RelationshipConnection> spouses;
+
+  /// Derived by the server. Read-only in practice.
   final List<String> childrenIds;
   final List<String> siblingIds;
 

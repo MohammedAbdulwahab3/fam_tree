@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,9 +13,18 @@ import 'package:family_tree/features/feed/feed_page.dart';
 import 'package:family_tree/providers/theme_provider.dart';
 import 'package:family_tree/providers/locale_provider.dart';
 import 'package:family_tree/l10n/app_localizations.dart';
+import 'package:family_tree/core/config.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // A release build talking to a plain-HTTP server sends the session token in
+  // clear text on every request. Fail loudly in debug rather than shipping it.
+  assert(
+    !AppConfig.isInsecureTransport || kDebugMode,
+    'API_BASE_URL is ${AppConfig.apiBaseUrl}, which is not HTTPS. Build with '
+    '--dart-define=API_BASE_URL=https://your-server for release.',
+  );
 
   // Restore any stored session before the first frame so the router sees the
   // signed-in user immediately instead of flashing the landing page.
@@ -49,14 +59,14 @@ final GoRouter _router = GoRouter(
       // the tree.
       path: '/tree',
       builder: (context, state) => TreeScreen(
-        familyTreeId: 'main-family-tree',
+        familyTreeId: AppConfig.familyTreeId,
         promptToLink: state.uri.queryParameters['welcome'] == '1',
       ),
     ),
     GoRoute(
       path: '/tree/:id',
       builder: (context, state) => TreeScreen(
-        familyTreeId: state.pathParameters['id'] ?? 'main-family-tree',
+        familyTreeId: state.pathParameters['id'] ?? AppConfig.familyTreeId,
       ),
     ),
     GoRoute(

@@ -89,19 +89,16 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authStateProvider).value;
-    final repository = PersonRepository();
-    final canEditFuture = user != null
-        ? repository.canUserEdit(widget.person.id, user.uid)
-        : Future.value(false);
+    // Whether this record is the signed-in member's own. Both sides are already
+    // in hand, so this used to be a network round trip — and a FutureBuilder —
+    // to compare two strings.
+    final canEdit = user != null && widget.person.authUserId == user.uid;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final generation = _getGeneration();
     final genColor = AppTheme.getGenerationColor(generation);
 
-    return FutureBuilder<bool>(
-      future: canEditFuture,
-      initialData: false,
-      builder: (context, snapshot) {
-        final canEdit = snapshot.data ?? false;
+    return Builder(
+      builder: (context) {
 
         return Center(
           child: ScaleTransition(

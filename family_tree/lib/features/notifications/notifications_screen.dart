@@ -13,6 +13,7 @@ import '../../core/theme/elegant_theme.dart';
 import '../../core/widgets/aurora_background.dart';
 import '../../data/models/notification_model.dart';
 import '../../data/services/api_service.dart';
+import 'package:family_tree/core/logging.dart';
 
 // Notifications state provider
 final notificationsProvider =
@@ -115,7 +116,7 @@ class NotificationsNotifier extends StateNotifier<AsyncValue<List<NotificationMo
       await fetchNotifications();
       _onCountChanged?.call();
     } catch (e) {
-      print('Error marking notification as read: $e');
+      log('Could not mark the notification as read', e);
     }
   }
 
@@ -126,7 +127,7 @@ class NotificationsNotifier extends StateNotifier<AsyncValue<List<NotificationMo
       await fetchNotifications();
       _onCountChanged?.call();
     } catch (e) {
-      print('Error marking all as read: $e');
+      log('Could not mark all notifications as read', e);
     }
   }
 }
@@ -402,7 +403,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
         router.go('/tree');
         break;
       default:
-        print('Unknown entity type: ${notification.entityType}');
+        log('No screen handles notifications of type ${notification.entityType}');
         router.go('/home');
     }
   }
@@ -447,7 +448,7 @@ class _NotificationSettingsDialogState extends ConsumerState<NotificationSetting
         if (mounted) setState(() => _isLoading = false);
       }
     } catch (e) {
-      print('Error fetching preferences: $e');
+      log('Could not load notification preferences', e);
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -472,7 +473,7 @@ class _NotificationSettingsDialogState extends ConsumerState<NotificationSetting
         body: _preference!.toJson(),
       );
     } catch (e) {
-      print('Error updating preference: $e');
+      log('Could not save the notification preference', e);
       // Revert? For now just log
     }
   }

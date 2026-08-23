@@ -1,10 +1,11 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 
-/// Guards the self-authored profile fields against the live backend at :5000.
+import 'support.dart';
+
+/// Guards the self-authored profile fields against a running backend.
 ///
 /// The bug these exist for: `PUT /api/persons/:id` ends in GORM's `Save`,
 /// which writes every column. The handler used to bind the body into a *zero*
@@ -12,32 +13,21 @@ import 'package:http/http.dart' as http;
 /// profile form that posts only a bio and an occupation silently deleted the
 /// person's parents, spouses and children. It really did wipe a five-child
 /// family once. The handler now decodes onto the stored record instead.
-const base = 'http://localhost:5000';
+final base = Backend.url;
 
-Future<String> _login(String email, String password) async {
-  final r = await http.post(
-    Uri.parse('$base/login'),
-    headers: const {'Content-Type': 'application/json'},
-    body: jsonEncode({'email': email, 'password': password}),
-  );
-  return jsonDecode(r.body)['token'] as String;
-}
-
-Map<String, String> _auth(String token) => {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer $token',
-    };
+Map<String, String> _auth(String token) => Backend.auth(token);
 
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
-  setUpAll(() => HttpOverrides.global = null);
+  Backend.prepare();
+  final skip = Backend.skipReason;
 
   late String token;
   late String personId;
   late Map<String, dynamic> original;
 
   setUpAll(() async {
-    token = await _login('maw3c3@gmail.com', 'developer');
+    if (!Backend.isConfigured) return;
+    token = await Backend.signIn();
 
     // Work on somebody who actually has relatives — the whole point is that
     // they survive.
@@ -75,7 +65,7 @@ void main() {
     return jsonDecode(r.body) as Map<String, dynamic>;
   }
 
-  test('a profile-only save keeps every relationship', () async {
+  test('a profile-only save keeps every relationship', skip: skip, () async {
     final before = await fetch();
     final parentsBefore =
         ((before['relationships']?['parents'] as List?) ?? const []).length;
@@ -111,7 +101,7 @@ void main() {
     expect(after['occupation'], 'Farmer');
   });
 
-  test('round-trips every self-authored profile field', () async {
+  test('round-trips every self-authored profile field', skip: skip, () async {
     final r = await http.put(
       Uri.parse('$base/api/persons/$personId'),
       headers: _auth(token),
@@ -137,7 +127,7 @@ void main() {
     expect(after['interests'], ['Coffee', 'Poetry']);
   });
 
-  test('a partial save leaves untouched fields alone', () async {
+  test('a partial save leaves untouched fields alone', skip: skip, () async {
     await http.put(
       Uri.parse('$base/api/persons/$personId'),
       headers: _auth(token),
@@ -157,7 +147,7 @@ void main() {
     expect(after['birthPlace'], 'Gondar');
   });
 
-  test('round-trips marital status, spouse name and photo', () async {
+  test('round-trips marital status, spouse name and photo', skip: skip, () async {
     final r = await http.put(
       Uri.parse('$base/api/persons/$personId'),
       headers: _auth(token),
@@ -175,7 +165,7 @@ void main() {
     expect(after['profilePhotoUrl'], 'http://example.com/photo.jpg');
   });
 
-  test('an admin can mark someone as having died, and undo it', () async {
+  test('an admin can mark someone as having died, and undo it', skip: skip, () async {
     await http.put(
       Uri.parse('$base/api/persons/$personId'),
       headers: _auth(token),
@@ -191,7 +181,7 @@ void main() {
     expect((await fetch())['isDeceased'], isFalse);
   });
 
-  test('the admin review list resolves both sides to names', () async {
+  test('the admin review list resolves both sides to names', skip: skip, () async {
     final r = await http.get(
       Uri.parse('$base/api/admin/link-requests'),
       headers: _auth(token),

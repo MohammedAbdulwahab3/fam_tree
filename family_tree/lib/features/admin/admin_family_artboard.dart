@@ -20,6 +20,7 @@ import 'package:family_tree/features/admin/link_requests_dashboard.dart';
 import 'package:family_tree/features/admin/post_composer_sheet.dart';
 import 'package:family_tree/data/services/family_export_service.dart';
 import 'package:family_tree/data/services/web_download_helper.dart';
+import 'package:family_tree/core/config.dart';
 
 /// Alias for backward compatibility
 typedef ArtboardColors = ElegantColors;
@@ -110,7 +111,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      final persons = await _personRepo.getFamilyMembers('main-family-tree');
+      final persons = await _personRepo.getFamilyMembers(AppConfig.familyTreeId);
       setState(() {
         _persons = persons;
         _filteredPersons = persons;
@@ -485,7 +486,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
       await _adminRepo.createPost(
         Post(
           id: '',
-          familyTreeId: 'main-family-tree',
+          familyTreeId: AppConfig.familyTreeId,
           userId: user?.uid ?? '',
           userName: user?.displayName ?? 'Admin',
           userPhoto: user?.photoURL,
@@ -1062,12 +1063,12 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: ArtboardColors.cream.withOpacity(0.5),
+                      color: ArtboardColors.cream.withValues(alpha: 0.5),
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: Column(
                       children: [
-                        Icon(Icons.family_restroom_rounded, size: 40, color: ArtboardColors.warmGray.withOpacity(0.5)),
+                        Icon(Icons.family_restroom_rounded, size: 40, color: ArtboardColors.warmGray.withValues(alpha: 0.5)),
                         const SizedBox(height: 12),
                         Text(
                           'No children recorded',
@@ -1234,9 +1235,9 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
       decoration: BoxDecoration(
         color: _cardSurface(context),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3), width: 1.5),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 1.5),
         boxShadow: [
-          BoxShadow(color: color.withOpacity(0.12), blurRadius: 20, offset: const Offset(0, 8)),
+          BoxShadow(color: color.withValues(alpha: 0.12), blurRadius: 20, offset: const Offset(0, 8)),
         ],
       ),
       child: Row(
@@ -1249,11 +1250,11 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [color.withOpacity(0.85), color],
+                colors: [color.withValues(alpha: 0.85), color],
               ),
               shape: BoxShape.circle,
               boxShadow: [
-                BoxShadow(color: color.withOpacity(0.35), blurRadius: 10, offset: const Offset(0, 4)),
+                BoxShadow(color: color.withValues(alpha: 0.35), blurRadius: 10, offset: const Offset(0, 4)),
               ],
             ),
             child: Center(
@@ -1376,7 +1377,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                     height: avatarSize,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [color.withOpacity(0.8), color],
+                        colors: [color.withValues(alpha: 0.8), color],
                       ),
                       shape: BoxShape.circle,
                     ),
@@ -1429,12 +1430,12 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                     color: _cardSurface(context),
                     borderRadius: BorderRadius.circular(18),
                     border: Border.all(
-                      color: isHovering ? color : color.withOpacity(0.3), 
+                      color: isHovering ? color : color.withValues(alpha: 0.3), 
                       width: isHovering ? 2 : 1
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: color.withOpacity(isHovering ? 0.2 : 0.08), 
+                        color: color.withValues(alpha: isHovering ? 0.2 : 0.08), 
                         blurRadius: isHovering ? 16 : 10, 
                         offset: const Offset(0, 4)
                       ),
@@ -1451,10 +1452,10 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                           gradient: LinearGradient(
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
-                            colors: [color.withOpacity(0.85), color],
+                            colors: [color.withValues(alpha: 0.85), color],
                           ),
                           shape: BoxShape.circle,
-                          boxShadow: [BoxShadow(color: color.withOpacity(0.25), blurRadius: 8, offset: const Offset(0, 2))],
+                          boxShadow: [BoxShadow(color: color.withValues(alpha: 0.25), blurRadius: 8, offset: const Offset(0, 2))],
                         ),
                         child: Center(
                           child: Text(
@@ -1507,7 +1508,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                               child: Container(
                                 padding: EdgeInsets.all(8),
                                 decoration: BoxDecoration(
-                                  color: ArtboardColors.sage.withOpacity(0.15),
+                                  color: ArtboardColors.sage.withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Icon(
@@ -1524,7 +1525,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                               child: Container(
                                 padding: EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                                 decoration: BoxDecoration(
-                                  color: hasChildren ? color : ArtboardColors.warmGray.withOpacity(0.3),
+                                  color: hasChildren ? color : ArtboardColors.warmGray.withValues(alpha: 0.3),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Text(
@@ -1540,7 +1541,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                               child: Container(
                                 padding: EdgeInsets.all(8),
                                 decoration: BoxDecoration(
-                                  color: Colors.red.withOpacity(0.12),
+                                  color: Colors.red.withValues(alpha: 0.12),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Icon(
@@ -1614,7 +1615,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
       child: Container(
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.12),
+          color: color.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Icon(icon, size: 14, color: color),
@@ -1653,7 +1654,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                     height: 60,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [branchColor.withOpacity(0.8), branchColor],
+                        colors: [branchColor.withValues(alpha: 0.8), branchColor],
                       ),
                       shape: BoxShape.circle,
                     ),
@@ -1705,7 +1706,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
               boxShadow: isHovering
                   ? [
                       BoxShadow(
-                        color: branchColor.withOpacity(0.4),
+                        color: branchColor.withValues(alpha: 0.4),
                         blurRadius: 20,
                         offset: const Offset(0, 10),
                       ),
@@ -1737,8 +1738,8 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
           boxShadow: [
             BoxShadow(
               color: isSelected 
-                  ? branchColor.withOpacity(0.2)
-                  : ArtboardColors.sienna.withOpacity(0.08),
+                  ? branchColor.withValues(alpha: 0.2)
+                  : ArtboardColors.sienna.withValues(alpha: 0.08),
               blurRadius: isSelected ? 24 : 16,
               offset: const Offset(0, 8),
             ),
@@ -1754,7 +1755,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                 width: 60,
                 height: 60,
                 decoration: BoxDecoration(
-                  color: branchColor.withOpacity(0.1),
+                  color: branchColor.withValues(alpha: 0.1),
                   borderRadius: const BorderRadius.only(
                     topRight: Radius.circular(24),
                     bottomLeft: Radius.circular(60),
@@ -1773,7 +1774,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: branchColor.withOpacity(0.15),
+                      color: branchColor.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
@@ -1799,14 +1800,14 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [
-                            branchColor.withOpacity(0.8),
+                            branchColor.withValues(alpha: 0.8),
                             branchColor,
                           ],
                         ),
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: branchColor.withOpacity(0.3),
+                            color: branchColor.withValues(alpha: 0.3),
                             blurRadius: 16,
                             offset: const Offset(0, 6),
                           ),
@@ -1856,7 +1857,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                         Icon(
                           Icons.schedule_rounded,
                           size: 14,
-                          color: ArtboardColors.warmGray.withOpacity(0.6),
+                          color: ArtboardColors.warmGray.withValues(alpha: 0.6),
                         ),
                         const SizedBox(width: 4),
                         Text(
@@ -1902,7 +1903,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Icon(icon, size: 18, color: color),
@@ -1931,7 +1932,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
             ),
             boxShadow: [
               BoxShadow(
-                color: ArtboardColors.charcoal.withOpacity(0.15),
+                color: ArtboardColors.charcoal.withValues(alpha: 0.15),
                 blurRadius: 40,
                 offset: const Offset(-10, 0),
               ),
@@ -1947,7 +1948,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      branchColor.withOpacity(0.1),
+                      branchColor.withValues(alpha: 0.1),
                       ArtboardColors.warmWhite,
                     ],
                   ),
@@ -1963,7 +1964,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
-                            color: branchColor.withOpacity(0.15),
+                            color: branchColor.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
@@ -2003,12 +2004,12 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                         gradient: LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
-                          colors: [branchColor.withOpacity(0.8), branchColor],
+                          colors: [branchColor.withValues(alpha: 0.8), branchColor],
                         ),
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: branchColor.withOpacity(0.3),
+                            color: branchColor.withValues(alpha: 0.3),
                             blurRadius: 20,
                             offset: const Offset(0, 8),
                           ),
@@ -2193,7 +2194,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
               width: 24,
               height: 24,
               decoration: BoxDecoration(
-                color: ArtboardColors.terracotta.withOpacity(0.2),
+                color: ArtboardColors.terracotta.withValues(alpha: 0.2),
                 shape: BoxShape.circle,
               ),
               child: Center(
@@ -2232,7 +2233,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(0.3),
+              color: color.withValues(alpha: 0.3),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
@@ -2352,7 +2353,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: accentColor.withOpacity(0.1),
+                        color: accentColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
@@ -2466,7 +2467,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                               decoration: BoxDecoration(
-                                color: accentColor.withOpacity(0.1),
+                                color: accentColor.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: DropdownButton<int>(
@@ -2507,7 +2508,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             decoration: BoxDecoration(
-                              color: gender == 'male' ? Colors.blue.withOpacity(0.15) : ArtboardColors.cream,
+                              color: gender == 'male' ? Colors.blue.withValues(alpha: 0.15) : ArtboardColors.cream,
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
                                 color: gender == 'male' ? Colors.blue : Colors.transparent,
@@ -2535,7 +2536,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             decoration: BoxDecoration(
-                              color: gender == 'female' ? Colors.pink.withOpacity(0.15) : ArtboardColors.cream,
+                              color: gender == 'female' ? Colors.pink.withValues(alpha: 0.15) : ArtboardColors.cream,
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
                                 color: gender == 'female' ? Colors.pink : Colors.transparent,
@@ -2617,7 +2618,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                   
                   final newPerson = Person(
                     id: '',
-                    familyTreeId: 'main-family-tree',
+                    familyTreeId: AppConfig.familyTreeId,
                     firstName: firstNameController.text.trim(),
                     lastName: lastNameController.text.trim(),
                     gender: gender,
@@ -2630,30 +2631,30 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                   );
                   
                   try {
-                    final newId = await _adminRepo.addPerson(newPerson);
-                    
-                    if (!addAsRoot && selectedParent != null) {
-                      final updatedParent = selectedParent!.copyWith(
-                        relationships: selectedParent!.relationships.copyWith(
-                          childrenIds: [...selectedParent!.relationships.childrenIds, newId],
-                        ),
-                      );
-                      await _adminRepo.updatePerson(updatedParent);
-                    }
-                    
+                    // One request. The parent's side of the link is derived by
+                    // the server from the child's parentIds, so the second call
+                    // that used to append to the parent's childrenIds — and
+                    // left the tree inconsistent whenever it failed — is gone.
+                    await _adminRepo.addPerson(newPerson);
+
+                    if (!mounted) return;
                     Navigator.pop(context);
                     _loadData();
-                    
+
                     ScaffoldMessenger.of(this.context).showSnackBar(
                       SnackBar(
-                        content: Text('${firstNameController.text} added successfully!'),
+                        content: Text('${firstNameController.text} added'),
                         backgroundColor: accentColor,
                       ),
                     );
                   } catch (e) {
+                    if (!mounted) return;
                     setDialogState(() => isLoading = false);
                     ScaffoldMessenger.of(this.context).showSnackBar(
-                      SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                      SnackBar(
+                        content: Text(readableError(e)),
+                        backgroundColor: Colors.red,
+                      ),
                     );
                   }
                 },
@@ -2742,7 +2743,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
+                    color: color.withValues(alpha: 0.1),
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                   ),
                   child: Row(
@@ -2853,7 +2854,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                               return Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: color.withOpacity(0.08),
+                                  color: color.withValues(alpha: 0.08),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Column(
@@ -2896,7 +2897,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                                           decoration: BoxDecoration(
                                             color: Colors.white,
                                             borderRadius: BorderRadius.circular(8),
-                                            border: Border.all(color: color.withOpacity(0.3)),
+                                            border: Border.all(color: color.withValues(alpha: 0.3)),
                                           ),
                                           child: DropdownButton<int>(
                                             value: displayOrder.clamp(1, siblingCount),
@@ -3011,6 +3012,8 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                             );
                           
                             await _adminRepo.updatePerson(updated);
+
+                            if (!mounted) return;
                             Navigator.pop(context);
                             _loadData();
                             setState(() => _selectedPerson = null);
@@ -3026,6 +3029,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                               ),
                             );
                           } catch (e) {
+                            if (!mounted) return;
                             setDialogState(() => isLoading = false);
                             ScaffoldMessenger.of(this.context).showSnackBar(
                               SnackBar(content: Text('Error: $e'), backgroundColor: ArtboardColors.rust),
@@ -3053,21 +3057,26 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
 
   // Get ancestry chain for a person
 
-  /// Get all descendants of a person (children, grandchildren, etc.)
+  /// Everyone below this person — children, grandchildren, and so on.
+  ///
+  /// Breadth-first and visited-guarded. The recursive version rescanned the
+  /// whole list per node and would not terminate if anyone ended up as their
+  /// own ancestor, which this screen can produce.
   List<Person> _getAllDescendants(Person person) {
-    final descendants = <Person>[];
-    
-    void addDescendants(String personId) {
-      for (final p in _persons) {
-        if (p.relationships.parentIds.contains(personId)) {
-          descendants.add(p);
-          addDescendants(p.id);
+    final index = FamilyIndex(_persons);
+    final found = <Person>[];
+    final seen = <String>{person.id};
+    final queue = <Person>[person];
+
+    while (queue.isNotEmpty) {
+      for (final child in index.childrenOf(queue.removeAt(0))) {
+        if (seen.add(child.id)) {
+          found.add(child);
+          queue.add(child);
         }
       }
     }
-    
-    addDescendants(person.id);
-    return descendants;
+    return found;
   }
   
   void _confirmDelete(Person person) {
@@ -3102,9 +3111,9 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: ArtboardColors.rust.withOpacity(0.1),
+                  color: ArtboardColors.rust.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: ArtboardColors.rust.withOpacity(0.3)),
+                  border: Border.all(color: ArtboardColors.rust.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   children: [
@@ -3141,11 +3150,15 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
             ),
             onPressed: () async {
               try {
-                // Delete all descendants first (bottom-up), then the person
-                for (final desc in descendants.reversed) {
-                  await _adminRepo.deletePerson(desc.id);
-                }
-                await _adminRepo.deletePerson(person.id);
+                // One request for the whole subtree. This used to send one
+                // delete per descendant, so a failure partway left half a
+                // family gone with no way to tell which half.
+                await _adminRepo.deletePerson(
+                  person.id,
+                  cascade: descendants.isNotEmpty,
+                );
+
+                if (!mounted) return;
                 Navigator.pop(context);
                 _loadData();
                 setState(() {
@@ -3159,8 +3172,9 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                   ),
                 );
               } catch (e) {
+                if (!mounted) return;
                 ScaffoldMessenger.of(this.context).showSnackBar(
-                  SnackBar(content: Text('Error: $e')),
+                  SnackBar(content: Text(readableError(e))),
                 );
               }
             },
@@ -3229,14 +3243,14 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
           label: Text('Male', style: GoogleFonts.cormorantGaramond()),
           selected: selected == 'male',
           onSelected: (_) => onChanged('male'),
-          selectedColor: ArtboardColors.terracotta.withOpacity(0.2),
+          selectedColor: ArtboardColors.terracotta.withValues(alpha: 0.2),
         ),
         const SizedBox(width: 8),
         ChoiceChip(
           label: Text('Female', style: GoogleFonts.cormorantGaramond()),
           selected: selected == 'female',
           onSelected: (_) => onChanged('female'),
-          selectedColor: ArtboardColors.dustyRose.withOpacity(0.3),
+          selectedColor: ArtboardColors.dustyRose.withValues(alpha: 0.3),
         ),
       ],
     );
@@ -3253,8 +3267,8 @@ class _PatternPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = (isDark 
-          ? Colors.white.withOpacity(0.03) 
-          : ArtboardColors.champagne.withOpacity(0.3))
+          ? Colors.white.withValues(alpha: 0.03) 
+          : ArtboardColors.champagne.withValues(alpha: 0.3))
       ..strokeWidth = 1
       ..style = PaintingStyle.stroke;
 

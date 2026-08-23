@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:family_tree/data/models/post.dart';
+import 'package:family_tree/data/repositories/group_repository.dart';
 import 'package:family_tree/features/feed/feed_page.dart';
 
 // The page runs an endless ambient background, so pumpAndSettle never returns.
@@ -13,7 +14,7 @@ Widget _harness({
 }) {
   return ProviderScope(
     overrides: [
-      postsProvider(kFeedFamilyTreeId).overrideWith((ref) => Stream.value(posts)),
+      postsProvider.overrideWith((ref) => Stream.value(posts)),
     ],
     child: MediaQuery(
       data: MediaQueryData(size: size),
@@ -44,11 +45,11 @@ Future<void> _settle(WidgetTester tester) async {
 }
 
 /// Each PostCard subscribes to GroupRepository.watchComments, an endless
-/// 3-second polling loop. Tear the tree down and let that timer elapse so the
-/// generator finishes, otherwise the test ends with a pending timer.
+/// polling loop. Tear the tree down and let that timer elapse so the generator
+/// finishes, otherwise the test ends with a pending timer.
 Future<void> _drainPollers(WidgetTester tester) async {
   await tester.pumpWidget(const SizedBox.shrink());
-  await tester.pump(const Duration(seconds: 4));
+  await tester.pump(GroupRepository.pollInterval + const Duration(seconds: 1));
 }
 
 void main() {

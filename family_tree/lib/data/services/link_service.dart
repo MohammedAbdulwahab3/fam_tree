@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'api_service.dart';
+import 'package:family_tree/core/logging.dart';
 
 class LinkService {
   final ApiService _apiService = ApiService();
@@ -16,7 +17,7 @@ class LinkService {
         throw Exception('Failed to fetch link status');
       }
     } catch (e) {
-      print('Error fetching link status: $e');
+      log('Could not load the claim status', e);
       rethrow;
     }
   }
@@ -34,7 +35,7 @@ class LinkService {
       ApiService.ensureOk(response, whileDoing: 'sending your claim');
       return LinkRequest.fromJson(jsonDecode(response.body));
     } catch (e) {
-      print('Error requesting link: $e');
+      log('Could not send the claim', e);
       rethrow;
     }
   }
@@ -57,7 +58,7 @@ class LinkService {
         throw Exception('Failed to fetch link requests');
       }
     } catch (e) {
-      print('Error fetching link requests: $e');
+      log('Could not load the claim queue', e);
       rethrow;
     }
   }
@@ -82,7 +83,7 @@ class LinkService {
       ApiService.ensureOk(response, whileDoing: 'saving your decision');
       return LinkRequest.fromJson(jsonDecode(response.body));
     } catch (e) {
-      print('Error updating link request: $e');
+      log('Could not save the decision', e);
       rethrow;
     }
   }

@@ -161,7 +161,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
               leading: Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: (context.colors.accent).withOpacity(0.1),
+                  color: (context.colors.accent).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
@@ -185,7 +185,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
               leading: Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: (context.colors.secondary).withOpacity(0.1),
+                  color: (context.colors.secondary).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
@@ -226,7 +226,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: (context.colors.accent).withOpacity(0.1),
+                color: (context.colors.accent).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
@@ -336,7 +336,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                   ),
                   filled: true,
                   fillColor: isDark 
-                      ? Colors.white.withOpacity(0.05)
+                      ? Colors.white.withValues(alpha: 0.05)
                       : ElegantColors.cream,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -364,7 +364,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 decoration: BoxDecoration(
                   color: isDark 
-                      ? Colors.white.withOpacity(0.03)
+                      ? Colors.white.withValues(alpha: 0.03)
                       : Colors.grey.shade100,
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -621,12 +621,12 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                     ? [
                         AppTheme.backgroundDark,
                         const Color(0xFF0D1F2D),
-                        AppTheme.primaryDeep.withOpacity(0.2),
+                        AppTheme.primaryDeep.withValues(alpha: 0.2),
                       ]
                     : [
                         const Color(0xFFF8FAFC),
                         const Color(0xFFECFDF5),
-                        AppTheme.accentTeal.withOpacity(0.05),
+                        AppTheme.accentTeal.withValues(alpha: 0.05),
                       ],
               ),
             ),
@@ -665,7 +665,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                                     
                                     showDialog(
                                       context: context,
-                                      barrierColor: Colors.black.withOpacity(0.5),
+                                      barrierColor: Colors.black.withValues(alpha: 0.5),
                                       builder: (context) => PersonDetailsDialog(
                                         person: person,
                                         spouses: spouses,
@@ -789,12 +789,12 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                     decoration: BoxDecoration(
                       color: isFocusMode 
                           ? (context.colors.accent)
-                          : (isDark ? Colors.white.withOpacity(0.08) : ElegantColors.warmWhite),
+                          : (isDark ? Colors.white.withValues(alpha: 0.08) : ElegantColors.warmWhite),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
                         color: isFocusMode 
                             ? Colors.transparent
-                            : (isDark ? Colors.white.withOpacity(0.1) : ElegantColors.champagne),
+                            : (isDark ? Colors.white.withValues(alpha: 0.1) : ElegantColors.champagne),
                       ),
                     ),
                     child: Row(
@@ -874,20 +874,20 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
               color: isPrimary 
                   ? null 
                   : isDark 
-                      ? Colors.white.withOpacity(0.08) 
+                      ? Colors.white.withValues(alpha: 0.08) 
                       : ElegantColors.warmWhite,
               borderRadius: BorderRadius.circular(14),
               border: isPrimary 
                   ? null 
                   : Border.all(
                       color: isDark 
-                          ? Colors.white.withOpacity(0.1) 
+                          ? Colors.white.withValues(alpha: 0.1) 
                           : ElegantColors.champagne,
                     ),
               boxShadow: isPrimary 
                   ? [
                       BoxShadow(
-                        color: AppTheme.primaryLight.withOpacity(0.3),
+                        color: AppTheme.primaryLight.withValues(alpha: 0.3),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
@@ -1158,10 +1158,10 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: isDark ? Colors.white.withOpacity(0.05) : color.withOpacity(0.08),
+            color: isDark ? Colors.white.withValues(alpha: 0.05) : color.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: isDark ? Colors.white.withOpacity(0.1) : color.withOpacity(0.2),
+              color: isDark ? Colors.white.withValues(alpha: 0.1) : color.withValues(alpha: 0.2),
             ),
           ),
           child: Row(
@@ -1169,7 +1169,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(isDark ? 0.2 : 0.15),
+                  color: color.withValues(alpha: isDark ? 0.2 : 0.15),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(icon, color: color, size: 24),

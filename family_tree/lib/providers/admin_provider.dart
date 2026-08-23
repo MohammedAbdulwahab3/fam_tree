@@ -1,5 +1,8 @@
 import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'package:family_tree/core/logging.dart';
 import 'package:family_tree/data/models/app_user.dart';
 import 'package:family_tree/data/services/api_service.dart';
 import 'package:family_tree/features/auth/providers/auth_provider.dart';
@@ -60,10 +63,11 @@ class AdminController extends StateNotifier<AdminState> {
           error: 'Failed to fetch user info',
         );
       }
-    } catch (e) {
+    } catch (error, stack) {
+      log('Could not load the signed-in user', error, stack);
       state = state.copyWith(
         isLoading: false,
-        error: e.toString(),
+        error: messageForError(error),
       );
     }
   }
@@ -88,44 +92,28 @@ final isAdminProvider = Provider<bool>((ref) {
   return ref.watch(adminControllerProvider).isAdmin;
 });
 
-/// Provider that auto-fetches user when auth state changes
+/// The signed-in member as the server sees them, re-read whenever the auth
+/// state changes so a role change takes effect without a restart.
+///
+/// This used to trace its way through the whole request — the member's UID and
+/// email address, the raw response body, the parsed role — with `print`, which
+/// writes to stdout in release builds too.
 final userRoleProvider = FutureProvider<AppUser?>((ref) async {
   final authState = ref.watch(authStateProvider);
-  
-  // Wait for auth state to load
-  if (authState.isLoading) {
-    print('userRoleProvider: Auth state is loading...');
-    return null;
-  }
-  
-  // If no user is logged in, return null
-  if (authState.value == null) {
-    print('userRoleProvider: No user logged in');
-    return null;
-  }
-  
-  print('userRoleProvider: User logged in with UID: ${authState.value?.uid}');
-  print('userRoleProvider: User email: ${authState.value?.email}');
-  
-  // Fetch user from backend
+  if (authState.isLoading || authState.value == null) return null;
+
   final api = ref.watch(apiServiceProvider);
   try {
-    print('userRoleProvider: Fetching /api/me...');
     final response = await api.get('/api/me');
-    print('userRoleProvider: Response status: ${response.statusCode}');
-    print('userRoleProvider: Response body: ${response.body}');
-    
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final user = AppUser.fromJson(data);
-      print('userRoleProvider: Parsed user - email: ${user.email}, role: ${user.role}, isAdmin: ${user.isAdmin}');
-      return user;
-    } else {
-      print('userRoleProvider: Non-200 response: ${response.statusCode}');
+      return AppUser.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
     }
-  } catch (e) {
-    print('userRoleProvider: Error fetching user role: $e');
+    log('Loading the signed-in user returned ${response.statusCode}');
+  } catch (error, stack) {
+    log('Could not load the signed-in user', error, stack);
   }
-  
+
   return null;
 });

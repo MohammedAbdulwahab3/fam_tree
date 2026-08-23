@@ -1,87 +1,108 @@
 import 'dart:convert';
-import 'package:family_tree/data/models/post.dart';
-import 'package:family_tree/data/models/message.dart';
-import 'package:family_tree/data/models/appointment.dart';
+
+import 'package:family_tree/core/logging.dart';
 import 'package:family_tree/data/models/comment.dart';
+import 'package:family_tree/data/models/post.dart';
 import 'package:family_tree/data/services/api_service.dart';
 
-/// Repository for family group operations (posts, chat, events)
-/// Uses Go backend API instead of Firestore
+/// One page of the feed, plus the cursor that fetches the next one.
+class PostPage {
+  const PostPage({
+    required this.posts,
+    required this.hasMore,
+    this.nextCursor,
+  });
+
+  final List<Post> posts;
+  final bool hasMore;
+  final String? nextCursor;
+
+  static const empty = PostPage(posts: [], hasMore: false);
+}
+
+/// Reads and writes the family feed.
+///
+/// Construct one per app, through [groupRepositoryProvider]. The feed used to
+/// build two — one inside the stream provider and one in the page's state —
+/// each with its own cache and its own polling loop, so every refresh made a
+/// request whose result was then thrown away.
 class GroupRepository {
   final ApiService _api = ApiService();
 
-  // ===== CACHE =====
   List<Post>? _cachedPosts;
   DateTime? _lastPostsFetch;
-  
-  List<Message>? _cachedMessages;
-  DateTime? _lastMessagesFetch;
-  
-  List<Appointment>? _cachedEvents;
-  DateTime? _lastEventsFetch;
-  
-  final Duration _cacheValidity = const Duration(minutes: 5);
+
+  /// How long a fetched page stays fresh.
+  static const cacheValidity = Duration(minutes: 5);
+
+  /// How often the feed checks for new posts.
+  static const pollInterval = Duration(seconds: 30);
 
   // ===== POSTS =====
 
-  /// Watch all posts (polling-based since REST doesn't support real-time)
-  Stream<List<Post>> watchPosts(String familyTreeId) async* {
-    // Yield cached data immediately if available
-    if (_cachedPosts != null) yield _cachedPosts!;
-    
+  /// Watch the newest page of the feed. Emits only when something changed —
+  /// an unchanged poll re-emits the identical list, which widgets comparing by
+  /// identity treat as no change at all.
+  Stream<List<Post>> watchPosts() async* {
     while (true) {
       try {
-        // Only fetch if cache is expired or empty
-        if (_shouldFetch(_lastPostsFetch)) {
-          final posts = await getPosts();
-          yield posts;
-        } else if (_cachedPosts != null) {
-          yield _cachedPosts!;
-        }
-      } catch (e) {
-        print('Error fetching posts: $e');
+        final page = await getPosts();
+        yield page.posts;
+      } catch (error) {
+        log('Could not refresh the feed', error);
         if (_cachedPosts != null) yield _cachedPosts!;
       }
-      await Future.delayed(const Duration(seconds: 5)); // Increased polling interval
+      await Future<void>.delayed(pollInterval);
     }
   }
 
-  /// Get all posts
-  Future<List<Post>> getPosts({bool forceRefresh = false}) async {
-    if (!forceRefresh && !_shouldFetch(_lastPostsFetch) && _cachedPosts != null) {
-      return _cachedPosts!;
+  /// Fetch the newest page of posts.
+  ///
+  /// [before] pages backwards through the feed using the cursor from a previous
+  /// page. Paging by timestamp rather than offset matters because the feed is
+  /// written to while it is read: an offset silently repeats or skips a post
+  /// whenever something new arrives between two pages.
+  Future<PostPage> getPosts({bool forceRefresh = false, String? before}) async {
+    final isFirstPage = before == null;
+
+    if (isFirstPage &&
+        !forceRefresh &&
+        !_shouldFetch(_lastPostsFetch) &&
+        _cachedPosts != null) {
+      return PostPage(posts: _cachedPosts!, hasMore: true);
     }
 
-    try {
-      final response = await _api.get('/api/posts');
-      if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        final posts = data.map((json) => Post.fromJson(json as Map<String, dynamic>)).toList();
-        
-        // Update cache
-        _cachedPosts = posts;
-        _lastPostsFetch = DateTime.now();
-        return posts;
-      }
-      return _cachedPosts ?? [];
-    } catch (e) {
-      print('Error getting posts: $e');
-      return _cachedPosts ?? [];
+    final query = before == null ? '' : '?before=${Uri.encodeQueryComponent(before)}';
+    final response = await _api.get('/api/posts$query');
+    ApiService.ensureOk(response, whileDoing: 'loading the feed');
+
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final posts = (body['posts'] as List<dynamic>? ?? [])
+        .map((json) => Post.fromJson(json as Map<String, dynamic>))
+        .toList(growable: false);
+
+    if (isFirstPage) {
+      _cachedPosts = posts;
+      _lastPostsFetch = DateTime.now();
     }
+
+    return PostPage(
+      posts: posts,
+      hasMore: body['hasMore'] as bool? ?? false,
+      nextCursor: body['nextCursor'] as String?,
+    );
   }
 
-  /// Add a new post
+  /// Share a new post. Returns its id.
   Future<String> addPost(Post post) async {
     final response = await _api.post('/api/posts', body: post.toJson());
     ApiService.ensureOk(response, whileDoing: 'sharing your post');
 
-    final data = jsonDecode(response.body);
-    // Invalidate cache to force refresh
-    _lastPostsFetch = null;
-    return data['id'] ?? '';
+    invalidate();
+    return (jsonDecode(response.body) as Map<String, dynamic>)['id'] as String? ?? '';
   }
 
-  /// Delete a post
+  /// Delete a post. Members may delete their own; admins may delete any.
   Future<void> deletePost(String postId) async {
     final response = await _api.delete('/api/posts/$postId');
     ApiService.ensureOk(response, whileDoing: 'deleting the post');
@@ -92,210 +113,37 @@ class GroupRepository {
     _lastPostsFetch = null;
   }
 
-  // ===== MESSAGES =====
-
-  /// Watch all messages (polling-based)
-  Stream<List<Message>> watchMessages(String familyTreeId) async* {
-    if (_cachedMessages != null) yield _cachedMessages!;
-    
-    while (true) {
-      try {
-        // Always fetch fresh messages (real-time is important for chat)
-        final messages = await getMessages(forceRefresh: true);
-        yield messages;
-      } catch (e) {
-        print('Error fetching messages: $e');
-        if (_cachedMessages != null) yield _cachedMessages!;
-      }
-      await Future.delayed(const Duration(seconds: 1)); // Fast polling for chat
-    }
-  }
-
-  /// Get all messages
-  Future<List<Message>> getMessages({bool forceRefresh = false}) async {
-    if (!forceRefresh && !_shouldFetch(_lastMessagesFetch) && _cachedMessages != null) {
-      return _cachedMessages!;
-    }
-
-    try {
-      final response = await _api.get('/api/messages');
-      if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        final messages = data.map((json) => Message.fromJson(json as Map<String, dynamic>)).toList();
-        
-        _cachedMessages = messages;
-        _lastMessagesFetch = DateTime.now();
-        return messages;
-      }
-      return _cachedMessages ?? [];
-    } catch (e) {
-      print('Error getting messages: $e');
-      return _cachedMessages ?? [];
-    }
-  }
-
-  /// Send a message
-  Future<String> sendMessage(Message message) async {
-    // Optimistic update - show the message in the thread immediately.
-    final tempMessage = Message(
-      id: 'temp-${DateTime.now().millisecondsSinceEpoch}',
-      familyTreeId: message.familyTreeId,
-      userId: message.userId,
-      userName: message.userName,
-      userPhoto: message.userPhoto,
-      text: message.text,
-      type: message.type,
-      mediaUrl: message.mediaUrl,
-      sentAt: DateTime.now(),
-    );
-    _cachedMessages = [...(_cachedMessages ?? []), tempMessage];
-
-    try {
-      final response = await _api.post('/api/messages', body: message.toJson());
-      ApiService.ensureOk(response, whileDoing: 'sending your message');
-
-      final data = jsonDecode(response.body);
-      _lastMessagesFetch = null; // Force refresh on next poll
-      return data['id'] ?? '';
-    } catch (_) {
-      // However it failed, take the unsent message back out of the thread so
-      // it is not left looking delivered.
-      _cachedMessages?.removeWhere((m) => m.id == tempMessage.id);
-      rethrow;
-    }
-  }
-
-  /// Update a message
-  Future<void> updateMessage(Message message) async {
-    final response = await _api.put(
-      '/api/messages/${message.id}',
-      body: message.toJson(),
-    );
-    ApiService.ensureOk(response, whileDoing: 'editing the message');
-    _lastMessagesFetch = null;
-  }
-
-  /// Delete a message
-  Future<void> deleteMessage(String messageId) async {
-    final response = await _api.delete('/api/messages/$messageId');
-    ApiService.ensureOk(response, whileDoing: 'deleting the message');
-
-    _cachedMessages?.removeWhere((m) => m.id == messageId);
-    _lastMessagesFetch = null;
-  }
-
-  // ===== EVENTS =====
-
-  /// Watch all events (polling-based)
-  Stream<List<Appointment>> watchAppointments(String familyTreeId) async* {
-    if (_cachedEvents != null) yield _cachedEvents!;
-    
-    while (true) {
-      try {
-        if (_shouldFetch(_lastEventsFetch)) {
-          final events = await getEvents();
-          yield events;
-        } else if (_cachedEvents != null) {
-          yield _cachedEvents!;
-        }
-      } catch (e) {
-        print('Error fetching events: $e');
-        if (_cachedEvents != null) yield _cachedEvents!;
-      }
-      await Future.delayed(const Duration(seconds: 5));
-    }
-  }
-
-  /// Get all events
-  Future<List<Appointment>> getEvents({bool forceRefresh = false}) async {
-    if (!forceRefresh && !_shouldFetch(_lastEventsFetch) && _cachedEvents != null) {
-      return _cachedEvents!;
-    }
-
-    try {
-      final response = await _api.get('/api/events');
-      if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        final events = data.map((json) => Appointment.fromJson(json as Map<String, dynamic>)).toList();
-        
-        _cachedEvents = events;
-        _lastEventsFetch = DateTime.now();
-        return events;
-      }
-      return _cachedEvents ?? [];
-    } catch (e) {
-      print('Error getting events: $e');
-      return _cachedEvents ?? [];
-    }
-  }
-
-  /// Add a new event
-  Future<String> addAppointment(Appointment appointment) async {
-    final response = await _api.post('/api/events', body: appointment.toJson());
-    ApiService.ensureOk(response, whileDoing: 'creating the event');
-
-    final data = jsonDecode(response.body);
-    _lastEventsFetch = null;
-    return data['id'] ?? '';
-  }
-
-  /// Delete an event
-  Future<void> deleteAppointment(String appointmentId) async {
-    final response = await _api.delete('/api/events/$appointmentId');
-    ApiService.ensureOk(response, whileDoing: 'cancelling the event');
-
-    _cachedEvents?.removeWhere((e) => e.id == appointmentId);
-    _lastEventsFetch = null;
-  }
-
-  /// Toggle RSVP for an event with status (yes/maybe/no)
-  Future<void> toggleRSVP(String eventId, String userId, [String status = 'yes']) async {
-    final response =
-        await _api.post('/api/events/$eventId/rsvp', body: {'status': status});
-    ApiService.ensureOk(response, whileDoing: 'saving your reply');
-    _lastEventsFetch = null;
-  }
-
-  /// Update an existing appointment
-  Future<void> updateAppointment(Appointment appointment) async {
-    final response =
-        await _api.put('/api/events/${appointment.id}', body: appointment.toJson());
-    ApiService.ensureOk(response, whileDoing: 'updating the event');
-    _lastEventsFetch = null;
+  /// Drop the cached page so the next read goes to the server.
+  void invalidate() {
+    _cachedPosts = null;
+    _lastPostsFetch = null;
   }
 
   // ===== COMMENTS =====
 
-  /// Watch comments for a post (polling-based)
+  /// Watch a post's comments.
   Stream<List<Comment>> watchComments(String postId) async* {
     while (true) {
       try {
-        final comments = await getComments(postId);
-        yield comments;
-      } catch (e) {
-        print('Error fetching comments: $e');
-        yield [];
+        yield await getComments(postId);
+      } catch (error) {
+        log('Could not load comments', error);
       }
-      await Future.delayed(const Duration(seconds: 3));
+      await Future<void>.delayed(pollInterval);
     }
   }
 
-  /// Get comments for a post
   Future<List<Comment>> getComments(String postId) async {
-    try {
-      final response = await _api.get('/api/posts/$postId/comments');
-      if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => Comment.fromJson(json as Map<String, dynamic>)).toList();
-      }
-      return [];
-    } catch (e) {
-      print('Error getting comments: $e');
-      return [];
-    }
+    final response = await _api.get('/api/posts/$postId/comments');
+    ApiService.ensureOk(response, whileDoing: 'loading the comments');
+
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return (body['comments'] as List<dynamic>? ?? [])
+        .map((json) => Comment.fromJson(json as Map<String, dynamic>))
+        .toList(growable: false);
   }
 
-  /// Add a comment to a post
+  /// Add a comment to a post. Returns its id.
   Future<String> addComment(Comment comment) async {
     final response = await _api.post(
       '/api/posts/${comment.postId}/comments',
@@ -303,42 +151,38 @@ class GroupRepository {
     );
     ApiService.ensureOk(response, whileDoing: 'posting your comment');
 
-    final data = jsonDecode(response.body);
-    return data['id'] ?? '';
+    return (jsonDecode(response.body) as Map<String, dynamic>)['id'] as String? ?? '';
   }
 
-  /// Delete a comment
   Future<void> deleteComment(String commentId) async {
     final response = await _api.delete('/api/comments/$commentId');
     ApiService.ensureOk(response, whileDoing: 'deleting the comment');
   }
 
-  /// Update a comment
   Future<void> updateComment(Comment comment) async {
-    final response =
-        await _api.put('/api/comments/${comment.id}', body: {'text': comment.text});
+    final response = await _api.put(
+      '/api/comments/${comment.id}',
+      body: {'text': comment.text},
+    );
     ApiService.ensureOk(response, whileDoing: 'saving your edit');
   }
 
   // ===== REACTIONS =====
 
-  /// Toggle reaction on a post
-  Future<void> toggleReaction(String postId, String userId, String emoji) async {
-    // userId is ignored by the server, which takes the reacting user from the
-    // token. The parameter stays for the existing call sites.
+  /// Set, change or clear the signed-in member's reaction to a post. Sending
+  /// the same emoji twice takes it back.
+  Future<void> toggleReaction(String postId, String emoji) async {
     final response = await _api.post(
       '/api/posts/$postId/reactions',
       body: {'emoji': emoji},
     );
     ApiService.ensureOk(response, whileDoing: 'saving your reaction');
 
-    // Invalidate cache to force refresh with new reaction count
     _lastPostsFetch = null;
   }
 
-  // ===== HELPER =====
   bool _shouldFetch(DateTime? lastFetch) {
     if (lastFetch == null) return true;
-    return DateTime.now().difference(lastFetch) > _cacheValidity;
+    return DateTime.now().difference(lastFetch) > cacheValidity;
   }
 }

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:family_tree/data/models/person.dart';
+import 'package:family_tree/core/logging.dart';
 
 /// Local cache service for offline family tree data
 class LocalCacheService {
@@ -43,7 +44,7 @@ class LocalCacheService {
           .map((json) => Person.fromJson(json as Map<String, dynamic>))
           .toList();
     } catch (e) {
-      print('Error loading cached persons: $e');
+      log('Could not read the offline copy of the tree', e);
       return [];
     }
   }

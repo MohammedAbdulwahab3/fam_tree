@@ -1,0 +1,9 @@
+# The generated localisations are committed under lib/l10n and imported
+# directly. Without this file, `generate: true` in pubspec.yaml also writes a
+# synthetic package into .dart_tool that nothing imports — two copies of the
+# same classes, one of which silently goes stale.
+arb-dir: lib/l10n
+template-arb-file: app_en.arb
+output-localization-file: app_localizations.dart
+output-dir: lib/l10n
+synthetic-package: false

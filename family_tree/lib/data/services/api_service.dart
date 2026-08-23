@@ -1,6 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
+
+import 'package:family_tree/core/config.dart';
+import 'package:family_tree/core/logging.dart';
 import 'package:family_tree/data/services/auth_service.dart';
 
 /// A request the backend refused, carrying the message it gave us.
@@ -55,8 +59,9 @@ String messageForError(Object error) {
 }
 
 class ApiService {
-  // Local backend URL
-  static const String baseUrl = 'http://localhost:5000';
+  /// Where the backend lives. Set at build time — see [AppConfig].
+  static const String baseUrl = AppConfig.apiBaseUrl;
+
   
   // Singleton pattern
   static final ApiService _instance = ApiService._internal();
@@ -232,9 +237,9 @@ class ApiService {
       // and used to be swallowed into a bare null.
       ensureOk(response, whileDoing: 'uploading the file');
       return null;
-    } catch (e) {
-      if (e is ApiException) rethrow;
-      print('Upload error: $e');
+    } catch (error, stack) {
+      if (error is ApiException) rethrow;
+      log('Upload failed', error, stack);
       return null;
     }
   }

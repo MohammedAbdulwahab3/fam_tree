@@ -62,7 +62,7 @@ class _AdminToolsSheetState extends ConsumerState<AdminToolsSheet> {
       if (widget.tool == AdminTool.members) {
         _users = await _adminRepo.getUsers();
       } else {
-        _posts = await _groupRepo.getPosts(forceRefresh: true);
+        _posts = (await _groupRepo.getPosts(forceRefresh: true)).posts;
       }
     } catch (e) {
       _toast(readableError(e), isError: true);

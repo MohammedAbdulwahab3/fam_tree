@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:family_tree/core/theme/app_theme.dart';
 import 'package:family_tree/core/theme/app_colors.dart';
 import 'package:family_tree/data/models/person.dart';
+import 'package:family_tree/data/repositories/person_repository.dart' show FamilyIndex;
 import 'package:family_tree/features/tree_view/widgets/person_node.dart';
 import 'package:family_tree/features/tree_view/widgets/tree_minimap.dart';
 import 'package:family_tree/features/tree_view/widgets/tree_controls.dart';
@@ -68,6 +69,25 @@ class TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateMi
   Map<String, Offset> _cachedPositions = {};
   Map<String, int> _cachedGenerations = {};
   bool _isInitialized = false;
+
+  /// An id-keyed view of the family, rebuilt only when the people change.
+  ///
+  /// Every lookup here used to be a linear scan of the whole list, and
+  /// root-finding asked, for each person, whether any of their parent ids
+  /// matched any person in the list — quadratic, and written out separately in
+  /// four places.
+  late FamilyIndex _index = FamilyIndex(widget.persons);
+  late List<Person> _roots = _index.roots(widget.persons);
+
+  void _rebuildIndex() {
+    _index = FamilyIndex(widget.persons);
+    _roots = _index.roots(widget.persons);
+  }
+
+  /// The person with this id, or null. Callers used to fall back to
+  /// `widget.persons.first`, which silently substituted an unrelated relative
+  /// whenever an id did not resolve — and, in a traversal, could loop forever.
+  Person? _person(String id) => _index.byId(id);
   
   // Navigation controls state
   bool _isMinimapVisible = true;
@@ -155,30 +175,28 @@ class TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateMi
       return widget.persons;
     }
     
-    // Get the currently focused person
-    final focusedPersonId = _focusStack.last;
-    final focusedPerson = widget.persons.firstWhere(
-      (p) => p.id == focusedPersonId,
-      orElse: () => widget.persons.first,
-    );
-    
-    // Collect all descendants recursively
-    final Set<String> includedIds = {focusedPerson.id};
-    
-    void addDescendants(String personId) {
-      for (final person in widget.persons) {
-        if (person.relationships.parentIds.contains(personId)) {
-          if (!includedIds.contains(person.id)) {
-            includedIds.add(person.id);
-            addDescendants(person.id);
-          }
-        }
+    final focusedPerson = _person(_focusStack.last);
+    if (focusedPerson == null) return widget.persons;
+
+    final includedIds = _descendantIdsOf(focusedPerson.id);
+    return widget.persons.where((p) => includedIds.contains(p.id)).toList();
+  }
+
+  /// This person plus everyone below them. Iterative and visited-guarded: the
+  /// recursive versions this replaced would not terminate on a cycle, which the
+  /// admin screen can produce.
+  Set<String> _descendantIdsOf(String rootId) {
+    final found = <String>{rootId};
+    final queue = <String>[rootId];
+
+    while (queue.isNotEmpty) {
+      final current = _person(queue.removeAt(0));
+      if (current == null) continue;
+      for (final child in _index.childrenOf(current)) {
+        if (found.add(child.id)) queue.add(child.id);
       }
     }
-    
-    addDescendants(focusedPerson.id);
-    
-    return widget.persons.where((p) => includedIds.contains(p.id)).toList();
+    return found;
   }
   
   /// Get the name of the currently focused person (for export title)
@@ -186,11 +204,7 @@ class TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateMi
     if (widget.layoutMode != LayoutMode.focus || _focusStack.isEmpty) {
       return null;
     }
-    final focusedPerson = widget.persons.firstWhere(
-      (p) => p.id == _focusStack.last,
-      orElse: () => widget.persons.first,
-    );
-    return focusedPerson.fullName;
+    return _person(_focusStack.last)?.fullName;
   }
   
   // ============ ZOOM CONTROLS ============
@@ -319,6 +333,8 @@ class TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateMi
     if (oldWidget.persons != widget.persons ||
         oldWidget.layoutMode != widget.layoutMode ||
         oldWidget.focusedSubtreeRoot != widget.focusedSubtreeRoot) {
+      // The people changed, so the id index and the root list are stale.
+      if (oldWidget.persons != widget.persons) _rebuildIndex();
       _calculateNodePositions();
       _updateCanvasSize();
       
@@ -397,43 +413,28 @@ class TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateMi
       return widget.persons;
     }
     
-    // Get root person + all descendants + direct ancestors
-    final subtreeIds = <String>{};
-    
-    // Helper to add descendants
-    void addDescendants(String personId) {
-      if (subtreeIds.contains(personId)) return;
-      subtreeIds.add(personId);
-      
-      final person = widget.persons.firstWhere(
-        (p) => p.id == personId,
-        orElse: () => widget.persons.first,
-      );
-      
-      for (final childId in person.relationships.childrenIds) {
-        addDescendants(childId);
-      }
-    }
-    
-    // Helper to add ancestors
-    void addAncestors(String personId) {
-      if (subtreeIds.contains(personId)) return;
-      subtreeIds.add(personId);
-      
-      final person = widget.persons.firstWhere(
-        (p) => p.id == personId,
-        orElse: () => widget.persons.first,
-      );
-      
-      for (final parentId in person.relationships.parentIds) {
-        addAncestors(parentId);
-      }
-    }
-    
-    addDescendants(widget.focusedSubtreeRoot!);
-    addAncestors(widget.focusedSubtreeRoot!);
-    
+    // The focused person, everyone below them, and their direct line upwards.
+    final subtreeIds = _descendantIdsOf(widget.focusedSubtreeRoot!)
+      ..addAll(_ancestorIdsOf(widget.focusedSubtreeRoot!));
+
     return widget.persons.where((p) => subtreeIds.contains(p.id)).toList();
+  }
+
+  /// This person plus everyone above them.
+  Set<String> _ancestorIdsOf(String startId) {
+    final found = <String>{startId};
+    final queue = <String>[startId];
+
+    while (queue.isNotEmpty) {
+      final current = _person(queue.removeAt(0));
+      if (current == null) continue;
+      for (final parentId in current.relationships.parentIds) {
+        if (_person(parentId) != null && found.add(parentId)) {
+          queue.add(parentId);
+        }
+      }
+    }
+    return found;
   }
 
   void _calculateNodePositions() {
@@ -595,15 +596,7 @@ class TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateMi
     final path = <String>[];
     final visited = <String>{};
     
-    // Find roots
-    final roots = widget.persons.where((p) {
-      if (p.relationships.parentIds.isEmpty) return true;
-      return !p.relationships.parentIds.any((pid) => widget.persons.any((p2) => p2.id == pid));
-    }).toList();
-    
-    if (roots.isEmpty && widget.persons.isNotEmpty) roots.add(widget.persons.first);
-
-    for (final root in roots) {
+    for (final root in _roots) {
       _dfsTraversal(root, path, visited);
     }
     return path;
@@ -714,55 +707,54 @@ class TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateMi
   }
 
   void _calculateTreeLayout() {
-    // Calculate optimal level separation based on viewport height
+    final visible = _getFilteredPersons();
+
+    // Spread the generations across the viewport, within sensible bounds.
     final screenHeight = MediaQuery.of(context).size.height;
-    
-    // Calculate max generation depth
-    int maxGeneration = 0;
-    final visited = <String>{};
-    
-    void countGenerations(Person person, int generation) {
-      if (visited.contains(person.id)) return;
-      visited.add(person.id);
-      if (generation > maxGeneration) maxGeneration = generation;
-      
-      final children = widget.persons
-          .where((p) => p.relationships.parentIds.contains(person.id));
-      for (final child in children) {
-        countGenerations(child, generation + 1);
-      }
-    }
-    
-    // Find roots and count generations
-    final roots = widget.persons.where((p) {
-      if (p.relationships.parentIds.isEmpty) return true;
-      return !p.relationships.parentIds.any((pid) => widget.persons.any((p2) => p2.id == pid));
-    }).toList();
-    
-    if (roots.isEmpty && widget.persons.isNotEmpty) roots.add(widget.persons.first);
-    for (final root in roots) {
-      countGenerations(root, 0);
-    }
-    
-    // Calculate dynamic spacing: use full height but respect min/max
+    final depth = _generationDepth(visible);
+
     double levelSeparation = TreeLayoutService.defaultLevelSeparation;
-    if (maxGeneration > 0) {
-      final availableHeight = screenHeight - 200; // Reserve space for UI elements
-      levelSeparation = (availableHeight / maxGeneration).clamp(300.0, 500.0);
+    if (depth > 0) {
+      levelSeparation = ((screenHeight - 200) / depth).clamp(300.0, 500.0);
     }
-    
-    // Use the robust layout service with dynamic spacing
-    _cachedPositions = TreeLayoutService.calculateTreeLayout(
-      _getFilteredPersons(),
+
+    final layout = TreeLayoutService.calculate(
+      visible,
       levelSeparation: levelSeparation,
     );
-    
-    // Calculate generations for rendering
-    _cachedGenerations = {};
-    // We can infer generation from Y position since it's fixed height
-    for (final entry in _cachedPositions.entries) {
-      _cachedGenerations[entry.key] = (entry.value.dy / levelSeparation).round();
+
+    _cachedPositions = layout.positions;
+    // Taken from the layout walk itself. Inferring it by dividing a y
+    // coordinate by the level separation and rounding drifted whenever the
+    // spacing was adjusted.
+    _cachedGenerations = layout.generations;
+  }
+
+  /// How many generations deep [people] goes. Breadth-first from the roots,
+  /// visited-guarded, so a cyclic relationship is bounded rather than fatal.
+  int _generationDepth(List<Person> people) {
+    if (people.isEmpty) return 0;
+
+    final index = FamilyIndex(people);
+    final seen = <String>{};
+    var frontier = index.roots(people);
+    for (final root in frontier) {
+      seen.add(root.id);
     }
+
+    var depth = 0;
+    while (frontier.isNotEmpty) {
+      final next = <Person>[];
+      for (final person in frontier) {
+        for (final child in index.childrenOf(person)) {
+          if (seen.add(child.id)) next.add(child);
+        }
+      }
+      if (next.isEmpty) break;
+      depth++;
+      frontier = next;
+    }
+    return depth;
   }
 
   void _calculateRadialLayout() {
@@ -777,11 +769,7 @@ class TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateMi
     final centerX = screenSize.width / 2;
     final centerY = screenSize.height / 2;
 
-    // Find root
-    final root = widget.persons.firstWhere(
-      (p) => p.relationships.parentIds.isEmpty,
-      orElse: () => widget.persons.first,
-    );
+    final root = _roots.first;
 
     // Radius settings
     const baseRadius = 300.0;
@@ -837,17 +825,7 @@ class TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateMi
 
     if (widget.persons.isEmpty) return;
 
-    // Find root(s)
-    final roots = widget.persons.where((p) {
-      if (p.relationships.parentIds.isEmpty) return true;
-      return !p.relationships.parentIds.any(
-        (pid) => widget.persons.any((p2) => p2.id == pid)
-      );
-    }).toList();
-
-    if (roots.isEmpty && widget.persons.isNotEmpty) {
-      roots.add(widget.persons.first);
-    }
+    final roots = _roots;
 
     // Sort roots by order added (createdAt)
     roots.sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
@@ -924,50 +902,41 @@ class TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateMi
 
   Set<String> _getVisibleNodeIds() {
     final visibleIds = <String>{};
-    // Find roots (no parents or parents not in list)
-    final roots = widget.persons.where((p) {
-      if (p.relationships.parentIds.isEmpty) return true;
-      return !p.relationships.parentIds.any((pid) => widget.persons.any((p2) => p2.id == pid));
-    }).toList();
-    
-    if (roots.isEmpty && widget.persons.isNotEmpty) roots.add(widget.persons.first);
-
-    for (final root in roots) {
-      _collectVisibleDescendants(root, visibleIds);
+    for (final root in _roots) {
+      visibleIds.addAll(_descendantIdsOf(root.id));
     }
     return visibleIds;
   }
 
-  void _collectVisibleDescendants(Person node, Set<String> visibleIds) {
-    if (visibleIds.contains(node.id)) return;
-    visibleIds.add(node.id);
-    
-    final children = widget.persons
-        .where((p) => p.relationships.parentIds.contains(node.id));
-        
-    for (final child in children) {
-      _collectVisibleDescendants(child, visibleIds);
-    }
-  }
+  /// How far below the tops of the tree this person sits.
+  ///
+  /// Walks up rather than down, one step at a time, keeping the longest line —
+  /// a person with two parents at different depths belongs to the lower of the
+  /// two. The visited set stops a cyclic relationship from recursing forever;
+  /// the old version guarded the recursion but then returned 0 for the repeat,
+  /// which quietly reported a wrong generation instead.
+  int _calculateGeneration(Person person) {
+    var depth = 0;
+    var frontier = <String>{person.id};
+    final seen = <String>{person.id};
 
-  int _calculateGeneration(Person person, {Set<String>? visited}) {
-    visited ??= {};
-    if (visited.contains(person.id)) return 0;
-    visited.add(person.id);
-
-    if (person.relationships.parentIds.isEmpty) return 0;
-    
-    int maxParentGen = -1;
-    for (final parentId in person.relationships.parentIds) {
-      final parent = widget.persons.firstWhere(
-        (p) => p.id == parentId,
-        orElse: () => person,
-      );
-      if (parent.id != person.id) {
-        maxParentGen = math.max(maxParentGen, _calculateGeneration(parent, visited: visited));
+    while (frontier.isNotEmpty) {
+      final parents = <String>{};
+      for (final id in frontier) {
+        final current = _person(id);
+        if (current == null) continue;
+        for (final parentId in current.relationships.parentIds) {
+          if (_person(parentId) != null && seen.add(parentId)) {
+            parents.add(parentId);
+          }
+        }
       }
+      if (parents.isEmpty) break;
+      depth++;
+      frontier = parents;
     }
-    return maxParentGen + 1;
+
+    return depth;
   }
 
   void _calculateListLayout() {
@@ -977,17 +946,7 @@ class TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateMi
 
     if (widget.persons.isEmpty) return;
 
-    // Find roots
-    final roots = widget.persons.where((p) {
-      if (p.relationships.parentIds.isEmpty) return true;
-      return !p.relationships.parentIds.any(
-        (pid) => widget.persons.any((p2) => p2.id == pid)
-      );
-    }).toList();
-
-    if (roots.isEmpty && widget.persons.isNotEmpty) {
-      roots.add(widget.persons.first);
-    }
+    final roots = _roots;
 
     // Layout parameters - nodes are ~140x160px
     const double startX = 120;
@@ -1071,6 +1030,7 @@ class TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateMi
                 height: _canvasSize.height,
                 child: CustomPaint(
                   painter: _ConnectionLinesPainter(
+                    index: _index,
                     persons: widget.persons,
                     positions: _cachedPositions,
                     generations: _cachedGenerations,
@@ -1209,13 +1169,13 @@ class TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateMi
   Widget _buildFocusLayout(BuildContext context, bool isDark) {
     if (widget.persons.isEmpty) return const SizedBox();
     
-    // Find patriarch (root of tree)
-    final patriarch = widget.persons.firstWhere(
-      (p) => p.relationships.parentIds.isEmpty, orElse: () => widget.persons.first);
-    
-    // Get current focused person from stack
-    Person currentPerson = _focusStack.isEmpty ? patriarch : widget.persons.firstWhere(
-      (p) => p.id == _focusStack.last, orElse: () => patriarch);
+    final patriarch = _roots.first;
+
+    // The person in focus, falling back to the top of the tree if the stack
+    // points at somebody who has since been removed.
+    final Person currentPerson = _focusStack.isEmpty
+        ? patriarch
+        : (_person(_focusStack.last) ?? patriarch);
     
     // Get children of focused person
     final children = widget.persons.where((p) => 
@@ -1403,7 +1363,7 @@ class TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateMi
                                           border: Border.all(color: Colors.white, width: 2),
                                           boxShadow: [
                                             BoxShadow(
-                                              color: Colors.black.withOpacity(0.2),
+                                              color: Colors.black.withValues(alpha: 0.2),
                                               blurRadius: 4,
                                               offset: const Offset(0, 2),
                                             ),
@@ -1470,11 +1430,11 @@ class TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateMi
                             top: adjustedParentY + 120,
                             child: Column(
                               children: [
-                                Icon(Icons.family_restroom_rounded, size: 48, color: Colors.grey.withOpacity(0.3)),
+                                Icon(Icons.family_restroom_rounded, size: 48, color: Colors.grey.withValues(alpha: 0.3)),
                                 const SizedBox(height: 12),
                                 Text(
                                   'No children recorded',
-                                  style: TextStyle(fontSize: 14, color: Colors.grey.withOpacity(0.6)),
+                                  style: TextStyle(fontSize: 14, color: Colors.grey.withValues(alpha: 0.6)),
                                 ),
                               ],
                             ),
@@ -1552,7 +1512,7 @@ class TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateMi
   Widget _buildFocusNav(Person person, Color color, bool isDark) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(color: context.colors.surface, border: Border(bottom: BorderSide(color: color.withOpacity(0.2)))),
+      decoration: BoxDecoration(color: context.colors.surface, border: Border(bottom: BorderSide(color: color.withValues(alpha: 0.2)))),
       child: Row(children: [
         GestureDetector(
           onTap: () => setState(() { if (_focusStack.isNotEmpty) _focusStack.removeLast(); }),
@@ -1584,7 +1544,7 @@ class TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateMi
         ]))),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
           child: Text('Gen ${_getPersonGeneration(person)}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color)),
         ),
       ]),
@@ -1604,11 +1564,11 @@ class TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateMi
       decoration: BoxDecoration(
         color: context.colors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.3)),
-        boxShadow: [BoxShadow(color: color.withOpacity(0.1), blurRadius: 12, offset: const Offset(0, 4))]),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+        boxShadow: [BoxShadow(color: color.withValues(alpha: 0.1), blurRadius: 12, offset: const Offset(0, 4))]),
       child: Row(children: [
         Container(width: avatarSize, height: avatarSize,
-          decoration: BoxDecoration(gradient: LinearGradient(colors: [color.withOpacity(0.8), color]), shape: BoxShape.circle),
+          decoration: BoxDecoration(gradient: LinearGradient(colors: [color.withValues(alpha: 0.8), color]), shape: BoxShape.circle),
           child: Center(child: Text(person.firstName[0], style: TextStyle(fontSize: avatarSize * 0.4, fontWeight: FontWeight.bold, color: Colors.white)))),
         const SizedBox(width: 14),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1645,11 +1605,11 @@ class TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateMi
         decoration: BoxDecoration(
           color: context.colors.surface,
           borderRadius: BorderRadius.circular(isCompact ? 12 : 14),
-          border: Border.all(color: color.withOpacity(0.3)),
-          boxShadow: [BoxShadow(color: color.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 3))]),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+          boxShadow: [BoxShadow(color: color.withValues(alpha: 0.06), blurRadius: 8, offset: const Offset(0, 3))]),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Container(width: avatarSize, height: avatarSize,
-            decoration: BoxDecoration(gradient: LinearGradient(colors: [color.withOpacity(0.8), color]), shape: BoxShape.circle),
+            decoration: BoxDecoration(gradient: LinearGradient(colors: [color.withValues(alpha: 0.8), color]), shape: BoxShape.circle),
             child: Center(child: Text(person.firstName[0], style: TextStyle(fontSize: avatarSize * 0.44, fontWeight: FontWeight.bold, color: Colors.white)))),
           SizedBox(height: isCompact ? 6 : 10),
           Text(person.firstName, style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.bold, color: context.colors.ink.withValues(alpha: 0.87)), overflow: TextOverflow.ellipsis, maxLines: 1),
@@ -1659,7 +1619,7 @@ class TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateMi
           SizedBox(height: isCompact ? 4 : 8),
           Container(
             padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 12, vertical: isCompact ? 4 : 6),
-            decoration: BoxDecoration(color: hasChildren ? color : Colors.grey.withOpacity(0.3), borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(color: hasChildren ? color : Colors.grey.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(8)),
             child: Text(hasChildren ? 'Explore' : 'View', style: TextStyle(fontSize: isCompact ? 10 : 11, fontWeight: FontWeight.w600, color: Colors.white))),
         ]),
       ),
@@ -1678,7 +1638,7 @@ class TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateMi
     
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(color: context.colors.surface, border: Border(top: BorderSide(color: Colors.grey.withOpacity(0.2)))),
+      decoration: BoxDecoration(color: context.colors.surface, border: Border(top: BorderSide(color: Colors.grey.withValues(alpha: 0.2)))),
       child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
         if (hasPrev) _buildSiblingBtn(siblings[idx - 1], true, isDark) else const SizedBox(width: 100),
         GestureDetector(
@@ -1698,7 +1658,7 @@ class TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateMi
     return GestureDetector(
       onTap: () => setState(() { if (_focusStack.isNotEmpty) _focusStack[_focusStack.length - 1] = sibling.id; }),
       child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(10), border: Border.all(color: color.withOpacity(0.3))),
+        decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10), border: Border.all(color: color.withValues(alpha: 0.3))),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           if (isPrev) Icon(Icons.arrow_back, size: 14, color: color),
           if (isPrev) const SizedBox(width: 6),
@@ -1737,19 +1697,12 @@ class TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateMi
   
   // Count all descendants by personId
   int _countAllDescendants(String personId) {
-    final person = widget.persons.firstWhere(
-      (p) => p.id == personId,
-      orElse: () => widget.persons.first,
-    );
-    return _getDescendantCount(person);
+    // The starting person is not one of their own descendants.
+    return _descendantIdsOf(personId).length - 1;
   }
 
   List<Widget> _buildPersonNodes() {
-    // 1. Identify the root (Mohammed)
-    final root = widget.persons.firstWhere(
-      (p) => p.relationships.parentIds.isEmpty,
-      orElse: () => widget.persons.first,
-    );
+    final root = _roots.first;
 
     // 2. Identify Generation 1 (Sons)
     final gen1Ids = widget.persons
@@ -1795,18 +1748,14 @@ class TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateMi
     Set<String> spotlightIds = {};
     if (widget.selectedPersonId != null) {
       final selectedId = widget.selectedPersonId!;
-      final selectedPerson = widget.persons.firstWhere(
-        (p) => p.id == selectedId, 
-        orElse: () => widget.persons.first
-      );
-      
-      spotlightIds.add(selectedId);
-      // Add Parents
-      spotlightIds.addAll(selectedPerson.relationships.parentIds);
-      // Add Children
-      spotlightIds.addAll(selectedPerson.relationships.childrenIds);
-      // Add Spouses
-      spotlightIds.addAll(selectedPerson.relationships.spouses.map((s) => s.personId));
+      final selectedPerson = _person(selectedId);
+      if (selectedPerson != null) {
+        spotlightIds.add(selectedId);
+        spotlightIds.addAll(selectedPerson.relationships.parentIds);
+        spotlightIds.addAll(_index.childrenOf(selectedPerson).map((c) => c.id));
+        spotlightIds.addAll(
+            selectedPerson.relationships.spouses.map((s) => s.personId));
+      }
     }
 
     return widget.persons.map((person) {
@@ -1858,6 +1807,10 @@ class TreeCanvasState extends State<TreeCanvas> with SingleTickerProviderStateMi
 /// Custom painter for connection lines between persons
 class _ConnectionLinesPainter extends CustomPainter {
   final List<Person> persons;
+
+  /// Id-keyed view of [persons], built once by the canvas rather than rescanned
+  /// per node while painting.
+  final FamilyIndex index;
   final Map<String, Offset> positions;
   final Map<String, int> generations;
   final String? selectedPersonId;
@@ -1870,6 +1823,7 @@ class _ConnectionLinesPainter extends CustomPainter {
 
   _ConnectionLinesPainter({
     required this.persons,
+    required this.index,
     required this.positions,
     required this.generations,
     this.selectedPersonId,
@@ -1904,7 +1858,7 @@ class _ConnectionLinesPainter extends CustomPainter {
       final parentGen = generations[person.id] ?? 0;
       final parentColor = AppTheme.getGenerationColor(parentGen);
 
-      for (final childId in person.relationships.childrenIds) {
+      for (final childId in index.childrenOf(person).map((c) => c.id)) {
         final childPos = positions[childId];
         if (childPos == null) continue;
         
@@ -2007,7 +1961,7 @@ class _ConnectionLinesPainter extends CustomPainter {
       final parentGen = generations[person.id] ?? 0;
       final parentColor = AppTheme.getGenerationColor(parentGen);
 
-      for (final childId in person.relationships.childrenIds) {
+      for (final childId in index.childrenOf(person).map((c) => c.id)) {
         final childPos = positions[childId];
         if (childPos == null) continue;
         
@@ -2097,7 +2051,7 @@ class _ConnectionLinesPainter extends CustomPainter {
       final parentGen = generations[person.id] ?? 0;
       final parentColor = AppTheme.getGenerationColor(parentGen);
 
-      for (final childId in person.relationships.childrenIds) {
+      for (final childId in index.childrenOf(person).map((c) => c.id)) {
         final childPos = positions[childId];
         if (childPos == null) continue;
         
@@ -2187,7 +2141,7 @@ class _ConnectionLinesPainter extends CustomPainter {
       final parentGen = generations[person.id] ?? 0;
       final parentColor = AppTheme.getGenerationColor(parentGen);
 
-      for (final childId in person.relationships.childrenIds) {
+      for (final childId in index.childrenOf(person).map((c) => c.id)) {
         final childPos = positions[childId];
         if (childPos == null) continue;
         
@@ -2350,7 +2304,7 @@ class _FocusConnectionsPainter extends CustomPainter {
       // Highlighted glow effect (stronger when selected)
       if (isHighlighted) {
         final highlightGlow = Paint()
-          ..color = AppTheme.primaryLight.withOpacity(0.3)
+          ..color = AppTheme.primaryLight.withValues(alpha: 0.3)
           ..strokeWidth = 20
           ..style = PaintingStyle.stroke
           ..strokeCap = StrokeCap.round
@@ -2358,7 +2312,7 @@ class _FocusConnectionsPainter extends CustomPainter {
         canvas.drawPath(path, highlightGlow);
         
         final innerHighlight = Paint()
-          ..color = AppTheme.accentTeal.withOpacity(0.5)
+          ..color = AppTheme.accentTeal.withValues(alpha: 0.5)
           ..strokeWidth = 10
           ..style = PaintingStyle.stroke
           ..strokeCap = StrokeCap.round
@@ -2367,7 +2321,7 @@ class _FocusConnectionsPainter extends CustomPainter {
       } else {
         // Outer glow effect (normal)
         final outerGlow = Paint()
-          ..color = color.withOpacity(0.15)
+          ..color = color.withValues(alpha: 0.15)
           ..strokeWidth = 14
           ..style = PaintingStyle.stroke
           ..strokeCap = StrokeCap.round
@@ -2376,7 +2330,7 @@ class _FocusConnectionsPainter extends CustomPainter {
         
         // Inner glow
         final innerGlow = Paint()
-          ..color = childColor.withOpacity(0.25)
+          ..color = childColor.withValues(alpha: 0.25)
           ..strokeWidth = 6
           ..style = PaintingStyle.stroke
           ..strokeCap = StrokeCap.round
@@ -2390,8 +2344,8 @@ class _FocusConnectionsPainter extends CustomPainter {
           Offset(parentPos.dx, startY),
           Offset(childPos.dx, endY),
           [
-            isHighlighted ? AppTheme.primaryLight : color.withOpacity(0.8),
-            isHighlighted ? AppTheme.accentTeal : childColor.withOpacity(0.8),
+            isHighlighted ? AppTheme.primaryLight : color.withValues(alpha: 0.8),
+            isHighlighted ? AppTheme.accentTeal : childColor.withValues(alpha: 0.8),
           ],
         )
         ..strokeWidth = isHighlighted ? 4.5 : 3
@@ -2407,7 +2361,7 @@ class _FocusConnectionsPainter extends CustomPainter {
       
       // End dot at child with glow
       final childDotGlow = Paint()
-        ..color = (isHighlighted ? AppTheme.accentTeal : childColor).withOpacity(0.5)
+        ..color = (isHighlighted ? AppTheme.accentTeal : childColor).withValues(alpha: 0.5)
         ..maskFilter = MaskFilter.blur(BlurStyle.normal, isHighlighted ? 8 : 4);
       canvas.drawCircle(Offset(childPos.dx, endY), isHighlighted ? 14 : 10, childDotGlow);
       

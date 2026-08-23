@@ -2,9 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:family_tree/core/config.dart';
 import 'package:family_tree/data/models/app_user.dart';
+import 'package:family_tree/data/services/session_store.dart';
 
 /// Thrown for any auth failure so the UI can show the backend's message.
 class AuthException implements Exception {
@@ -20,9 +21,7 @@ class AuthException implements Exception {
 /// only credential the app stores, and every authenticated request carries it
 /// as `Authorization: Bearer <token>`.
 class AuthService {
-  static const String baseUrl = 'http://localhost:5000';
-  static const String _tokenKey = 'auth_token';
-  static const String _userKey = 'auth_user';
+  static const String baseUrl = AppConfig.apiBaseUrl;
 
   static final AuthService _instance = AuthService._internal();
   factory AuthService() => _instance;
@@ -43,15 +42,14 @@ class AuthService {
 
   /// Restore a previous session from disk. Safe to call more than once.
   Future<AppUser?> init() async {
-    final prefs = await SharedPreferences.getInstance();
-    _token = prefs.getString(_tokenKey);
+    _token = await SessionStore.readToken();
 
     if (_token == null) {
       _emit(null);
       return null;
     }
 
-    final cached = prefs.getString(_userKey);
+    final cached = await SessionStore.readUser();
     if (cached != null) {
       try {
         _currentUser = AppUser.fromJson(
@@ -97,12 +95,13 @@ class AuthService {
     });
   }
 
+  /// Sign out and forget everything stored about this member, including the
+  /// cached family tree — which used to survive sign-out, so the next person to
+  /// sign in on the same device saw the previous account's family.
   Future<void> signOut() async {
     _token = null;
     _currentUser = null;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_tokenKey);
-    await prefs.remove(_userKey);
+    await SessionStore.clear();
     _emit(null);
   }
 
@@ -198,8 +197,7 @@ class AuthService {
     _token = token;
     _currentUser = AppUser.fromJson(userJson);
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_tokenKey, token);
+    await SessionStore.writeToken(token);
     await _persistUser(_currentUser!);
 
     _emit(_currentUser);
@@ -293,8 +291,7 @@ class AuthService {
     _token = token;
     _currentUser = AppUser.fromJson(userJson);
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_tokenKey, token);
+    await SessionStore.writeToken(token);
     await _persistUser(_currentUser!);
 
     _emit(_currentUser);
@@ -316,10 +313,8 @@ class AuthService {
     }
   }
 
-  Future<void> _persistUser(AppUser user) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_userKey, jsonEncode(user.toJson()));
-  }
+  Future<void> _persistUser(AppUser user) =>
+      SessionStore.writeUser(jsonEncode(user.toJson()));
 
   Map<String, dynamic>? _decode(String body) {
     if (body.isEmpty) return null;

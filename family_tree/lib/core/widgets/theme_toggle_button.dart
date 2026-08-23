@@ -28,13 +28,13 @@ class ThemeToggleButton extends ConsumerWidget {
         padding: EdgeInsets.all(size * 0.2),
         decoration: BoxDecoration(
           color: isDark 
-              ? AppTheme.surfaceDark.withOpacity(0.8)
-              : ElegantColors.warmWhite.withOpacity(0.9),
+              ? AppTheme.surfaceDark.withValues(alpha: 0.8)
+              : ElegantColors.warmWhite.withValues(alpha: 0.9),
           borderRadius: BorderRadius.circular(size / 2),
           border: Border.all(
             color: isDark 
-                ? AppTheme.primaryLight.withOpacity(0.3)
-                : ElegantColors.terracotta.withOpacity(0.3),
+                ? AppTheme.primaryLight.withValues(alpha: 0.3)
+                : ElegantColors.terracotta.withValues(alpha: 0.3),
             width: 1.5,
           ),
           boxShadow: [

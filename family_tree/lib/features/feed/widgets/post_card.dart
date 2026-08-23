@@ -90,7 +90,7 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
     _likeAnimController.forward().then((_) => _likeAnimController.reverse());
     
     try {
-      await widget.repository.toggleReaction(widget.post.id, widget.currentUserId, '❤️');
+      await widget.repository.toggleReaction(widget.post.id, '❤️');
     } catch (e) {
       // Put the heart back the way it was, and say why — a like that silently
       // un-likes itself reads as the app being broken.
@@ -183,8 +183,8 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
               boxShadow: [
                 BoxShadow(
                   color: widget.isDark 
-                      ? AppTheme.primaryLight.withOpacity(0.3)
-                      : ElegantColors.terracotta.withOpacity(0.3),
+                      ? AppTheme.primaryLight.withValues(alpha: 0.3)
+                      : ElegantColors.terracotta.withValues(alpha: 0.3),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -365,13 +365,13 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: widget.isDark 
-                        ? Colors.white.withOpacity(0.1) 
+                        ? Colors.white.withValues(alpha: 0.1) 
                         : ElegantColors.cream,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
                       color: widget.isDark 
-                          ? Colors.white.withOpacity(0.2) 
-                          : ElegantColors.warmGray.withOpacity(0.3),
+                          ? Colors.white.withValues(alpha: 0.2) 
+                          : ElegantColors.warmGray.withValues(alpha: 0.3),
                     ),
                   ),
                   child: Row(
@@ -485,7 +485,7 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(50),
             ),
             child: const Icon(Icons.play_arrow, color: Colors.white, size: 32),
@@ -525,7 +525,7 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
       decoration: BoxDecoration(
         border: Border(
           top: BorderSide(color: widget.isDark 
-              ? AppTheme.primaryLight.withOpacity(0.1)
+              ? AppTheme.primaryLight.withValues(alpha: 0.1)
               : ElegantColors.champagne),
         ),
       ),
@@ -600,8 +600,8 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: widget.isDark 
-            ? AppTheme.backgroundDark.withOpacity(0.5)
-            : ElegantColors.cream.withOpacity(0.5),
+            ? AppTheme.backgroundDark.withValues(alpha: 0.5)
+            : ElegantColors.cream.withValues(alpha: 0.5),
         borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(20),
           bottomRight: Radius.circular(20),
@@ -647,8 +647,8 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
                           Icons.chat_bubble_outline,
                           size: 32,
                           color: widget.isDark 
-                              ? AppTheme.textMuted.withOpacity(0.5)
-                              : ElegantColors.warmGray.withOpacity(0.5),
+                              ? AppTheme.textMuted.withValues(alpha: 0.5)
+                              : ElegantColors.warmGray.withValues(alpha: 0.5),
                         ),
                         const SizedBox(height: 8),
                         Text(
@@ -697,7 +697,7 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(
                       color: widget.isDark 
-                          ? AppTheme.primaryLight.withOpacity(0.2)
+                          ? AppTheme.primaryLight.withValues(alpha: 0.2)
                           : ElegantColors.champagne,
                     ),
                   ),
@@ -823,7 +823,7 @@ class _CommentItem extends StatelessWidget {
               boxShadow: [
                 BoxShadow(
                   color: (context.colors.accent)
-                      .withOpacity(0.2),
+                      .withValues(alpha: 0.2),
                   blurRadius: 4,
                   offset: const Offset(0, 2),
                 ),

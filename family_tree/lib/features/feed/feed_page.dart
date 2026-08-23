@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:family_tree/core/config.dart';
 import 'package:family_tree/core/theme/app_theme.dart';
 import 'package:family_tree/core/theme/app_colors.dart';
 import 'package:family_tree/core/theme/elegant_theme.dart';
@@ -19,12 +20,22 @@ import 'package:family_tree/data/services/storage_service.dart';
 import 'package:family_tree/features/auth/providers/auth_provider.dart';
 import 'package:family_tree/features/feed/widgets/post_card.dart';
 
-const String kFeedFamilyTreeId = 'main-family-tree';
+/// The family tree this build shows. Set at build time — see [AppConfig].
+const String kFeedFamilyTreeId = AppConfig.familyTreeId;
+
+/// The one repository the feed reads and writes through.
+///
+/// There used to be two — one built inside the stream provider, one held by the
+/// page's state — each with its own cache and its own polling loop. Pull to
+/// refresh force-fetched on the instance whose result was then discarded, so
+/// every refresh cost an extra round trip that changed nothing.
+final groupRepositoryProvider = Provider<GroupRepository>((ref) {
+  return GroupRepository();
+});
 
 /// Posts for the family feed.
-final postsProvider =
-    StreamProvider.family<List<Post>, String>((ref, familyTreeId) {
-  return GroupRepository().watchPosts(familyTreeId);
+final postsProvider = StreamProvider<List<Post>>((ref) {
+  return ref.watch(groupRepositoryProvider).watchPosts();
 });
 
 /// The family feed — the only surface that replaced the old tabbed group page.
@@ -37,8 +48,9 @@ class FeedPage extends ConsumerStatefulWidget {
 
 class _FeedPageState extends ConsumerState<FeedPage>
     with SingleTickerProviderStateMixin {
-  final GroupRepository _repository = GroupRepository();
   late final AnimationController _auroraController;
+
+  GroupRepository get _repository => ref.read(groupRepositoryProvider);
 
   @override
   void initState() {
@@ -56,8 +68,8 @@ class _FeedPageState extends ConsumerState<FeedPage>
   }
 
   Future<void> _refresh() async {
-    await _repository.getPosts(forceRefresh: true);
-    ref.invalidate(postsProvider(kFeedFamilyTreeId));
+    _repository.invalidate();
+    ref.invalidate(postsProvider);
   }
 
   Future<void> _deletePost(String postId, bool isDark) async {
@@ -103,7 +115,7 @@ class _FeedPageState extends ConsumerState<FeedPage>
     if (confirmed != true) return;
     try {
       await _repository.deletePost(postId);
-      ref.invalidate(postsProvider(kFeedFamilyTreeId));
+      ref.invalidate(postsProvider);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -119,7 +131,7 @@ class _FeedPageState extends ConsumerState<FeedPage>
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final user = ref.watch(authStateProvider).value;
-    final postsAsync = ref.watch(postsProvider(kFeedFamilyTreeId));
+    final postsAsync = ref.watch(postsProvider);
     final isWide = MediaQuery.of(context).size.width >= 720;
 
     return Scaffold(
