@@ -11,7 +11,7 @@ import 'package:family_tree/features/tree_view/controllers/tree_controller.dart'
 import 'package:family_tree/features/tree_view/tree_canvas.dart';
 import 'package:family_tree/features/tree_view/widgets/person_details_dialog.dart';
 import 'package:family_tree/features/tree_view/widgets/profile_drawer.dart';
-import 'package:family_tree/features/tree_view/widgets/link_account_sheet.dart';
+import 'package:family_tree/features/linking/find_myself_sheet.dart';
 import 'package:family_tree/data/services/link_service.dart';
 import 'package:family_tree/features/linking/link_status.dart';
 import 'package:family_tree/features/profile/my_profile_editor.dart';
@@ -705,7 +705,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
         );
     if (!mounted || !status.canClaim || status.isRejected) return;
 
-    await LinkAccountSheet.show(context, familyMembers: members);
+    await showFindMyselfSheet(context, people: members);
     if (mounted) ref.invalidate(linkStatusProvider);
   }
 

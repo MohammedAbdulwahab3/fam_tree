@@ -16,7 +16,7 @@ import 'package:family_tree/data/services/api_service.dart';
 import 'package:family_tree/data/services/auth_service.dart';
 import 'package:family_tree/data/services/link_service.dart';
 import 'package:family_tree/features/notifications/notifications_screen.dart';
-import 'package:family_tree/features/tree_view/widgets/link_account_sheet.dart';
+import 'package:family_tree/features/linking/find_myself_sheet.dart';
 import 'package:family_tree/features/linking/link_status.dart';
 import 'package:family_tree/providers/locale_provider.dart';
 import 'package:family_tree/providers/theme_provider.dart';
@@ -368,9 +368,9 @@ class _ProfileDrawerState extends ConsumerState<ProfileDrawer>
           ? null
           : () {
               Navigator.pop(context);
-              LinkAccountSheet.show(
+              showFindMyselfSheet(
                 context,
-                familyMembers: widget.familyMembers,
+                people: widget.familyMembers,
               );
             },
     );
@@ -392,9 +392,9 @@ class _ProfileDrawerState extends ConsumerState<ProfileDrawer>
         isDark: isDark,
         onStart: () {
           Navigator.pop(context);
-          LinkAccountSheet.show(
+          showFindMyselfSheet(
             context,
-            familyMembers: widget.familyMembers,
+            people: widget.familyMembers,
           );
         },
         onCancel: state == _LinkState.pending ? _withdrawClaim : null,

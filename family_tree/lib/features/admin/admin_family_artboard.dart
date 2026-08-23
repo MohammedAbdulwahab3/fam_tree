@@ -16,7 +16,7 @@ import 'package:family_tree/core/widgets/aurora_background.dart';
 import 'package:family_tree/data/models/post.dart';
 import 'package:family_tree/features/admin/admin_tools_sheet.dart';
 import 'package:family_tree/features/auth/session.dart';
-import 'package:family_tree/features/admin/link_requests_dashboard.dart';
+import 'package:family_tree/features/linking/review_claims_page.dart';
 import 'package:family_tree/features/admin/post_composer_sheet.dart';
 import 'package:family_tree/data/services/family_export_service.dart';
 import 'package:family_tree/data/services/web_download_helper.dart';
@@ -698,7 +698,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
       case 'links':
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const LinkRequestsDashboard()),
+          MaterialPageRoute(builder: (_) => const ReviewClaimsPage()),
         );
       case 'export':
         _exportTree();
