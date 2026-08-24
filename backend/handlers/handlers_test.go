@@ -657,3 +657,173 @@ func TestUpdateRefusesADuplicateParent(t *testing.T) {
 		t.Fatalf("expected 400, got %d", rec.Code)
 	}
 }
+
+// ------------------------------------------------------------ public tree ---
+
+// anonymous builds a request context with no authenticated caller, which is
+// what the public routes see.
+func anonymous(method, target string) (*gin.Context, *httptest.ResponseRecorder) {
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(method, target, nil)
+	return c, rec
+}
+
+// The tree is public so a relative can see whether their family is in here
+// before being asked to make an account. What a member wrote about themselves
+// is not public, and this is the test that says so — the endpoint serves the
+// same rows as /api/persons, so nothing but publicView stands between a
+// visitor and everybody's phone number.
+func TestPublicTreeWithholdsPrivateDetail(t *testing.T) {
+	db := newDB(t)
+	h := &PersonHandler{DB: db}
+
+	born := time.Date(1950, 3, 2, 0, 0, 0, 0, time.UTC)
+	died := time.Date(2019, 8, 1, 0, 0, 0, 0, time.UTC)
+	db.Create(&models.Person{
+		ID:               "p1",
+		FamilyTreeID:     "main-family-tree",
+		AuthUserID:       "user-42",
+		FirstName:        "Issa",
+		LastName:         "Mammaduu",
+		Gender:           "male",
+		ProfilePhotoURL:  "/uploads/issa.jpg",
+		IsDeceased:       true,
+		BirthDate:        &born,
+		DeathDate:        &died,
+		Bio:              "Loved gardening",
+		Occupation:       "Teacher",
+		BirthPlace:       "Harar",
+		CurrentResidence: "Addis Ababa",
+		Education:        "Addis Ababa University",
+		ContactEmail:     "issa@example.com",
+		ContactPhone:     "+251911000000",
+		MaritalStatus:    "married",
+		SpouseName:       "Fatuma",
+		Interests:        models.JSONStringArray{"gardening"},
+		Photos:           models.JSONStringArray{"/uploads/1.jpg"},
+		LifeEvents:       models.LifeEvents{{ID: "e1", Title: "Moved to Addis"}},
+		Relationships:    models.Relationships{ParentIDs: []string{}},
+	})
+
+	c, rec := anonymous(http.MethodGet, "/public/tree")
+	h.GetPublicTree(c)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var got []map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected 1 person, got %d", len(got))
+	}
+	person := got[0]
+
+	// What the canvas needs to draw somebody.
+	for field, want := range map[string]interface{}{
+		"id":              "p1",
+		"firstName":       "Issa",
+		"lastName":        "Mammaduu",
+		"gender":          "male",
+		"profilePhotoUrl": "/uploads/issa.jpg",
+		"isDeceased":      true,
+	} {
+		if person[field] != want {
+			t.Errorf("%s: want %v, got %v", field, want, person[field])
+		}
+	}
+
+	// What a visitor has no business reading.
+	for _, field := range []string{
+		"authUserId", "bio", "occupation", "birthPlace", "currentResidence",
+		"education", "contactEmail", "contactPhone", "maritalStatus",
+		"spouseName",
+	} {
+		if v, _ := person[field].(string); v != "" {
+			t.Errorf("%s leaked to the public tree: %q", field, v)
+		}
+	}
+	for _, field := range []string{"interests", "photos", "lifeEvents"} {
+		if v, _ := person[field].([]interface{}); len(v) != 0 {
+			t.Errorf("%s leaked to the public tree: %v", field, v)
+		}
+	}
+	// Dates marshal as omitempty pointers, so a withheld one is absent.
+	for _, field := range []string{"birthDate", "deathDate"} {
+		if v, ok := person[field]; ok && v != nil {
+			t.Errorf("%s leaked to the public tree: %v", field, v)
+		}
+	}
+}
+
+// Descent is the whole point of the tree, so it has to survive redaction —
+// including the children the server derives rather than stores.
+func TestPublicTreeKeepsDescent(t *testing.T) {
+	db := newDB(t)
+	h := &PersonHandler{DB: db}
+
+	db.Create(&models.Person{ID: "dad", FirstName: "Dad", DisplayOrder: 0})
+	db.Create(&models.Person{
+		ID:            "kid",
+		FirstName:     "Kid",
+		DisplayOrder:  1,
+		Relationships: models.Relationships{ParentIDs: []string{"dad"}},
+	})
+
+	c, rec := anonymous(http.MethodGet, "/public/tree")
+	h.GetPublicTree(c)
+
+	var got []map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	byID := map[string]map[string]interface{}{}
+	for _, p := range got {
+		byID[p["id"].(string)] = p
+	}
+
+	dad := byID["dad"]["relationships"].(map[string]interface{})
+	kid := byID["kid"]["relationships"].(map[string]interface{})
+
+	children, _ := dad["children"].([]interface{})
+	if len(children) != 1 || children[0] != "kid" {
+		t.Errorf("derived children missing from the public tree: %v", dad["children"])
+	}
+	parents, _ := kid["parents"].([]interface{})
+	if len(parents) != 1 || parents[0] != "dad" {
+		t.Errorf("parents missing from the public tree: %v", kid["parents"])
+	}
+}
+
+// The app polls this endpoint, so an unchanged poll must cost no body.
+func TestPublicTreeAnswers304ForAnUnchangedTree(t *testing.T) {
+	db := newDB(t)
+	h := &PersonHandler{DB: db}
+	db.Create(&models.Person{ID: "p1", FirstName: "Issa"})
+
+	c, rec := anonymous(http.MethodGet, "/public/tree")
+	h.GetPublicTree(c)
+	etag := rec.Header().Get("ETag")
+	if etag == "" {
+		t.Fatal("no ETag on the public tree")
+	}
+
+	c2, rec2 := anonymous(http.MethodGet, "/public/tree")
+	c2.Request.Header.Set("If-None-Match", etag)
+	h.GetPublicTree(c2)
+
+	// gin holds the status until something is written or the header is
+	// flushed, so the recorder still reads 200 until we ask for it.
+	c2.Writer.WriteHeaderNow()
+
+	if rec2.Code != http.StatusNotModified {
+		t.Fatalf("expected 304, got %d", rec2.Code)
+	}
+	if rec2.Body.Len() != 0 {
+		t.Errorf("304 should carry no body, got %d bytes", rec2.Body.Len())
+	}
+}

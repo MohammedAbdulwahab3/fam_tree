@@ -115,6 +115,10 @@ func main() {
 	// date, biography — to anybody, in order to render two numbers.
 	r.GET("/public/stats", personHandler.GetPublicStats)
 
+	// The tree itself, readable without an account, with every person reduced
+	// to the fields the canvas needs — see publicView for what is withheld.
+	r.GET("/public/tree", personHandler.GetPublicTree)
+
 	// Protected Routes (authenticated users)
 	api := r.Group("/api")
 	api.Use(middleware.AuthMiddleware(db))

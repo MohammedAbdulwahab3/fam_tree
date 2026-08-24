@@ -107,7 +107,16 @@ class AppPage extends StatelessWidget {
                   color: c.ground,
                   border: Border(top: BorderSide(color: c.hairline)),
                 ),
-                child: Center(
+                // heightFactor, not a bare Center: Scaffold measures the
+                // bottom bar with the whole screen height to play with, and a
+                // Center takes all of it. The bar then filled the window,
+                // squeezed the body to nothing and painted over the app bar —
+                // so every page with a bottom action came up blank apart from
+                // the button, floating in the middle. Sizing to the child is
+                // what makes it a bar.
+                child: Align(
+                  alignment: Alignment.center,
+                  heightFactor: 1,
                   child: ConstrainedBox(
                     constraints:
                         const BoxConstraints(maxWidth: Sizes.readableWidth),

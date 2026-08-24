@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:family_tree/core/logging.dart';
 import 'package:family_tree/data/models/person.dart';
 import 'package:family_tree/data/services/api_service.dart';
+import 'package:family_tree/data/services/auth_service.dart';
 import 'package:family_tree/data/services/local_cache_service.dart';
 
 /// Reads and writes the family tree.
@@ -28,6 +29,29 @@ class PersonRepository {
   /// so reusing it for a different tree would show the wrong family.
   static String? _lastTreeId;
 
+  /// Whether [_lastPersons] came back from the public endpoint. Signing in
+  /// swaps a redacted tree for the full one and signing out swaps it back, so
+  /// a cached list from the other endpoint must not be reused — nor its ETag,
+  /// which would otherwise ask the wrong endpoint about the wrong version.
+  static bool? _lastWasPublic;
+
+  /// Whether this device is browsing as a visitor rather than a member.
+  static bool get _isPublic => !AuthService().isSignedIn;
+
+  /// The tree already in memory, but only when it was read for this family and
+  /// at the visibility being asked for now.
+  ///
+  /// Every fallback goes through here. Signing out does not by itself empty
+  /// this cache, so a fallback that checked only the tree id would hand the
+  /// visitor now using the app the full records — bios, contact details —
+  /// fetched by the member who just left.
+  static List<Person>? _heldTree(String familyTreeId,
+      {required bool isPublic}) {
+    if (_lastTreeId != familyTreeId) return null;
+    if (_lastWasPublic != isPublic) return null;
+    return _lastPersons;
+  }
+
   /// Get all persons. Emits only when something has actually changed —
   /// unchanged polls re-emit the identical list.
   Stream<List<Person>> watchFamilyMembers(String familyTreeId) async* {
@@ -38,7 +62,7 @@ class PersonRepository {
         log('Could not refresh the family tree', error, stack);
         // Hold the last known tree rather than blanking the screen; a dropped
         // connection should not look like a family with nobody in it.
-        yield (_lastTreeId == familyTreeId ? _lastPersons : null) ??
+        yield _heldTree(familyTreeId, isPublic: _isPublic) ??
             await _loadFromCache(familyTreeId);
       }
 
@@ -54,22 +78,37 @@ class PersonRepository {
     _lastEtag = null;
     _lastPersons = null;
     _lastTreeId = null;
+    _lastWasPublic = null;
   }
 
   /// Get all persons in a family tree, falling back to the offline cache.
   Future<List<Person>> getFamilyMembers(String familyTreeId) async {
+    // A visitor who has not signed in still gets to look at the family, from
+    // the endpoint that serves it with each person's private detail stripped.
+    // Members read the full records from /api/persons as before.
+    final isPublic = _isPublic;
+    final endpoint = isPublic ? '/public/tree' : '/api/persons';
+
     try {
       // Ask the server whether anything changed since the version we hold. If
       // not it answers 304 with no body, and we reuse what we already parsed.
-      final canReuse = _lastTreeId == familyTreeId && _lastPersons != null;
+      final held = _heldTree(familyTreeId, isPublic: isPublic);
+      final canReuse = held != null;
       final conditional = <String, String>{
         if (canReuse && _lastEtag != null) 'If-None-Match': _lastEtag!,
       };
 
-      final response = await _api.get('/api/persons', headers: conditional);
+      final response = await _api.get(
+        endpoint,
+        headers: conditional,
+        // Nothing to send when signed out, and asking the shared error handler
+        // to treat a public read as an authenticated one would report a
+        // missing token as an expired session.
+        includeAuth: !isPublic,
+      );
 
       if (response.statusCode == 304 && canReuse) {
-        return _lastPersons!;
+        return held;
       }
 
       if (response.statusCode == 200) {
@@ -82,6 +121,7 @@ class PersonRepository {
         _lastEtag = response.headers['etag'];
         _lastPersons = persons;
         _lastTreeId = familyTreeId;
+        _lastWasPublic = isPublic;
 
         // Cache for offline access. Only on a real change — this writes the
         // whole list to disk, which is not something to do on a timer.
@@ -93,11 +133,10 @@ class PersonRepository {
       // A refused or failed read falls back to what we already have rather
       // than showing an empty tree.
       log('Loading the tree returned ${response.statusCode}');
-      return (canReuse ? _lastPersons : null) ??
-          await _loadFromCache(familyTreeId);
+      return held ?? await _loadFromCache(familyTreeId);
     } catch (error, stack) {
       log('Could not load the family tree', error, stack);
-      return (_lastTreeId == familyTreeId ? _lastPersons : null) ??
+      return _heldTree(familyTreeId, isPublic: isPublic) ??
           await _loadFromCache(familyTreeId);
     }
   }

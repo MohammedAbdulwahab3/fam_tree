@@ -12,6 +12,7 @@ import 'package:family_tree/core/theme/app_colors.dart';
 import 'package:family_tree/core/widgets/aurora_background.dart';
 import 'package:family_tree/data/models/post.dart';
 import 'package:family_tree/features/admin/admin_tools_sheet.dart';
+import 'package:family_tree/features/admin/person_editor.dart';
 import 'package:family_tree/features/admin/relationships_sheet.dart';
 import 'package:family_tree/features/auth/session.dart';
 import 'package:family_tree/features/linking/link_status.dart';
@@ -2374,453 +2375,73 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
   // UNIFIED ADD MEMBER DIALOG - Clean, Single Dialog for All Cases
   // ═══════════════════════════════════════════════════════════════════════════
 
-  void _showUnifiedAddDialog({Person? preSelectedParent}) {
-    final firstNameController = TextEditingController();
-    final lastNameController = TextEditingController();
-    String gender = 'male';
-    bool isLoading = false;
-    Person? selectedParent = preSelectedParent;
-    final bool canAddAsRoot = _persons.isEmpty;
-    bool addAsRoot = canAddAsRoot;
-    int selectedOrder = 1; // Birth order (1 = first child, 2 = second, etc.)
-
-    // Pre-fill father name
-    if (selectedParent != null) {
-      lastNameController.text = selectedParent.firstName;
-    }
-
-    showDialog(
+  /// The look every box in the add-member form shares, so the form reads as
+  /// one thing rather than as fields added at different times.
+  /// Adding somebody uses the same form as editing them, so the two cannot
+  /// drift apart again.
+  Future<void> _showUnifiedAddDialog({Person? preSelectedParent}) async {
+    final created = await showPersonEditor(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          final accentColor = addAsRoot
-              ? ArtboardColors.gold
-              : (selectedParent != null
-                  ? _getBranchColor(selectedParent)
-                  : ArtboardColors.sage);
-
-          return AlertDialog(
-            backgroundColor: ArtboardColors.warmWhite,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: accentColor,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    addAsRoot ? Icons.star_rounded : Icons.person_add_alt_1,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  addAsRoot ? 'Add Patriarch' : 'Add Child',
-                  style: AppType.sans(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: ArtboardColors.charcoal,
-                  ),
-                ),
-              ],
-            ),
-            content: SizedBox(
-              width: 320,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Parent info (if adding child)
-                  if (!addAsRoot && selectedParent != null) ...[
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: accentColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              color: accentColor,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Center(
-                              child: Text(
-                                selectedParent.firstName[0].toUpperCase(),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            'Child of ${selectedParent.firstName}',
-                            style: AppType.sans(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: ArtboardColors.charcoal,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-
-                  // First Name
-                  TextField(
-                    controller: firstNameController,
-                    style: AppType.sans(fontSize: 16),
-                    decoration: InputDecoration(
-                      labelText: 'First Name *',
-                      labelStyle: AppType.sans(color: ArtboardColors.warmGray),
-                      prefixIcon: const Icon(Icons.person_rounded,
-                          color: ArtboardColors.warmGray, size: 20),
-                      filled: true,
-                      fillColor: ArtboardColors.cream,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Father/Family Name
-                  TextField(
-                    controller: lastNameController,
-                    style: AppType.sans(fontSize: 16),
-                    decoration: InputDecoration(
-                      labelText: addAsRoot ? 'Family Name *' : 'Father Name',
-                      labelStyle: AppType.sans(color: ArtboardColors.warmGray),
-                      prefixIcon: const Icon(Icons.person_outline_rounded,
-                          color: ArtboardColors.warmGray, size: 20),
-                      filled: true,
-                      fillColor: ArtboardColors.cream,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Birth Order Selection (only for children, not roots)
-                  if (!addAsRoot && selectedParent != null) ...[
-                    Builder(
-                      builder: (context) {
-                        // Get current siblings (children of selected parent)
-                        final siblings = _persons
-                            .where((p) => p.relationships.parentIds
-                                .contains(selectedParent.id))
-                            .toList();
-                        final siblingCount = siblings.length;
-                        final maxOrder =
-                            siblingCount + 1; // New child can be 1st to (n+1)th
-
-                        // Ensure selectedOrder is valid
-                        if (selectedOrder > maxOrder) {
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            setDialogState(() => selectedOrder = maxOrder);
-                          });
-                        }
-
-                        return Row(
-                          children: [
-                            Icon(Icons.format_list_numbered,
-                                color: accentColor, size: 20),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Birth Order',
-                              style: AppType.sans(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: ArtboardColors.charcoal,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              '($siblingCount existing)',
-                              style: AppType.sans(
-                                fontSize: 12,
-                                color: ArtboardColors.warmGray,
-                              ),
-                            ),
-                            const Spacer(),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: accentColor.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: DropdownButton<int>(
-                                value: selectedOrder.clamp(1, maxOrder),
-                                underline: const SizedBox(),
-                                style: AppType.sans(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: accentColor,
-                                ),
-                                dropdownColor: ArtboardColors.warmWhite,
-                                items: List.generate(maxOrder, (i) => i + 1)
-                                    .map(
-                                      (n) => DropdownMenuItem(
-                                        value: n,
-                                        child: Text(
-                                          n == 1
-                                              ? '1st'
-                                              : n == 2
-                                                  ? '2nd'
-                                                  : n == 3
-                                                      ? '3rd'
-                                                      : '${n}th',
-                                        ),
-                                      ),
-                                    )
-                                    .toList(),
-                                onChanged: (val) => setDialogState(
-                                    () => selectedOrder = val ?? 1),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-
-                  // Gender Selection - Simple buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => setDialogState(() => gender = 'male'),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            decoration: BoxDecoration(
-                              color: gender == 'male'
-                                  ? Colors.blue.withValues(alpha: 0.15)
-                                  : ArtboardColors.cream,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: gender == 'male'
-                                    ? Colors.blue
-                                    : Colors.transparent,
-                                width: 2,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.male,
-                                    color: gender == 'male'
-                                        ? Colors.blue
-                                        : ArtboardColors.warmGray),
-                                const SizedBox(width: 6),
-                                Text('Male',
-                                    style: TextStyle(
-                                      color: gender == 'male'
-                                          ? Colors.blue
-                                          : ArtboardColors.warmGray,
-                                      fontWeight: gender == 'male'
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
-                                    )),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => setDialogState(() => gender = 'female'),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            decoration: BoxDecoration(
-                              color: gender == 'female'
-                                  ? Colors.pink.withValues(alpha: 0.15)
-                                  : ArtboardColors.cream,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: gender == 'female'
-                                    ? Colors.pink
-                                    : Colors.transparent,
-                                width: 2,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.female,
-                                    color: gender == 'female'
-                                        ? Colors.pink
-                                        : ArtboardColors.warmGray),
-                                const SizedBox(width: 6),
-                                Text('Female',
-                                    style: TextStyle(
-                                      color: gender == 'female'
-                                          ? Colors.pink
-                                          : ArtboardColors.warmGray,
-                                      fontWeight: gender == 'female'
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
-                                    )),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: isLoading ? null : () => Navigator.pop(context),
-                child: Text('Cancel',
-                    style: TextStyle(color: ArtboardColors.warmGray)),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: accentColor,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                ),
-                onPressed: isLoading
-                    ? null
-                    : () async {
-                        // Resolved before anything is awaited. `mounted` is this
-                        // State's, which says nothing about whether the dialog's
-                        // own element survived, so looking Navigator up off the
-                        // dialog context afterwards walks a tree that may be
-                        // gone. The sibling-shift loop below awaits too, so this
-                        // has to sit above all of it.
-                        final navigator = Navigator.of(context);
-                        final messenger = ScaffoldMessenger.of(this.context);
-
-                        if (firstNameController.text.trim().isEmpty) {
-                          messenger.showSnackBar(
-                            const SnackBar(
-                                content: Text('Please enter first name'),
-                                backgroundColor: Colors.red),
-                          );
-                          return;
-                        }
-                        if (lastNameController.text.trim().isEmpty) {
-                          messenger.showSnackBar(
-                            const SnackBar(
-                                content:
-                                    Text('Please enter family/father name'),
-                                backgroundColor: Colors.red),
-                          );
-                          return;
-                        }
-
-                        setDialogState(() => isLoading = true);
-
-                        // Use user-selected order for children, auto-calculate for roots
-                        int newDisplayOrder = selectedOrder;
-                        if (addAsRoot) {
-                          // For roots, calculate based on existing roots
-                          final roots = _persons
-                              .where((p) => p.relationships.parentIds.isEmpty)
-                              .toList();
-                          if (roots.isNotEmpty) {
-                            final maxOrder = roots
-                                .map((s) => s.displayOrder)
-                                .reduce((a, b) => a > b ? a : b);
-                            newDisplayOrder = maxOrder + 1;
-                          } else {
-                            newDisplayOrder = 1;
-                          }
-                        } else if (selectedParent != null) {
-                          // Shift existing siblings at or above selectedOrder up by 1
-                          final siblings = _persons
-                              .where((p) =>
-                                  p.relationships.parentIds
-                                      .contains(selectedParent.id) &&
-                                  p.displayOrder >= selectedOrder)
-                              .toList();
-
-                          // Sort by order descending so we shift from top to bottom
-                          siblings.sort((a, b) =>
-                              b.displayOrder.compareTo(a.displayOrder));
-
-                          for (final sibling in siblings) {
-                            await _adminRepo.updatePerson(sibling.copyWith(
-                                displayOrder: sibling.displayOrder + 1));
-                          }
-                        }
-
-                        final newPerson = Person(
-                          id: '',
-                          familyTreeId: AppConfig.familyTreeId,
-                          firstName: firstNameController.text.trim(),
-                          lastName: lastNameController.text.trim(),
-                          gender: gender,
-                          relationships: Relationships(
-                            parentIds: addAsRoot ? [] : [selectedParent!.id],
-                          ),
-                          displayOrder: newDisplayOrder,
-                          createdAt: DateTime.now(),
-                          updatedAt: DateTime.now(),
-                        );
-
-                        try {
-                          // One request. The parent's side of the link is derived by
-                          // the server from the child's parentIds, so the second call
-                          // that used to append to the parent's childrenIds — and
-                          // left the tree inconsistent whenever it failed — is gone.
-                          await _adminRepo.addPerson(newPerson);
-
-                          if (!mounted) return;
-                          navigator.pop();
-                          _loadData();
-
-                          messenger.showSnackBar(
-                            SnackBar(
-                              content:
-                                  Text('${firstNameController.text} added'),
-                              backgroundColor: accentColor,
-                            ),
-                          );
-                        } catch (e) {
-                          if (!mounted) return;
-                          setDialogState(() => isLoading = false);
-                          messenger.showSnackBar(
-                            SnackBar(
-                              content: Text(readableError(e)),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        }
-                      },
-                child: isLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
-                    : const Text('Add',
-                        style: TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.bold)),
-              ),
-            ],
-          );
-        },
-      ),
+      people: _persons,
+      preSelectedParent: preSelectedParent,
     );
+    if (created == null || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final parentIds = created.relationships.parentIds;
+
+    try {
+      var displayOrder = created.displayOrder;
+
+      if (parentIds.isEmpty) {
+        // A root's position is after the roots that already exist rather than
+        // whatever the form happened to be showing.
+        final roots =
+            _persons.where((p) => p.relationships.parentIds.isEmpty).toList();
+        displayOrder = roots.isEmpty
+            ? 1
+            : roots.map((r) => r.displayOrder).reduce((a, b) => a > b ? a : b) +
+                1;
+      } else {
+        // Everyone at or below the chosen position shifts down to make room,
+        // highest first so no two siblings collide on the way.
+        final siblings = _persons
+            .where((p) =>
+                p.relationships.parentIds.any(parentIds.contains) &&
+                p.displayOrder >= displayOrder)
+            .toList()
+          ..sort((a, b) => b.displayOrder.compareTo(a.displayOrder));
+
+        for (final sibling in siblings) {
+          await _adminRepo.updatePerson(
+              sibling.copyWith(displayOrder: sibling.displayOrder + 1));
+        }
+      }
+
+      // One request. The parent's side of the link is derived by the server
+      // from the child's parentIds, so the second call that used to append to
+      // the parent's childrenIds — and left the tree inconsistent whenever it
+      // failed — is gone.
+      await _adminRepo.addPerson(created.copyWith(displayOrder: displayOrder));
+
+      if (!mounted) return;
+      _loadData();
+
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('${created.firstName} added'),
+          backgroundColor: ArtboardColors.sage,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(readableError(e)),
+          backgroundColor: ArtboardColors.rust,
+        ),
+      );
+    }
   }
 
   // Drag-drop swap method - swaps displayOrder to change sibling order
@@ -2879,426 +2500,63 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
     if (saved == true) _loadData();
   }
 
-  void _showEditDialog(Person person) {
-    final firstNameController = TextEditingController(text: person.firstName);
-    final lastNameController = TextEditingController(text: person.lastName);
-    final birthYearController =
-        TextEditingController(text: person.birthDate?.year.toString() ?? '');
-    final deathYearController =
-        TextEditingController(text: person.deathDate?.year.toString() ?? '');
-    final bioController = TextEditingController(text: person.bio ?? '');
-    String gender = person.gender ?? 'male';
-    int displayOrder = person.displayOrder > 0 ? person.displayOrder : 1;
-    bool isLoading = false;
-
-    final color = _getBranchColor(person);
-    final gen = _getGenerationNumber(person);
-    final isRoot = person.relationships.parentIds.isEmpty;
-
-    showDialog(
+  /// Editing uses the same form as adding, so every field an admin can fill
+  /// in when creating somebody stays editable afterwards. The two used to be
+  /// separate dialogs and had drifted badly: this one offered a name, a birth
+  /// year and a biography, and nothing else on the record could be changed
+  /// through the app at all.
+  Future<void> _showEditDialog(Person person) async {
+    final updated = await showPersonEditor(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => Dialog(
-          backgroundColor: ArtboardColors.warmWhite,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          child: Container(
-            width: 450,
-            constraints: const BoxConstraints(maxHeight: 600),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Header
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.1),
-                    borderRadius:
-                        const BorderRadius.vertical(top: Radius.circular(24)),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 50,
-                        height: 50,
-                        decoration: BoxDecoration(
-                          color: color,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Center(
-                          child: Text(
-                            person.firstName[0],
-                            style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Edit Profile',
-                              style: AppType.sans(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                                color: ArtboardColors.charcoal,
-                              ),
-                            ),
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: isRoot ? ArtboardColors.gold : color,
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    isRoot ? '★ PATRIARCH' : 'Gen $gen',
-                                    style: const TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.white),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  person.fullName,
-                                  style: AppType.sans(
-                                    fontSize: 13,
-                                    color: ArtboardColors.warmGray,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'Close',
-                        onPressed: () => Navigator.pop(context),
-                        icon: Icon(Icons.close, color: ArtboardColors.warmGray),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Content
-                Flexible(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      children: [
-                        _buildTextField(
-                            firstNameController, 'First Name *', Icons.person),
-                        const SizedBox(height: 12),
-                        _buildTextField(lastNameController, 'Father Name *',
-                            Icons.person_outline),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                                child: _buildTextField(birthYearController,
-                                    'Birth Year', Icons.cake, 1, true)),
-                            const SizedBox(width: 12),
-                            Expanded(
-                                child: _buildTextField(deathYearController,
-                                    'Death Year', Icons.event, 1, true)),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        _buildGenderSelector(gender,
-                            (val) => setDialogState(() => gender = val)),
-                        const SizedBox(height: 12),
-                        // Birth Order (only for non-roots)
-                        if (!isRoot) ...[
-                          Builder(
-                            builder: (context) {
-                              // Get siblings (children of same parent, excluding self)
-                              final siblings = _persons
-                                  .where((p) =>
-                                      p.id != person.id &&
-                                      p.relationships.parentIds.any((pid) =>
-                                          person.relationships.parentIds
-                                              .contains(pid)))
-                                  .toList();
-                              final siblingCount =
-                                  siblings.length + 1; // Including self
-
-                              // Get current order label
-                              final currentOrderLabel = person.displayOrder == 1
-                                  ? '1st'
-                                  : person.displayOrder == 2
-                                      ? '2nd'
-                                      : person.displayOrder == 3
-                                          ? '3rd'
-                                          : '${person.displayOrder}th';
-
-                              return Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: color.withValues(alpha: 0.08),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Icon(Icons.format_list_numbered,
-                                            color: color, size: 20),
-                                        const SizedBox(width: 10),
-                                        Text(
-                                          'Current: $currentOrderLabel child',
-                                          style: AppType.sans(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.bold,
-                                            color: ArtboardColors.charcoal,
-                                          ),
-                                        ),
-                                        Text(
-                                          ' (of $siblingCount siblings)',
-                                          style: AppType.sans(
-                                            fontSize: 12,
-                                            color: ArtboardColors.warmGray,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Row(
-                                      children: [
-                                        Text(
-                                          'Change to:',
-                                          style: AppType.sans(
-                                            fontSize: 13,
-                                            color: ArtboardColors.warmGray,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 10),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 12, vertical: 4),
-                                          decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                            border: Border.all(
-                                                color: color.withValues(
-                                                    alpha: 0.3)),
-                                          ),
-                                          child: DropdownButton<int>(
-                                            value: displayOrder.clamp(
-                                                1, siblingCount),
-                                            underline: const SizedBox(),
-                                            isDense: true,
-                                            style: AppType.sans(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.bold,
-                                              color: color,
-                                            ),
-                                            dropdownColor:
-                                                ArtboardColors.warmWhite,
-                                            items: List.generate(
-                                                    siblingCount, (i) => i + 1)
-                                                .map(
-                                                  (n) => DropdownMenuItem(
-                                                    value: n,
-                                                    child: Text(
-                                                      n == 1
-                                                          ? '1st'
-                                                          : n == 2
-                                                              ? '2nd'
-                                                              : n == 3
-                                                                  ? '3rd'
-                                                                  : '${n}th',
-                                                    ),
-                                                  ),
-                                                )
-                                                .toList(),
-                                            onChanged: (val) => setDialogState(
-                                                () => displayOrder = val ?? 1),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                        ],
-                        _buildTextField(
-                            bioController, 'Biography', Icons.notes, 3),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // Actions
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: ArtboardColors.cream,
-                    borderRadius: const BorderRadius.vertical(
-                        bottom: Radius.circular(24)),
-                  ),
-                  child: Row(
-                    children: [
-                      TextButton(
-                        onPressed:
-                            isLoading ? null : () => Navigator.pop(context),
-                        child: Text('Cancel',
-                            style:
-                                AppType.sans(color: ArtboardColors.warmGray)),
-                      ),
-                      const Spacer(),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: color,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 24, vertical: 12),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                        ),
-                        onPressed: isLoading
-                            ? null
-                            : () async {
-                                if (firstNameController.text.isEmpty) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                        content:
-                                            Text('Please enter first name'),
-                                        backgroundColor: ArtboardColors.rust),
-                                  );
-                                  return;
-                                }
-
-                                setDialogState(() => isLoading = true);
-
-                                DateTime? birthDate;
-                                DateTime? deathDate;
-                                if (birthYearController.text.isNotEmpty) {
-                                  birthDate = DateTime(
-                                      int.tryParse(birthYearController.text) ??
-                                          1900);
-                                }
-                                if (deathYearController.text.isNotEmpty) {
-                                  deathDate = DateTime(
-                                      int.tryParse(deathYearController.text) ??
-                                          2000);
-                                }
-
-                                // Resolved before the await: see the add-person
-                                // handler above — this State's `mounted` says
-                                // nothing about the dialog's own element.
-                                final navigator = Navigator.of(context);
-                                final messenger =
-                                    ScaffoldMessenger.of(this.context);
-
-                                try {
-                                  // If displayOrder changed, swap with the sibling who has that order
-                                  if (displayOrder != person.displayOrder &&
-                                      !isRoot) {
-                                    // Find siblings (children of same parent)
-                                    final siblings = _persons
-                                        .where((p) =>
-                                            p.id != person.id &&
-                                            p.relationships.parentIds.any(
-                                                (pid) => person
-                                                    .relationships.parentIds
-                                                    .contains(pid)))
-                                        .toList();
-
-                                    // Find sibling with the target order
-                                    final siblingToSwap = siblings.firstWhere(
-                                      (s) => s.displayOrder == displayOrder,
-                                      orElse: () =>
-                                          person, // No swap needed if no one has that order
-                                    );
-
-                                    if (siblingToSwap.id != person.id) {
-                                      // Swap: give sibling the current person's old order
-                                      await _adminRepo.updatePerson(
-                                          siblingToSwap.copyWith(
-                                              displayOrder:
-                                                  person.displayOrder));
-                                    }
-                                  }
-
-                                  final updated = person.copyWith(
-                                    firstName: firstNameController.text.trim(),
-                                    lastName: lastNameController.text.trim(),
-                                    gender: gender,
-                                    birthDate: birthDate,
-                                    deathDate: deathDate,
-                                    bio: bioController.text.trim().isEmpty
-                                        ? null
-                                        : bioController.text.trim(),
-                                    displayOrder: displayOrder,
-                                    updatedAt: DateTime.now(),
-                                  );
-
-                                  await _adminRepo.updatePerson(updated);
-
-                                  if (!mounted) return;
-                                  navigator.pop();
-                                  _loadData();
-                                  setState(() => _selectedPerson = null);
-
-                                  messenger.showSnackBar(
-                                    SnackBar(
-                                      content: Row(children: [
-                                        const Icon(Icons.check_circle,
-                                            color: Colors.white),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                            '${firstNameController.text} updated!'),
-                                      ]),
-                                      backgroundColor: ArtboardColors.sage,
-                                    ),
-                                  );
-                                } catch (e) {
-                                  if (!mounted) return;
-                                  setDialogState(() => isLoading = false);
-                                  messenger.showSnackBar(
-                                    SnackBar(
-                                        content: Text('Error: $e'),
-                                        backgroundColor: ArtboardColors.rust),
-                                  );
-                                }
-                              },
-                        child: isLoading
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2, color: Colors.white))
-                            : Row(mainAxisSize: MainAxisSize.min, children: [
-                                const Icon(Icons.save_rounded,
-                                    size: 18, color: Colors.white),
-                                const SizedBox(width: 6),
-                                Text('Save Changes',
-                                    style: AppType.sans(
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.white)),
-                              ]),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+      people: _persons,
+      existing: person,
     );
+    if (updated == null || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+
+    try {
+      // Birth order is a position among siblings, so taking one means giving
+      // the sibling who held it the position being vacated.
+      if (updated.displayOrder != person.displayOrder &&
+          updated.relationships.parentIds.isNotEmpty) {
+        final siblings = _persons
+            .where((p) =>
+                p.id != person.id &&
+                p.relationships.parentIds.any(
+                    (pid) => updated.relationships.parentIds.contains(pid)))
+            .toList();
+
+        for (final sibling in siblings) {
+          if (sibling.displayOrder == updated.displayOrder) {
+            await _adminRepo.updatePerson(
+                sibling.copyWith(displayOrder: person.displayOrder));
+            break;
+          }
+        }
+      }
+
+      await _adminRepo.updatePerson(updated);
+
+      if (!mounted) return;
+      _loadData();
+      setState(() => _selectedPerson = null);
+
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('${updated.firstName} updated'),
+          backgroundColor: ArtboardColors.sage,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(readableError(e)),
+          backgroundColor: ArtboardColors.rust,
+        ),
+      );
+    }
   }
 
   // Get ancestry chain for a person
@@ -3448,71 +2706,6 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
   /// Show dialog to add multiple children at once
 
   /// Batch delete selected persons with cascade
-
-  Widget _buildTextField(TextEditingController controller, String label,
-      [IconData? icon, int maxLines = 1, bool isNumber = false]) {
-    return TextField(
-      controller: controller,
-      maxLines: maxLines,
-      keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-      style: AppType.sans(
-        fontSize: 16,
-        color: ArtboardColors.charcoal,
-      ),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: AppType.sans(
-          color: ArtboardColors.warmGray,
-        ),
-        prefixIcon: icon != null
-            ? Icon(icon, color: ArtboardColors.warmGray, size: 20)
-            : null,
-        filled: true,
-        fillColor: ArtboardColors.cream,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: ArtboardColors.champagne),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: ArtboardColors.champagne),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: ArtboardColors.terracotta, width: 2),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGenderSelector(String selected, Function(String) onChanged) {
-    return Row(
-      children: [
-        Text(
-          'Gender:',
-          style: AppType.sans(
-            color: ArtboardColors.warmGray,
-          ),
-        ),
-        const SizedBox(width: 16),
-        ChoiceChip(
-          label: Text('Male', style: AppType.sans()),
-          selected: selected == 'male',
-          onSelected: (_) => onChanged('male'),
-          selectedColor: ArtboardColors.terracotta.withValues(alpha: 0.2),
-        ),
-        const SizedBox(width: 8),
-        ChoiceChip(
-          label: Text('Female', style: AppType.sans()),
-          selected: selected == 'female',
-          onSelected: (_) => onChanged('female'),
-          selectedColor: ArtboardColors.dustyRose.withValues(alpha: 0.3),
-        ),
-      ],
-    );
-  }
 }
 
 /// Custom painter for subtle background pattern

@@ -220,9 +220,16 @@ class _LandingPageState extends ConsumerState<LandingPage>
       ),
       child: Row(
         children: [
-          // Logo — Flexible so a narrow phone ellipsizes the wordmark rather
+          // Logo — Expanded so it takes exactly the space the controls on the
+          // right do not, and a narrow phone ellipsizes the wordmark rather
           // than overflowing the bar.
-          Flexible(
+          //
+          // This was a Flexible followed by a Spacer. Both are flex children,
+          // so the row split the free space between them evenly: the logo used
+          // only as much of its half as the wordmark needed, and the remainder
+          // collapsed into a gap that held the theme toggle and sign-in button
+          // short of the right edge.
+          Expanded(
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -245,8 +252,6 @@ class _LandingPageState extends ConsumerState<LandingPage>
               ],
             ),
           ),
-
-          const Spacer(),
 
           // Theme toggle
           _buildThemeToggle(isDark),
