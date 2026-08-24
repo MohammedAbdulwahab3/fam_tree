@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 import '../../core/layout/breakpoints.dart';
@@ -13,10 +12,12 @@ import '../../core/theme/elegant_theme.dart';
 import '../../core/widgets/aurora_background.dart';
 import '../../data/models/notification_model.dart';
 import '../../data/services/api_service.dart';
+import 'package:family_tree/core/logging.dart';
+import 'package:family_tree/core/design/typography.dart';
 
 // Notifications state provider
-final notificationsProvider =
-    StateNotifierProvider<NotificationsNotifier, AsyncValue<List<NotificationModel>>>(
+final notificationsProvider = StateNotifierProvider<NotificationsNotifier,
+    AsyncValue<List<NotificationModel>>>(
   (ref) => NotificationsNotifier(
     onCountChanged: () => ref.invalidate(unreadCountProvider),
   ),
@@ -30,7 +31,8 @@ final notificationsProvider =
 final unreadCountProvider = StreamProvider<int>((ref) async* {
   Future<int> fetch() async {
     try {
-      final response = await ApiService().get('/api/notifications/unread-count');
+      final response =
+          await ApiService().get('/api/notifications/unread-count');
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return (data['count'] as num).toInt();
@@ -49,7 +51,8 @@ final unreadCountProvider = StreamProvider<int>((ref) async* {
   }
 });
 
-class NotificationsNotifier extends StateNotifier<AsyncValue<List<NotificationModel>>> {
+class NotificationsNotifier
+    extends StateNotifier<AsyncValue<List<NotificationModel>>> {
   NotificationsNotifier({void Function()? onCountChanged})
       : _onCountChanged = onCountChanged,
         super(const AsyncValue.loading()) {
@@ -64,13 +67,15 @@ class NotificationsNotifier extends StateNotifier<AsyncValue<List<NotificationMo
     try {
       state = const AsyncValue.loading();
       final response = await ApiService().get('/api/notifications');
-      
+
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
-        final notifications = data.map((json) => NotificationModel.fromJson(json)).toList();
+        final notifications =
+            data.map((json) => NotificationModel.fromJson(json)).toList();
         state = AsyncValue.data(notifications);
       } else {
-        state = AsyncValue.error('Failed to load notifications', StackTrace.current);
+        state = AsyncValue.error(
+            'Failed to load notifications', StackTrace.current);
       }
     } catch (e, stack) {
       state = AsyncValue.error(e, stack);
@@ -97,7 +102,8 @@ class NotificationsNotifier extends StateNotifier<AsyncValue<List<NotificationMo
           await ApiService().delete('/api/notifications/$notificationId');
       // A notification that is already gone is the outcome the swipe wanted.
       if (response.statusCode != 404) {
-        ApiService.ensureOk(response, whileDoing: 'dismissing the notification');
+        ApiService.ensureOk(response,
+            whileDoing: 'dismissing the notification');
       }
       _onCountChanged?.call();
       return null;
@@ -115,7 +121,7 @@ class NotificationsNotifier extends StateNotifier<AsyncValue<List<NotificationMo
       await fetchNotifications();
       _onCountChanged?.call();
     } catch (e) {
-      print('Error marking notification as read: $e');
+      log('Could not mark the notification as read', e);
     }
   }
 
@@ -126,7 +132,7 @@ class NotificationsNotifier extends StateNotifier<AsyncValue<List<NotificationMo
       await fetchNotifications();
       _onCountChanged?.call();
     } catch (e) {
-      print('Error marking all as read: $e');
+      log('Could not mark all notifications as read', e);
     }
   }
 }
@@ -209,7 +215,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
     final onSurface = context.colors.ink;
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(context.gutter - 8, 8, context.gutter - 8, 4),
+      padding:
+          EdgeInsets.fromLTRB(context.gutter - 8, 8, context.gutter - 8, 4),
       child: Row(
         children: [
           IconButton(
@@ -226,7 +233,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
               children: [
                 Text(
                   'Notifications',
-                  style: GoogleFonts.playfairDisplay(
+                  style: AppType.sans(
                     fontSize: context.isCompact ? 22 : 26,
                     fontWeight: FontWeight.bold,
                     color: onSurface,
@@ -235,7 +242,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
                 if (unread > 0)
                   Text(
                     '$unread unread',
-                    style: GoogleFonts.inter(
+                    style: AppType.sans(
                       fontSize: 12.5,
                       color: isDark
                           ? AppTheme.textMutedDark
@@ -252,14 +259,13 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
               icon: const Icon(Icons.done_all_rounded, size: 18),
               label: Text(
                 context.isCompact ? 'Read' : 'Mark all read',
-                style: GoogleFonts.inter(
+                style: AppType.sans(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               style: TextButton.styleFrom(
-                foregroundColor:
-                    context.colors.secondary,
+                foregroundColor: context.colors.secondary,
               ),
             ),
           IconButton(
@@ -342,8 +348,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
         height: 86,
         margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
-          color: (context.colors.ink)
-              .withValues(alpha: isDark ? 0.05 : 0.04),
+          color: (context.colors.ink).withValues(alpha: isDark ? 0.05 : 0.04),
           borderRadius: BorderRadius.circular(16),
         ),
       ),
@@ -379,14 +384,14 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
     // Navigate using GoRouter
     // We assume the app uses GoRouter as seen in main.dart
     final router = GoRouter.of(context);
-    
+
     switch (notification.entityType) {
       case 'post':
       case 'comment':
       case 'reaction':
         // Navigate to Feed tab in GroupPage
         // Ideally we would pass the post ID to scroll to it
-        router.go('/group'); 
+        router.go('/group');
         break;
       case 'event':
       case 'event_reminder':
@@ -402,7 +407,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
         router.go('/tree');
         break;
       default:
-        print('Unknown entity type: ${notification.entityType}');
+        log('No screen handles notifications of type ${notification.entityType}');
         router.go('/home');
     }
   }
@@ -414,14 +419,17 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
     );
   }
 }
+
 class NotificationSettingsDialog extends ConsumerStatefulWidget {
   const NotificationSettingsDialog({super.key});
 
   @override
-  ConsumerState<NotificationSettingsDialog> createState() => _NotificationSettingsDialogState();
+  ConsumerState<NotificationSettingsDialog> createState() =>
+      _NotificationSettingsDialogState();
 }
 
-class _NotificationSettingsDialogState extends ConsumerState<NotificationSettingsDialog> {
+class _NotificationSettingsDialogState
+    extends ConsumerState<NotificationSettingsDialog> {
   bool _isLoading = true;
   NotificationPreference? _preference;
 
@@ -447,7 +455,7 @@ class _NotificationSettingsDialogState extends ConsumerState<NotificationSetting
         if (mounted) setState(() => _isLoading = false);
       }
     } catch (e) {
-      print('Error fetching preferences: $e');
+      log('Could not load notification preferences', e);
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -472,7 +480,7 @@ class _NotificationSettingsDialogState extends ConsumerState<NotificationSetting
         body: _preference!.toJson(),
       );
     } catch (e) {
-      print('Error updating preference: $e');
+      log('Could not save the notification preference', e);
       // Revert? For now just log
     }
   }
@@ -550,7 +558,6 @@ class _NotificationSettingsDialogState extends ConsumerState<NotificationSetting
   }
 }
 
-
 /// One notification row.
 class NotificationCard extends StatelessWidget {
   final NotificationModel notification;
@@ -619,7 +626,7 @@ class NotificationCard extends StatelessWidget {
                         notification.title,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(
+                        style: AppType.sans(
                           fontSize: 14,
                           height: 1.3,
                           fontWeight:
@@ -633,7 +640,7 @@ class NotificationCard extends StatelessWidget {
                           notification.body,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.cormorantGaramond(
+                          style: AppType.sans(
                             fontSize: 14.5,
                             height: 1.35,
                             color: isDark ? Colors.white70 : muted,
@@ -643,7 +650,7 @@ class NotificationCard extends StatelessWidget {
                       const SizedBox(height: 6),
                       Text(
                         timeago.format(notification.sentAt),
-                        style: GoogleFonts.inter(fontSize: 11.5, color: muted),
+                        style: AppType.sans(fontSize: 11.5, color: muted),
                       ),
                     ],
                   ),
@@ -735,8 +742,7 @@ class _CenteredMessage extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: (context.colors.secondary)
-                    .withValues(alpha: 0.12),
+                color: (context.colors.secondary).withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -749,7 +755,7 @@ class _CenteredMessage extends StatelessWidget {
             Text(
               title,
               textAlign: TextAlign.center,
-              style: GoogleFonts.playfairDisplay(
+              style: AppType.sans(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
                 color: onSurface,
@@ -759,7 +765,7 @@ class _CenteredMessage extends StatelessWidget {
             Text(
               body,
               textAlign: TextAlign.center,
-              style: GoogleFonts.cormorantGaramond(
+              style: AppType.sans(
                 fontSize: 15,
                 height: 1.45,
                 color: muted,

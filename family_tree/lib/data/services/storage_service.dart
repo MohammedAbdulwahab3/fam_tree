@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:family_tree/data/services/api_service.dart';
 import 'package:family_tree/data/services/image_preparer.dart';
+import 'package:family_tree/core/logging.dart';
 
 /// Uploads files to the Go backend.
 ///
@@ -22,7 +23,7 @@ class StorageService {
     } on ApiException {
       rethrow;
     } catch (e) {
-      print('Storage upload failed: $e');
+      log('Upload failed', e);
       return null;
     }
   }

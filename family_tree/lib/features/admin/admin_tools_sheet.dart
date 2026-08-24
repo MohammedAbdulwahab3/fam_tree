@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'package:family_tree/core/theme/app_theme.dart';
 import 'package:family_tree/core/theme/app_colors.dart';
@@ -10,7 +9,8 @@ import 'package:family_tree/data/models/app_user.dart';
 import 'package:family_tree/data/models/post.dart';
 import 'package:family_tree/data/repositories/admin_repository.dart';
 import 'package:family_tree/data/repositories/group_repository.dart';
-import 'package:family_tree/features/auth/providers/auth_provider.dart';
+import 'package:family_tree/features/auth/session.dart';
+import 'package:family_tree/core/design/typography.dart';
 
 enum AdminTool { members, posts }
 
@@ -62,7 +62,7 @@ class _AdminToolsSheetState extends ConsumerState<AdminToolsSheet> {
       if (widget.tool == AdminTool.members) {
         _users = await _adminRepo.getUsers();
       } else {
-        _posts = await _groupRepo.getPosts(forceRefresh: true);
+        _posts = (await _groupRepo.getPosts(forceRefresh: true)).posts;
       }
     } catch (e) {
       _toast(readableError(e), isError: true);
@@ -117,8 +117,7 @@ class _AdminToolsSheetState extends ConsumerState<AdminToolsSheet> {
       builder: (context, scrollController) => Container(
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF141B24) : ElegantColors.warmWhite,
-          borderRadius:
-              const BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           border: Border.all(
             color: isDark
                 ? Colors.white.withValues(alpha: 0.12)
@@ -132,8 +131,7 @@ class _AdminToolsSheetState extends ConsumerState<AdminToolsSheet> {
               width: 42,
               height: 4,
               decoration: BoxDecoration(
-                color: (context.colors.ink)
-                    .withValues(alpha: 0.22),
+                color: (context.colors.ink).withValues(alpha: 0.22),
                 borderRadius: BorderRadius.circular(999),
               ),
             ),
@@ -150,7 +148,7 @@ class _AdminToolsSheetState extends ConsumerState<AdminToolsSheet> {
                   const SizedBox(width: 10),
                   Text(
                     isMembers ? 'Members' : 'Posts',
-                    style: GoogleFonts.playfairDisplay(
+                    style: AppType.sans(
                       fontSize: 22,
                       fontWeight: FontWeight.w700,
                       color: context.colors.ink,
@@ -172,12 +170,11 @@ class _AdminToolsSheetState extends ConsumerState<AdminToolsSheet> {
               child: TextField(
                 controller: _searchController,
                 onChanged: (v) => setState(() => _query = v.trim()),
-                style: GoogleFonts.inter(fontSize: 14.5),
+                style: AppType.sans(fontSize: 14.5),
                 decoration: InputDecoration(
                   isDense: true,
-                  hintText: isMembers
-                      ? 'Search by name or email…'
-                      : 'Search posts…',
+                  hintText:
+                      isMembers ? 'Search by name or email…' : 'Search posts…',
                   prefixIcon: const Icon(Icons.search_rounded, size: 20),
                   filled: true,
                   fillColor: isDark
@@ -195,8 +192,8 @@ class _AdminToolsSheetState extends ConsumerState<AdminToolsSheet> {
             Expanded(
               child: _loading
                   ? const Center(
-                      child: CircularProgressIndicator(
-                          color: AppTheme.accentTeal))
+                      child:
+                          CircularProgressIndicator(color: AppTheme.accentTeal))
                   : ListView(
                       controller: scrollController,
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
@@ -224,7 +221,7 @@ class _AdminToolsSheetState extends ConsumerState<AdminToolsSheet> {
       ),
       child: Text(
         label,
-        style: GoogleFonts.inter(
+        style: AppType.sans(
           fontSize: 11,
           fontWeight: FontWeight.w700,
           color: color,
@@ -271,7 +268,7 @@ class _AdminToolsSheetState extends ConsumerState<AdminToolsSheet> {
         ),
         child: Text(
           label,
-          style: GoogleFonts.inter(
+          style: AppType.sans(
             fontSize: 10,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.4,
@@ -283,7 +280,7 @@ class _AdminToolsSheetState extends ConsumerState<AdminToolsSheet> {
   // ---------------------------------------------------------------- members
 
   Widget _memberRow(AppUser user, bool isDark) {
-    final currentUserId = ref.read(authStateProvider).value?.uid;
+    final currentUserId = ref.read(currentUserProvider)?.uid;
     final isSelf = user.id == currentUserId;
     final accent = user.isBanned
         ? AppTheme.error
@@ -314,11 +311,10 @@ class _AdminToolsSheetState extends ConsumerState<AdminToolsSheet> {
                         user.name.isEmpty ? user.email : user.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(
+                        style: AppType.sans(
                           fontSize: 14.5,
                           fontWeight: FontWeight.w600,
-                          color:
-                              context.colors.ink,
+                          color: context.colors.ink,
                         ),
                       ),
                     ),
@@ -343,7 +339,7 @@ class _AdminToolsSheetState extends ConsumerState<AdminToolsSheet> {
                       : user.email,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(
+                  style: AppType.sans(
                     fontSize: 12,
                     color: isDark
                         ? AppTheme.textMutedDark
@@ -512,14 +508,14 @@ class _AdminToolsSheetState extends ConsumerState<AdminToolsSheet> {
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: Text('Suspend ${user.name}',
-            style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w700)),
+            style: AppType.sans(fontWeight: FontWeight.w700)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'They are signed out immediately and cannot sign back in until restored.',
-              style: GoogleFonts.inter(fontSize: 13, height: 1.5),
+              style: AppType.sans(fontSize: 13, height: 1.5),
             ),
             const SizedBox(height: 14),
             TextField(
@@ -565,7 +561,7 @@ class _AdminToolsSheetState extends ConsumerState<AdminToolsSheet> {
               children: [
                 Text(
                   post.userName,
-                  style: GoogleFonts.inter(
+                  style: AppType.sans(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: context.colors.ink,
@@ -576,7 +572,7 @@ class _AdminToolsSheetState extends ConsumerState<AdminToolsSheet> {
                   post.content.isEmpty ? '(no text)' : post.content,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(
+                  style: AppType.sans(
                     fontSize: 12.5,
                     height: 1.45,
                     color: isDark
@@ -637,10 +633,8 @@ Future<bool> confirmDialog(
     context: context,
     builder: (context) => AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      title: Text(title,
-          style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w700)),
-      content:
-          Text(message, style: GoogleFonts.inter(fontSize: 13.5, height: 1.5)),
+      title: Text(title, style: AppType.sans(fontWeight: FontWeight.w700)),
+      content: Text(message, style: AppType.sans(fontSize: 13.5, height: 1.5)),
       actions: [
         TextButton(
             onPressed: () => Navigator.pop(context, false),

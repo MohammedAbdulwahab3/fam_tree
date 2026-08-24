@@ -6,12 +6,14 @@ import (
 	"os"
 	"time"
 
+	"family-tree-backend/config"
+
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// SecretKey signs every issued token. It is read from JWT_SECRET at startup;
-// without it the process refuses to fall back to a shared literal in anything
-// other than a local dev run.
+// SecretKey signs every issued token. It is read from JWT_SECRET at startup.
+// A release build with no JWT_SECRET refuses to start rather than signing every
+// session with a key that is public in this repository.
 var SecretKey = loadSecret()
 
 // TokenTTL is how long an issued token stays valid.
@@ -34,12 +36,8 @@ func loadTTL() time.Duration {
 }
 
 func loadSecret() []byte {
-	if secret := os.Getenv("JWT_SECRET"); secret != "" {
-		return []byte(secret)
-	}
-	log.Println("WARNING: JWT_SECRET is not set — falling back to an insecure " +
-		"development key. Set JWT_SECRET before deploying.")
-	return []byte("insecure-development-key-do-not-deploy")
+	return []byte(config.RequireSecret(
+		"JWT_SECRET", "insecure-development-key-do-not-deploy"))
 }
 
 type Claims struct {

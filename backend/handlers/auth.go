@@ -3,10 +3,12 @@ package handlers
 import (
 	"strings"
 
-	"family-tree-backend/auth"
-	"family-tree-backend/models"
 	"net/http"
 	"time"
+
+	"family-tree-backend/auth"
+	"family-tree-backend/config"
+	"family-tree-backend/models"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -36,9 +38,12 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	// Check if user exists
+	// Normalised so that Sara@example.com and sara@example.com are one account
+	// rather than two that cannot both be signed into.
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+
 	var existingUser models.User
-	if result := h.DB.Where("email = ?", req.Email).First(&existingUser); result.Error == nil {
+	if result := h.DB.Where("email = ?", email).First(&existingUser); result.Error == nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "Email already registered"})
 		return
 	}
@@ -53,10 +58,10 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	// Create user
 	user := models.User{
 		ID:           uuid.New().String(),
-		Email:        req.Email,
+		Email:        email,
 		Password:     string(hashedPassword),
-		Name:         req.Name,
-		FamilyTreeID: "default-tree-id", // TODO: Make this dynamic or configurable
+		Name:         strings.TrimSpace(req.Name),
+		FamilyTreeID: config.FamilyTreeID(),
 		IsVerified:   false,
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
@@ -94,9 +99,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Find user
 	var user models.User
-	if result := h.DB.Where("email = ?", req.Email).First(&user); result.Error != nil {
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+	if result := h.DB.Where("email = ?", email).First(&user); result.Error != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 		return
 	}

@@ -1,6 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
+
+import 'package:family_tree/core/config.dart';
+import 'package:family_tree/core/logging.dart';
 import 'package:family_tree/data/services/auth_service.dart';
 
 /// A request the backend refused, carrying the message it gave us.
@@ -54,10 +58,84 @@ String messageForError(Object error) {
   return text;
 }
 
+/// Why the server refused to accept who we say we are.
+enum AuthFailureKind {
+  /// The token was missing, malformed, or too old.
+  expired,
+
+  /// An admin suspended the account.
+  suspended,
+
+  /// The account no longer exists.
+  gone,
+}
+
+/// A rejected credential, with the sentence to put in front of the user.
+class AuthFailure {
+  const AuthFailure(this.kind, this.message);
+
+  final AuthFailureKind kind;
+  final String message;
+}
+
 class ApiService {
-  // Local backend URL
-  static const String baseUrl = 'http://localhost:5000';
-  
+  /// Called when any request is rejected because of who is asking.
+  ///
+  /// The session controller installs this so an expired token is handled once,
+  /// in one place, rather than by each of the forty call sites guessing what a
+  /// 401 means. Before this, an expired session showed as an empty family tree
+  /// and a silent failure on every write.
+  static Future<void> Function(AuthFailure failure)? onAuthFailure;
+
+  /// Inspects a response for a credential problem and reports it. Returns true
+  /// when the response was an auth failure, so callers can stop early.
+  static bool _reportAuthFailure(http.Response response) {
+    if (response.statusCode != 401 && response.statusCode != 403) return false;
+
+    String? serverMessage;
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        serverMessage = decoded['error'] as String?;
+      }
+    } catch (_) {
+      // A body we cannot read changes nothing about the status code.
+    }
+
+    // A 403 is only about the credential when the server says the account is
+    // suspended. Every other 403 is an ordinary permission refusal — a member
+    // trying to delete somebody else's post — and must not sign them out.
+    final suspended = serverMessage != null &&
+        serverMessage.toLowerCase().contains('suspend');
+
+    if (response.statusCode == 403 && !suspended) return false;
+
+    final AuthFailure failure;
+    if (suspended) {
+      failure = AuthFailure(
+        AuthFailureKind.suspended,
+        serverMessage,
+      );
+    } else if (serverMessage != null &&
+        serverMessage.toLowerCase().contains('no longer exists')) {
+      failure = const AuthFailure(
+        AuthFailureKind.gone,
+        'This account no longer exists.',
+      );
+    } else {
+      failure = const AuthFailure(
+        AuthFailureKind.expired,
+        'You have been signed out. Sign in again to continue.',
+      );
+    }
+
+    onAuthFailure?.call(failure);
+    return true;
+  }
+
+  /// Where the backend lives. Set at build time — see [AppConfig].
+  static const String baseUrl = AppConfig.apiBaseUrl;
+
   // Singleton pattern
   static final ApiService _instance = ApiService._internal();
   factory ApiService() => _instance;
@@ -99,6 +177,7 @@ class ApiService {
       headers: headers,
       body: body != null ? jsonEncode(body) : null,
     );
+    if (includeAuth) _reportAuthFailure(response);
     return response;
   }
 
@@ -114,6 +193,7 @@ class ApiService {
       url,
       headers: merged,
     );
+    if (includeAuth) _reportAuthFailure(response);
     return response;
   }
 
@@ -130,6 +210,7 @@ class ApiService {
       headers: headers,
       body: body != null ? jsonEncode(body) : null,
     );
+    if (includeAuth) _reportAuthFailure(response);
     return response;
   }
 
@@ -144,6 +225,7 @@ class ApiService {
       url,
       headers: headers,
     );
+    if (includeAuth) _reportAuthFailure(response);
     return response;
   }
 
@@ -232,9 +314,9 @@ class ApiService {
       // and used to be swallowed into a bare null.
       ensureOk(response, whileDoing: 'uploading the file');
       return null;
-    } catch (e) {
-      if (e is ApiException) rethrow;
-      print('Upload error: $e');
+    } catch (error, stack) {
+      if (error is ApiException) rethrow;
+      log('Upload failed', error, stack);
       return null;
     }
   }
@@ -273,12 +355,14 @@ class ApiService {
 
     // Pump the counted stream into the outgoing request.
     unawaited(
-      counted.listen(
-        streamed.sink.add,
-        onError: streamed.sink.addError,
-        onDone: streamed.sink.close,
-        cancelOnError: true,
-      ).asFuture<void>(),
+      counted
+          .listen(
+            streamed.sink.add,
+            onError: streamed.sink.addError,
+            onDone: streamed.sink.close,
+            cancelOnError: true,
+          )
+          .asFuture<void>(),
     );
 
     return _client.send(streamed);

@@ -2,13 +2,13 @@ import 'dart:ui' as ui;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'package:family_tree/core/localization/person_localization.dart';
 import 'package:family_tree/core/theme/app_theme.dart';
 import 'package:family_tree/core/theme/app_colors.dart';
 import 'package:family_tree/data/models/person.dart';
 import 'package:family_tree/features/tree_view/services/tree_layout_service.dart';
+import 'package:family_tree/core/design/typography.dart';
 
 enum PersonNodeVariant { classic, modernWide, treePlaque }
 
@@ -208,10 +208,8 @@ class _PersonNodeState extends State<PersonNode>
                         AppTheme.primaryLight.withValues(alpha: 0.1),
                       ]
                     : [
-                        (context.colors.ink)
-                            .withValues(alpha: 0.05),
-                        (context.colors.ink)
-                            .withValues(alpha: 0.02),
+                        (context.colors.ink).withValues(alpha: 0.05),
+                        (context.colors.ink).withValues(alpha: 0.02),
                       ],
               ),
             ),
@@ -354,7 +352,7 @@ class _PersonNodeState extends State<PersonNode>
             textAlign: TextAlign.center,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.notoSerifEthiopic(
+            style: AppType.sans(
               fontSize: 26,
               fontWeight: FontWeight.w700,
               height: 1.15,
@@ -413,10 +411,8 @@ class _PersonNodeState extends State<PersonNode>
                         AppTheme.primaryLight.withValues(alpha: 0.1),
                       ]
                     : [
-                        (context.colors.ink)
-                            .withValues(alpha: 0.05),
-                        (context.colors.ink)
-                            .withValues(alpha: 0.02),
+                        (context.colors.ink).withValues(alpha: 0.05),
+                        (context.colors.ink).withValues(alpha: 0.02),
                       ],
               ),
             ),

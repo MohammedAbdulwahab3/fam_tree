@@ -22,12 +22,10 @@ extension PersonLocalizationX on Person {
     }
 
     final l10n = context.l10n;
-    final birth = birthDate != null
-        ? birthDate!.year.toString()
-        : l10n.unknownYearLabel;
-    final death = deathDate != null
-        ? deathDate!.year.toString()
-        : l10n.presentLabel;
+    final birth =
+        birthDate != null ? birthDate!.year.toString() : l10n.unknownYearLabel;
+    final death =
+        deathDate != null ? deathDate!.year.toString() : l10n.presentLabel;
     return '$birth - $death';
   }
 }

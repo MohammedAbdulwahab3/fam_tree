@@ -8,11 +8,11 @@ import 'package:family_tree/data/repositories/group_repository.dart';
 import 'package:family_tree/data/services/api_service.dart';
 import 'package:family_tree/core/widgets/video_player_widget.dart';
 import 'package:family_tree/widgets/voice_message_widget.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:family_tree/core/design/typography.dart';
 
 class PostCard extends StatefulWidget {
   final Post post;
@@ -25,6 +25,7 @@ class PostCard extends StatefulWidget {
   final bool isDark;
 
   const PostCard({
+    super.key,
     required this.post,
     required this.currentUserId,
     required this.currentUserName,
@@ -39,7 +40,8 @@ class PostCard extends StatefulWidget {
   State<PostCard> createState() => PostCardState();
 }
 
-class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin {
+class PostCardState extends State<PostCard>
+    with SingleTickerProviderStateMixin {
   bool _showComments = false;
   late bool _isLiked;
   final TextEditingController _commentController = TextEditingController();
@@ -56,7 +58,7 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
     _isLiked = widget.post.reactions.containsKey(widget.currentUserId);
     _likeCount = widget.post.reactions.length;
   }
-  
+
   @override
   void didUpdateWidget(covariant PostCard oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -81,16 +83,16 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
     // Store old values for rollback
     final wasLiked = _isLiked;
     final oldCount = _likeCount;
-    
+
     // Optimistic UI update
     setState(() {
       _isLiked = !_isLiked;
       _likeCount = _isLiked ? _likeCount + 1 : _likeCount - 1;
     });
     _likeAnimController.forward().then((_) => _likeAnimController.reverse());
-    
+
     try {
-      await widget.repository.toggleReaction(widget.post.id, widget.currentUserId, '❤️');
+      await widget.repository.toggleReaction(widget.post.id, '❤️');
     } catch (e) {
       // Put the heart back the way it was, and say why — a like that silently
       // un-likes itself reads as the app being broken.
@@ -145,22 +147,23 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
         children: [
           // Header
           _buildHeader(),
-          
+
           // Content
           if (widget.post.content.isNotEmpty) _buildContent(),
-          
+
           // Media
-          if (widget.post.photos.isNotEmpty || widget.post.videos.isNotEmpty) _buildMedia(),
-          
+          if (widget.post.photos.isNotEmpty || widget.post.videos.isNotEmpty)
+            _buildMedia(),
+
           // Voice message
           if (widget.post.audioUrl != null) _buildAudioPlayer(),
-          
+
           // Files/PDFs
           if (widget.post.files.isNotEmpty) _buildFiles(),
-          
+
           // Actions
           _buildActions(),
-          
+
           // Comments section
           if (_showComments) _buildCommentsSection(),
         ],
@@ -182,9 +185,9 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: widget.isDark 
-                      ? AppTheme.primaryLight.withOpacity(0.3)
-                      : ElegantColors.terracotta.withOpacity(0.3),
+                  color: widget.isDark
+                      ? AppTheme.primaryLight.withValues(alpha: 0.3)
+                      : ElegantColors.terracotta.withValues(alpha: 0.3),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -198,14 +201,18 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
                       fit: BoxFit.cover,
                       // A 48px avatar does not need a full-size decode.
                       memCacheWidth: 144,
-                      placeholder: (_, __) => const Icon(Icons.person, color: Colors.white),
-                      errorWidget: (_, __, ___) => const Icon(Icons.person, color: Colors.white),
+                      placeholder: (_, __) =>
+                          const Icon(Icons.person, color: Colors.white),
+                      errorWidget: (_, __, ___) =>
+                          const Icon(Icons.person, color: Colors.white),
                     ),
                   )
                 : Center(
                     child: Text(
-                      widget.post.userName.isNotEmpty ? widget.post.userName[0].toUpperCase() : '?',
-                      style: GoogleFonts.inter(
+                      widget.post.userName.isNotEmpty
+                          ? widget.post.userName[0].toUpperCase()
+                          : '?',
+                      style: AppType.sans(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
                         fontSize: 20,
@@ -214,7 +221,7 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
                   ),
           ),
           const SizedBox(width: 12),
-          
+
           // Name and time
           Expanded(
             child: Column(
@@ -222,7 +229,7 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
               children: [
                 Text(
                   widget.post.userName,
-                  style: GoogleFonts.playfairDisplay(
+                  style: AppType.sans(
                     color: context.colors.ink,
                     fontWeight: FontWeight.w600,
                     fontSize: 15,
@@ -231,12 +238,12 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
                 const SizedBox(height: 2),
                 Row(
                   children: [
-                    Icon(Icons.access_time, size: 12, 
-                      color: context.colors.inkMuted),
+                    Icon(Icons.access_time,
+                        size: 12, color: context.colors.inkMuted),
                     const SizedBox(width: 4),
                     Text(
                       timeago.format(widget.post.createdAt),
-                      style: GoogleFonts.cormorantGaramond(
+                      style: AppType.sans(
                         color: context.colors.inkMuted,
                         fontSize: 13,
                       ),
@@ -246,14 +253,14 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
               ],
             ),
           ),
-          
+
           // Menu
           if (widget.isOwnPost)
             PopupMenuButton<String>(
-              icon: Icon(Icons.more_horiz, 
-                color: context.colors.inkMuted),
+              icon: Icon(Icons.more_horiz, color: context.colors.inkMuted),
               color: context.colors.surface,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
               onSelected: (value) {
                 if (value == 'delete') widget.onDelete();
               },
@@ -262,9 +269,11 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
                   value: 'delete',
                   child: Row(
                     children: [
-                      const Icon(Icons.delete_outline, color: AppTheme.error, size: 20),
+                      const Icon(Icons.delete_outline,
+                          color: AppTheme.error, size: 20),
                       const SizedBox(width: 8),
-                      Text('Delete', style: GoogleFonts.cormorantGaramond(color: AppTheme.error)),
+                      Text('Delete',
+                          style: AppType.sans(color: AppTheme.error)),
                     ],
                   ),
                 ),
@@ -280,7 +289,7 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Text(
         widget.post.content,
-        style: GoogleFonts.cormorantGaramond(
+        style: AppType.sans(
           color: context.colors.ink,
           fontSize: 16,
           height: 1.5,
@@ -305,7 +314,7 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
               const SizedBox(width: 4),
               Text(
                 'Voice Note',
-                style: GoogleFonts.inter(
+                style: AppType.sans(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: context.colors.inkMuted,
@@ -339,7 +348,7 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
               const SizedBox(width: 4),
               Text(
                 'Attachments',
-                style: GoogleFonts.inter(
+                style: AppType.sans(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: context.colors.inkMuted,
@@ -362,16 +371,17 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
                   }
                 },
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: widget.isDark 
-                        ? Colors.white.withOpacity(0.1) 
+                    color: widget.isDark
+                        ? Colors.white.withValues(alpha: 0.1)
                         : ElegantColors.cream,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                      color: widget.isDark 
-                          ? Colors.white.withOpacity(0.2) 
-                          : ElegantColors.warmGray.withOpacity(0.3),
+                      color: widget.isDark
+                          ? Colors.white.withValues(alpha: 0.2)
+                          : ElegantColors.warmGray.withValues(alpha: 0.3),
                     ),
                   ),
                   child: Row(
@@ -385,8 +395,10 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
                       const SizedBox(width: 8),
                       Flexible(
                         child: Text(
-                          fileName.length > 20 ? '${fileName.substring(0, 17)}...' : fileName,
-                          style: GoogleFonts.inter(
+                          fileName.length > 20
+                              ? '${fileName.substring(0, 17)}...'
+                              : fileName,
+                          style: AppType.sans(
                             fontSize: 13,
                             color: context.colors.ink,
                           ),
@@ -411,11 +423,12 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
 
   Widget _buildMedia() {
     final allMedia = [...widget.post.photos, ...widget.post.videos];
-    
+
     if (allMedia.length == 1) {
-      return _buildSingleMedia(allMedia.first, widget.post.videos.contains(allMedia.first));
+      return _buildSingleMedia(
+          allMedia.first, widget.post.videos.contains(allMedia.first));
     }
-    
+
     return Container(
       height: 200,
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -426,7 +439,8 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
         itemBuilder: (context, index) {
           final isVideo = widget.post.videos.contains(allMedia[index]);
           return Padding(
-            padding: EdgeInsets.only(right: index < allMedia.length - 1 ? 8 : 0),
+            padding:
+                EdgeInsets.only(right: index < allMedia.length - 1 ? 8 : 0),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: isVideo
@@ -485,7 +499,7 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(50),
             ),
             child: const Icon(Icons.play_arrow, color: Colors.white, size: 32),
@@ -519,39 +533,40 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
 
   Widget _buildActions() {
     // Use local _likeCount for proper optimistic updates
-    
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         border: Border(
-          top: BorderSide(color: widget.isDark 
-              ? AppTheme.primaryLight.withOpacity(0.1)
-              : ElegantColors.champagne),
+          top: BorderSide(
+              color: widget.isDark
+                  ? AppTheme.primaryLight.withValues(alpha: 0.1)
+                  : ElegantColors.champagne),
         ),
       ),
       child: StreamBuilder<List<Comment>>(
         stream: widget.repository.watchComments(widget.post.id),
         builder: (context, snapshot) {
           final commentCount = snapshot.data?.length ?? 0;
-          
+
           return Row(
             children: [
               // Like button with count
               _ActionButton(
                 icon: _isLiked ? Icons.favorite : Icons.favorite_border,
                 label: _likeCount > 0 ? '$_likeCount' : '',
-                color: _isLiked 
-                    ? Colors.red 
-                    : (context.colors.inkMuted),
+                color: _isLiked ? Colors.red : (context.colors.inkMuted),
                 onTap: _toggleLike,
               ),
               const SizedBox(width: 20),
-              
+
               // Comment button with count
               _ActionButton(
-                icon: _showComments ? Icons.chat_bubble : Icons.chat_bubble_outline,
+                icon: _showComments
+                    ? Icons.chat_bubble
+                    : Icons.chat_bubble_outline,
                 label: commentCount > 0 ? '$commentCount' : '',
-                color: _showComments 
+                color: _showComments
                     ? (context.colors.accent)
                     : (context.colors.inkMuted),
                 onTap: () => setState(() => _showComments = !_showComments),
@@ -562,9 +577,8 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
               _ActionButton(
                 icon: Icons.ios_share_rounded,
                 label: '',
-                color: widget.isDark
-                    ? AppTheme.textMuted
-                    : ElegantColors.warmGray,
+                color:
+                    widget.isDark ? AppTheme.textMuted : ElegantColors.warmGray,
                 onTap: _sharePost,
               ),
             ],
@@ -573,11 +587,12 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
       ),
     );
   }
-  
+
   void _sharePost() async {
     try {
-      final String shareText = '${widget.post.userName} shared:\n\n${widget.post.content}';
-      
+      final String shareText =
+          '${widget.post.userName} shared:\n\n${widget.post.content}';
+
       // Use share_plus for sharing
       await Share.share(
         shareText,
@@ -599,9 +614,9 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: widget.isDark 
-            ? AppTheme.backgroundDark.withOpacity(0.5)
-            : ElegantColors.cream.withOpacity(0.5),
+        color: widget.isDark
+            ? AppTheme.backgroundDark.withValues(alpha: 0.5)
+            : ElegantColors.cream.withValues(alpha: 0.5),
         borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(20),
           bottomRight: Radius.circular(20),
@@ -621,7 +636,7 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
               const SizedBox(width: 8),
               Text(
                 'Comments',
-                style: GoogleFonts.inter(
+                style: AppType.sans(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: context.colors.ink,
@@ -630,13 +645,13 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
             ],
           ),
           const SizedBox(height: 12),
-          
+
           // Comments list - show ALL comments
           StreamBuilder<List<Comment>>(
             stream: widget.repository.watchComments(widget.post.id),
             builder: (context, snapshot) {
               final comments = snapshot.data ?? [];
-              
+
               if (comments.isEmpty) {
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -646,14 +661,14 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
                         Icon(
                           Icons.chat_bubble_outline,
                           size: 32,
-                          color: widget.isDark 
-                              ? AppTheme.textMuted.withOpacity(0.5)
-                              : ElegantColors.warmGray.withOpacity(0.5),
+                          color: widget.isDark
+                              ? AppTheme.textMuted.withValues(alpha: 0.5)
+                              : ElegantColors.warmGray.withValues(alpha: 0.5),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           'No comments yet. Be the first!',
-                          style: GoogleFonts.inter(
+                          style: AppType.sans(
                             color: context.colors.inkMuted,
                             fontSize: 13,
                           ),
@@ -663,14 +678,14 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
                   ),
                 );
               }
-              
+
               // Show all comments with scroll if many
               return ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 300),
                 child: ListView.builder(
                   shrinkWrap: true,
-                  physics: comments.length > 4 
-                      ? const BouncingScrollPhysics() 
+                  physics: comments.length > 4
+                      ? const BouncingScrollPhysics()
                       : const NeverScrollableScrollPhysics(),
                   itemCount: comments.length,
                   itemBuilder: (context, index) {
@@ -684,9 +699,9 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
               );
             },
           ),
-          
+
           const SizedBox(height: 12),
-          
+
           // Add comment input
           Row(
             children: [
@@ -696,25 +711,26 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
                     color: context.colors.surface,
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(
-                      color: widget.isDark 
-                          ? AppTheme.primaryLight.withOpacity(0.2)
+                      color: widget.isDark
+                          ? AppTheme.primaryLight.withValues(alpha: 0.2)
                           : ElegantColors.champagne,
                     ),
                   ),
                   child: TextField(
                     controller: _commentController,
-                    style: GoogleFonts.inter(
+                    style: AppType.sans(
                       color: context.colors.ink,
                       fontSize: 14,
                     ),
                     decoration: InputDecoration(
                       hintText: 'Write a comment...',
-                      hintStyle: GoogleFonts.inter(
+                      hintStyle: AppType.sans(
                         color: context.colors.inkMuted,
                         fontSize: 14,
                       ),
                       border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
                     ),
                   ),
                 ),
@@ -722,7 +738,7 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
               const SizedBox(width: 8),
               Container(
                 decoration: BoxDecoration(
-                  gradient: widget.isDark 
+                  gradient: widget.isDark
                       ? AppTheme.primaryGradient
                       : ElegantColors.warmGradient,
                   borderRadius: BorderRadius.circular(24),
@@ -732,7 +748,7 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
                   icon: const Icon(Icons.send, color: Colors.white, size: 20),
                   onPressed: () async {
                     if (_commentController.text.trim().isEmpty) return;
-                    
+
                     final comment = Comment(
                       id: '',
                       postId: widget.post.id,
@@ -742,7 +758,7 @@ class PostCardState extends State<PostCard> with SingleTickerProviderStateMixin 
                       text: _commentController.text.trim(),
                       createdAt: DateTime.now(),
                     );
-                    
+
                     await widget.repository.addComment(comment);
                     _commentController.clear();
                   },
@@ -783,7 +799,7 @@ class _ActionButton extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               label,
-              style: GoogleFonts.inter(
+              style: AppType.sans(
                 color: color,
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
@@ -822,8 +838,7 @@ class _CommentItem extends StatelessWidget {
               borderRadius: BorderRadius.circular(18),
               boxShadow: [
                 BoxShadow(
-                  color: (context.colors.accent)
-                      .withOpacity(0.2),
+                  color: (context.colors.accent).withValues(alpha: 0.2),
                   blurRadius: 4,
                   offset: const Offset(0, 2),
                 ),
@@ -840,10 +855,10 @@ class _CommentItem extends StatelessWidget {
                       memCacheWidth: 108,
                       placeholder: (_, __) => Center(
                         child: Text(
-                          comment.userName.isNotEmpty 
-                              ? comment.userName[0].toUpperCase() 
+                          comment.userName.isNotEmpty
+                              ? comment.userName[0].toUpperCase()
                               : '?',
-                          style: GoogleFonts.inter(
+                          style: AppType.sans(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
@@ -852,10 +867,10 @@ class _CommentItem extends StatelessWidget {
                       ),
                       errorWidget: (_, __, ___) => Center(
                         child: Text(
-                          comment.userName.isNotEmpty 
-                              ? comment.userName[0].toUpperCase() 
+                          comment.userName.isNotEmpty
+                              ? comment.userName[0].toUpperCase()
                               : '?',
-                          style: GoogleFonts.inter(
+                          style: AppType.sans(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
@@ -866,10 +881,10 @@ class _CommentItem extends StatelessWidget {
                   )
                 : Center(
                     child: Text(
-                      comment.userName.isNotEmpty 
-                          ? comment.userName[0].toUpperCase() 
+                      comment.userName.isNotEmpty
+                          ? comment.userName[0].toUpperCase()
                           : '?',
-                      style: GoogleFonts.inter(
+                      style: AppType.sans(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
@@ -878,7 +893,7 @@ class _CommentItem extends StatelessWidget {
                   ),
           ),
           const SizedBox(width: 10),
-          
+
           // Comment content - TikTok style bubble
           Expanded(
             child: Column(
@@ -889,7 +904,7 @@ class _CommentItem extends StatelessWidget {
                   children: [
                     Text(
                       comment.userName,
-                      style: GoogleFonts.inter(
+                      style: AppType.sans(
                         color: context.colors.ink,
                         fontWeight: FontWeight.w600,
                         fontSize: 13,
@@ -898,7 +913,7 @@ class _CommentItem extends StatelessWidget {
                     const SizedBox(width: 8),
                     Text(
                       timeago.format(comment.createdAt),
-                      style: GoogleFonts.inter(
+                      style: AppType.sans(
                         color: context.colors.inkMuted,
                         fontSize: 11,
                       ),
@@ -906,11 +921,11 @@ class _CommentItem extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 4),
-                
+
                 // Comment text
                 Text(
                   comment.text,
-                  style: GoogleFonts.inter(
+                  style: AppType.sans(
                     color: context.colors.inkSoft,
                     fontSize: 14,
                     height: 1.4,

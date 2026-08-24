@@ -33,7 +33,16 @@ func (a JSONStringArray) Value() (driver.Value, error) {
 	return json.Marshal(a)
 }
 
-// Relationships represents family connections
+// Relationships represents family connections.
+//
+// ParentIDs is the single source of truth for descent. ChildrenIDs is derived
+// from it on read by DeriveChildren and is never persisted from a request.
+//
+// Both used to be written by the client, in two separate non-atomic calls: the
+// child was created with a parent, then the parent was updated to list the
+// child. A failure between the two left a person who had a parent and was
+// simultaneously a root, and the tree layout — which read ChildrenIDs — and
+// root detection — which read ParentIDs — disagreed about where to draw them.
 type Relationships struct {
 	ParentIDs   []string                 `json:"parents"`
 	Spouses     []RelationshipConnection `json:"spouses"`
@@ -60,6 +69,26 @@ func (r *Relationships) Scan(value interface{}) error {
 
 func (r Relationships) Value() (driver.Value, error) {
 	return json.Marshal(r)
+}
+
+// Clone returns a copy that shares no backing array with r.
+//
+// Copying the struct alone is not enough, and the difference is a live
+// permission hole. A handler that snapshots a person, unmarshals a request over
+// the copy, and then restores the protected fields from the snapshot is relying
+// on the snapshot being untouched — but encoding/json reuses an existing slice's
+// backing array when the incoming array fits, so decoding
+// {"relationships":{"parents":["someone-else"]}} over a person who already had
+// one parent rewrote *both* copies. Restoring from the snapshot then restored
+// the attacker's value, and a member could reassign their own parentage.
+func (r Relationships) Clone() Relationships {
+	clone := Relationships{
+		ParentIDs:   append([]string(nil), r.ParentIDs...),
+		ChildrenIDs: append([]string(nil), r.ChildrenIDs...),
+		SiblingIDs:  append([]string(nil), r.SiblingIDs...),
+		Spouses:     append([]RelationshipConnection(nil), r.Spouses...),
+	}
+	return clone
 }
 
 // RelationshipConnection represents a spousal relationship
@@ -135,17 +164,17 @@ func (ln LocalizedNames) Value() (driver.Value, error) {
 
 // Person model matching Flutter structure
 type Person struct {
-	ID              string          `gorm:"primaryKey" json:"id"`
-	FamilyTreeID    string          `gorm:"index" json:"familyTreeId"`
-	AuthUserID      string          `gorm:"index" json:"authUserId"`
-	FirstName       string          `json:"firstName"`
-	LastName        string          `json:"lastName"`
-	LocalizedNames  LocalizedNames  `gorm:"type:text" json:"localizedNames"`
-	BirthDate       *time.Time      `json:"birthDate,omitempty"`
-	DeathDate       *time.Time      `json:"deathDate,omitempty"`
-	Gender          string          `json:"gender"`
-	Bio             string          `json:"bio"`
-	ProfilePhotoURL string          `json:"profilePhotoUrl"`
+	ID              string         `gorm:"primaryKey" json:"id"`
+	FamilyTreeID    string         `gorm:"index" json:"familyTreeId"`
+	AuthUserID      string         `gorm:"index" json:"authUserId"`
+	FirstName       string         `json:"firstName"`
+	LastName        string         `json:"lastName"`
+	LocalizedNames  LocalizedNames `gorm:"type:text" json:"localizedNames"`
+	BirthDate       *time.Time     `json:"birthDate,omitempty"`
+	DeathDate       *time.Time     `json:"deathDate,omitempty"`
+	Gender          string         `json:"gender"`
+	Bio             string         `json:"bio"`
+	ProfilePhotoURL string         `json:"profilePhotoUrl"`
 
 	// Self-authored profile detail. A linked member fills these in about
 	// themselves; everyone browsing the tree sees them on the person's card.
@@ -169,11 +198,113 @@ type Person struct {
 	// living until a date is found.
 	IsDeceased bool `json:"isDeceased"`
 
-	Photos          JSONStringArray `gorm:"type:text" json:"photos"`
-	LifeEvents      LifeEvents      `gorm:"type:text" json:"lifeEvents"`
-	Relationships   Relationships   `gorm:"type:text" json:"relationships"`
-	DisplayOrder    int             `gorm:"default:0" json:"displayOrder"`
-	CreatedAt       time.Time       `json:"createdAt"`
-	UpdatedAt       time.Time       `json:"updatedAt"`
-	DeletedAt       gorm.DeletedAt  `gorm:"index" json:"-"`
+	Photos        JSONStringArray `gorm:"type:text" json:"photos"`
+	LifeEvents    LifeEvents      `gorm:"type:text" json:"lifeEvents"`
+	Relationships Relationships   `gorm:"type:text" json:"relationships"`
+	DisplayOrder  int             `gorm:"default:0" json:"displayOrder"`
+	CreatedAt     time.Time       `json:"createdAt"`
+	UpdatedAt     time.Time       `json:"updatedAt"`
+	DeletedAt     gorm.DeletedAt  `gorm:"index" json:"-"`
+}
+
+// DeriveChildren fills in each person's ChildrenIDs from the ParentIDs of
+// everyone else in the slice, in place.
+//
+// Descent is stored one way — a child names its parents — so the reverse
+// direction cannot drift out of step with it. Children come back in
+// DisplayOrder, which is the order the tree draws siblings in, so callers get
+// the same sequence the admin arranged by hand.
+func DeriveChildren(people []Person) {
+	index := make(map[string]int, len(people))
+	for i := range people {
+		index[people[i].ID] = i
+		people[i].Relationships.ChildrenIDs = nil
+	}
+
+	for i := range people {
+		for _, parentID := range people[i].Relationships.ParentIDs {
+			if j, ok := index[parentID]; ok {
+				people[j].Relationships.ChildrenIDs = append(
+					people[j].Relationships.ChildrenIDs, people[i].ID)
+			}
+		}
+	}
+
+	for i := range people {
+		if people[i].Relationships.ChildrenIDs == nil {
+			people[i].Relationships.ChildrenIDs = []string{}
+		}
+	}
+}
+
+// PrunePersonReferences removes a deleted person's id from everyone else's
+// relationships, and reports which records changed.
+//
+// Deleting used to remove one row and leave its id behind in every relative's
+// relationship blob forever, so a child kept a parent that no longer existed
+// and the tree treated them as a root.
+func PrunePersonReferences(people []Person, deletedIDs map[string]bool) []Person {
+	changed := make([]Person, 0)
+
+	for i := range people {
+		if deletedIDs[people[i].ID] {
+			continue
+		}
+
+		rel := &people[i].Relationships
+		before := len(rel.ParentIDs) + len(rel.SiblingIDs) + len(rel.Spouses)
+
+		rel.ParentIDs = withoutIDs(rel.ParentIDs, deletedIDs)
+		rel.SiblingIDs = withoutIDs(rel.SiblingIDs, deletedIDs)
+
+		spouses := rel.Spouses[:0]
+		for _, s := range rel.Spouses {
+			if !deletedIDs[s.PersonID] {
+				spouses = append(spouses, s)
+			}
+		}
+		rel.Spouses = spouses
+
+		after := len(rel.ParentIDs) + len(rel.SiblingIDs) + len(rel.Spouses)
+		if after != before {
+			changed = append(changed, people[i])
+		}
+	}
+
+	return changed
+}
+
+func withoutIDs(ids []string, drop map[string]bool) []string {
+	kept := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if !drop[id] {
+			kept = append(kept, id)
+		}
+	}
+	return kept
+}
+
+// DescendantIDs returns the id of root plus every person below it, guarding
+// against a cycle in the data rather than recursing until the stack runs out.
+func DescendantIDs(people []Person, rootID string) map[string]bool {
+	childrenOf := make(map[string][]string, len(people))
+	for _, p := range people {
+		for _, parentID := range p.Relationships.ParentIDs {
+			childrenOf[parentID] = append(childrenOf[parentID], p.ID)
+		}
+	}
+
+	found := map[string]bool{rootID: true}
+	queue := []string{rootID}
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+		for _, childID := range childrenOf[current] {
+			if !found[childID] {
+				found[childID] = true
+				queue = append(queue, childID)
+			}
+		}
+	}
+	return found
 }

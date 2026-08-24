@@ -1,35 +1,50 @@
 import 'dart:convert';
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
+import 'dart:js_interop';
 
-/// Web implementation for file download
+import 'package:web/web.dart' as web;
+
+/// The web half of [WebDownloadHelper].
+///
+/// This used to be written against `dart:html`, which is deprecated and is not
+/// compiled by `dart2wasm` at all — so the app could not have been built for
+/// WebAssembly while it was here. `package:web` is the supported replacement
+/// and works under both the JavaScript and WebAssembly backends.
+
+/// Hands the browser a file to save.
 void downloadFileWeb(String content, String filename, String mimeType) {
   final bytes = utf8.encode(content);
-  final blob = html.Blob([bytes], mimeType);
-  final url = html.Url.createObjectUrlFromBlob(blob);
-  final anchor = html.AnchorElement(href: url)
-    ..setAttribute('download', filename)
-    ..click();
-  html.Url.revokeObjectUrl(url);
-}
-
-/// Opens HTML in new window and triggers print dialog for PDF save
-void openAndPrintWeb(String htmlContent) {
-  // Add print script to HTML to auto-trigger print dialog
-  final htmlWithPrint = htmlContent.replaceFirst(
-    '</body>',
-    '<script>window.onload = function() { setTimeout(function() { window.print(); }, 500); }</script></body>'
+  final blob = web.Blob(
+    <JSAny>[bytes.toJS].toJS,
+    web.BlobPropertyBag(type: mimeType),
   );
-  
-  final blob = html.Blob([htmlWithPrint], 'text/html');
-  final url = html.Url.createObjectUrlFromBlob(blob);
-  html.window.open(url, '_blank');
+  final url = web.URL.createObjectURL(blob);
+
+  (web.document.createElement('a') as web.HTMLAnchorElement)
+    ..href = url
+    ..download = filename
+    ..click();
+
+  web.URL.revokeObjectURL(url);
 }
 
-/// Downloads an image from URL
+/// Opens HTML in a new window and triggers the print dialog, which is how the
+/// browser offers "save as PDF".
+void openAndPrintWeb(String htmlContent) {
+  final htmlWithPrint = htmlContent.replaceFirst('</body>',
+      '<script>window.onload = function() { setTimeout(function() { window.print(); }, 500); }</script></body>');
+
+  final blob = web.Blob(
+    <JSAny>[htmlWithPrint.toJS].toJS,
+    web.BlobPropertyBag(type: 'text/html'),
+  );
+  web.window.open(web.URL.createObjectURL(blob), '_blank');
+}
+
+/// Downloads an image straight from its URL.
 void downloadImageFromUrlWeb(String imageUrl) {
-  final anchor = html.AnchorElement(href: imageUrl)
-    ..setAttribute('download', 'image_${DateTime.now().millisecondsSinceEpoch}.jpg')
-    ..setAttribute('target', '_blank');
-  anchor.click();
+  (web.document.createElement('a') as web.HTMLAnchorElement)
+    ..href = imageUrl
+    ..download = 'image_${DateTime.now().millisecondsSinceEpoch}.jpg'
+    ..target = '_blank'
+    ..click();
 }

@@ -7,7 +7,7 @@ import 'package:family_tree/features/tree_view/tree_canvas.dart';
 class TreeState {
   final List<Person> persons;
   final String? selectedPersonId;
-  final String? focusedSubtreeRoot;  // Root of focused subtree
+  final String? focusedSubtreeRoot; // Root of focused subtree
   final List<String> focusedPersonIds;
   final LayoutMode layoutMode;
   final bool isLoading;
@@ -35,8 +35,8 @@ class TreeState {
     return TreeState(
       persons: persons ?? this.persons,
       selectedPersonId: selectedPersonId ?? this.selectedPersonId,
-      focusedSubtreeRoot: focusedSubtreeRoot == _sentinel 
-          ? this.focusedSubtreeRoot 
+      focusedSubtreeRoot: focusedSubtreeRoot == _sentinel
+          ? this.focusedSubtreeRoot
           : focusedSubtreeRoot as String?,
       focusedPersonIds: focusedPersonIds ?? this.focusedPersonIds,
       layoutMode: layoutMode ?? this.layoutMode,
@@ -72,10 +72,12 @@ class TreeController extends StateNotifier<TreeState> {
       state = state.copyWith(persons: persons, isLoading: false);
     }, onError: (error) {
       String errorMessage = error.toString();
-      if (errorMessage.contains('403') || errorMessage.contains('PERMISSION_DENIED')) {
-        errorMessage = 'Permission denied. Please update Firestore security rules.';
+      if (errorMessage.contains('403') ||
+          errorMessage.contains('PERMISSION_DENIED')) {
+        errorMessage =
+            'Permission denied. Please update Firestore security rules.';
       }
-      
+
       state = state.copyWith(error: errorMessage, isLoading: false);
     });
   }

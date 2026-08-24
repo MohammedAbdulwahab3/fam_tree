@@ -2,12 +2,12 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:image/image.dart' as img;
 
 import 'package:family_tree/core/theme/app_theme.dart';
 import 'package:family_tree/core/theme/app_colors.dart';
 import 'package:family_tree/core/theme/elegant_theme.dart';
+import 'package:family_tree/core/design/typography.dart';
 
 /// Pinch, drag and rotate a picture until the face sits right, then keep only
 /// the square you framed.
@@ -125,7 +125,8 @@ class _PhotoCropSheetState extends State<PhotoCropSheet> {
       final pixelsPerFrameUnit = rotated.width / display.width;
 
       final cropSide = (_frame / _zoom) * pixelsPerFrameUnit;
-      final centreX = rotated.width / 2 - (_offset.dx / _zoom) * pixelsPerFrameUnit;
+      final centreX =
+          rotated.width / 2 - (_offset.dx / _zoom) * pixelsPerFrameUnit;
       final centreY =
           rotated.height / 2 - (_offset.dy / _zoom) * pixelsPerFrameUnit;
 
@@ -196,7 +197,7 @@ class _PhotoCropSheetState extends State<PhotoCropSheet> {
               ),
               Text(
                 widget.title,
-                style: GoogleFonts.playfairDisplay(
+                style: AppType.sans(
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
                   color: context.colors.ink,
@@ -205,7 +206,7 @@ class _PhotoCropSheetState extends State<PhotoCropSheet> {
               const SizedBox(height: 4),
               Text(
                 'Drag to move, pinch or use the slider to zoom',
-                style: GoogleFonts.cormorantGaramond(
+                style: AppType.sans(
                   fontSize: 13.5,
                   color: context.colors.inkMuted,
                 ),
@@ -225,7 +226,7 @@ class _PhotoCropSheetState extends State<PhotoCropSheet> {
                     child: Text(
                       _error!,
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.inter(
+                      style: AppType.sans(
                         fontSize: 12.5,
                         color: AppTheme.accentRose,
                       ),
@@ -351,7 +352,7 @@ class _PhotoCropSheetState extends State<PhotoCropSheet> {
       label: const Text('Rotate'),
       style: TextButton.styleFrom(
         foregroundColor: context.colors.inkSoft,
-        textStyle: GoogleFonts.inter(fontSize: 13),
+        textStyle: AppType.sans(fontSize: 13),
       ),
     );
   }
@@ -365,11 +366,9 @@ class _PhotoCropSheetState extends State<PhotoCropSheet> {
         children: [
           Expanded(
             child: OutlinedButton(
-              onPressed:
-                  _working ? null : () => Navigator.pop(context, null),
+              onPressed: _working ? null : () => Navigator.pop(context, null),
               style: OutlinedButton.styleFrom(
-                foregroundColor:
-                    context.colors.inkSoft,
+                foregroundColor: context.colors.inkSoft,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(13),
@@ -395,7 +394,7 @@ class _PhotoCropSheetState extends State<PhotoCropSheet> {
                   : const Icon(Icons.check_rounded, size: 18),
               label: Text(
                 _working ? 'Cropping…' : 'Use this photo',
-                style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                style: AppType.sans(fontWeight: FontWeight.w600),
               ),
               style: FilledButton.styleFrom(
                 backgroundColor: accent,
@@ -422,7 +421,7 @@ class _PhotoCropSheetState extends State<PhotoCropSheet> {
           Text(
             'That file could not be read as an image',
             textAlign: TextAlign.center,
-            style: GoogleFonts.inter(
+            style: AppType.sans(
               fontSize: 13.5,
               color: context.colors.inkSoft,
             ),

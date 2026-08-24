@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'api_service.dart';
+import 'package:family_tree/core/logging.dart';
 
 class LinkService {
   final ApiService _apiService = ApiService();
@@ -8,7 +9,7 @@ class LinkService {
   Future<LinkStatus> getMyLinkStatus() async {
     try {
       final response = await _apiService.get('/api/link-requests/my-status');
-      
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return LinkStatus.fromJson(data);
@@ -16,7 +17,7 @@ class LinkService {
         throw Exception('Failed to fetch link status');
       }
     } catch (e) {
-      print('Error fetching link status: $e');
+      log('Could not load the claim status', e);
       rethrow;
     }
   }
@@ -34,7 +35,7 @@ class LinkService {
       ApiService.ensureOk(response, whileDoing: 'sending your claim');
       return LinkRequest.fromJson(jsonDecode(response.body));
     } catch (e) {
-      print('Error requesting link: $e');
+      log('Could not send the claim', e);
       rethrow;
     }
   }
@@ -49,7 +50,7 @@ class LinkService {
   Future<List<LinkRequest>> getPendingRequests() async {
     try {
       final response = await _apiService.get('/api/admin/link-requests');
-      
+
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
         return data.map((json) => LinkRequest.fromJson(json)).toList();
@@ -57,7 +58,7 @@ class LinkService {
         throw Exception('Failed to fetch link requests');
       }
     } catch (e) {
-      print('Error fetching link requests: $e');
+      log('Could not load the claim queue', e);
       rethrow;
     }
   }
@@ -75,14 +76,15 @@ class LinkService {
         '/api/admin/link-requests/$requestId',
         body: {
           'status': status,
-          if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+          if (reason != null && reason.trim().isNotEmpty)
+            'reason': reason.trim(),
         },
       );
 
       ApiService.ensureOk(response, whileDoing: 'saving your decision');
       return LinkRequest.fromJson(jsonDecode(response.body));
     } catch (e) {
-      print('Error updating link request: $e');
+      log('Could not save the decision', e);
       rethrow;
     }
   }
@@ -193,8 +195,9 @@ class LinkRequester {
         email: json['email'] ?? '',
         role: json['role'] ?? 'member',
         photoUrl: json['profilePhotoUrl'] ?? '',
-        joinedAt:
-            json['joinedAt'] != null ? DateTime.tryParse(json['joinedAt']) : null,
+        joinedAt: json['joinedAt'] != null
+            ? DateTime.tryParse(json['joinedAt'])
+            : null,
         isVerified: json['isVerified'] ?? false,
       );
 }

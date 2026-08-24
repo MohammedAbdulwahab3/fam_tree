@@ -1,167 +1,124 @@
 package main
 
 import (
-	"context"
 	"log"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
+	"family-tree-backend/config"
 	"family-tree-backend/handlers"
 	"family-tree-backend/middleware"
 	"family-tree-backend/models"
 	"family-tree-backend/seed"
 	"family-tree-backend/services"
 
-	firebase "firebase.google.com/go/v4"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"google.golang.org/api/option"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
-var db *gorm.DB
-
 func main() {
-	// Initialize Database
-	var err error
-
-	// Get database URL from environment, default to localhost PostgreSQL
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
 		dbURL = "host=127.0.0.1 user=postgres password=postgres dbname=family_tree port=5432 sslmode=disable"
 	}
 
-	db, err = gorm.Open(postgres.Open(dbURL), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(dbURL), &gorm.Config{})
 	if err != nil {
 		log.Fatal("Failed to connect to database:", err)
 	}
 
 	log.Println("Connected to PostgreSQL database")
 
-	// Check for seed flag
 	if len(os.Args) > 1 && os.Args[1] == "--seed" {
 		seed.SeedDatabase(db)
 		return
 	}
 
-	// Auto Migrate
-	db.AutoMigrate(
+	if err := db.AutoMigrate(
 		&models.User{},
 		&models.Person{},
 		&models.Post{},
-		&models.Message{},
-		&models.Event{},
 		&models.Comment{},
 		&models.Reaction{},
 		&models.Notification{},
-		&models.DeviceToken{},
 		&models.NotificationPreference{},
-		&models.Reminder{},
 		&models.LinkRequest{},
 		&models.PasswordReset{},
-	)
-
-	// Create uploads directory
-	if _, err := os.Stat("uploads"); os.IsNotExist(err) {
-		os.Mkdir("uploads", 0755)
+	); err != nil {
+		log.Fatal("Failed to migrate database:", err)
 	}
 
-	// Initialize Redis
+	if _, err := os.Stat("uploads"); os.IsNotExist(err) {
+		if err := os.Mkdir("uploads", 0o755); err != nil {
+			log.Fatal("Failed to create uploads directory:", err)
+		}
+	}
+
 	middleware.InitRedis()
 
-	// Notifications. The in-app list is written straight to the database and
-	// needs nothing external, so it works on every deployment. Push delivery is
-	// an optional layer on top: set FIREBASE_CREDENTIALS to turn it on.
 	notificationService := services.NewNotificationService(db)
-	enablePushIfConfigured(notificationService)
 
-	// Reminders are only useful if something actually delivers them.
-	go notificationService.ProcessScheduledReminders(time.Minute)
-
-	// Initialize Handlers
 	authHandler := &handlers.AuthHandler{DB: db}
 	personHandler := &handlers.PersonHandler{DB: db}
 	uploadHandler := &handlers.UploadHandler{}
 	postHandler := &handlers.PostHandler{DB: db, NotificationService: notificationService}
-	messageHandler := &handlers.MessageHandler{DB: db, NotificationService: notificationService}
-	eventHandler := &handlers.EventHandler{DB: db, NotificationService: notificationService}
 	notificationHandler := &handlers.NotificationHandler{DB: db}
-	reminderHandler := &handlers.ReminderHandler{DB: db}
 	linkHandler := &handlers.LinkHandler{DB: db, NotificationService: notificationService}
 	passwordHandler := &handlers.PasswordHandler{DB: db}
 
-	// Setup Router
 	r := gin.Default()
 
-	// CORS Middleware
+	// CORS. No Allow-Credentials: the app authenticates with a bearer header,
+	// never a cookie, and browsers reject the credentials flag alongside a
+	// wildcard origin anyway — advertising it only misled.
 	r.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+		c.Writer.Header().Set("Access-Control-Allow-Headers",
+			"Content-Type, Content-Length, Accept-Encoding, Authorization, If-None-Match, accept, origin")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
+		c.Writer.Header().Set("Access-Control-Expose-Headers", "ETag")
 
 		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
+			c.AbortWithStatus(http.StatusNoContent)
 			return
 		}
 
 		c.Next()
 	})
 
-	// Public Routes
-	r.POST("/register", authHandler.Register)
-	r.POST("/login", authHandler.Login)
+	// Public routes.
+	//
+	// Every one of these can be reached without a credential, so each is rate
+	// limited: without it an eight-character reset code is guessable given
+	// enough attempts, and a password is guessable given enough more.
+	authLimit := middleware.RateLimit(middleware.RateLimitConfig{
+		Requests: 10,
+		Window:   time.Minute,
+		Message:  "Too many attempts. Wait a minute and try again.",
+	})
+	r.POST("/register", authLimit, authHandler.Register)
+	r.POST("/login", authLimit, authHandler.Login)
 	// Public by necessity: someone who cannot sign in cannot authenticate to
 	// ask for a password reset. The admin-issued code is what proves identity.
-	r.POST("/reset-password", passwordHandler.ResetPassword)
+	r.POST("/reset-password", authLimit, passwordHandler.ResetPassword)
 	r.Static("/uploads", "./uploads")
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "pong"})
 	})
 
-	// Secret admin promotion endpoint (for initial setup only)
-	r.POST("/init-admin", func(c *gin.Context) {
-		var req struct {
-			Email     string `json:"email"`
-			SecretKey string `json:"secret_key"`
-		}
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-
-		// Secret key for initial admin setup
-		if req.SecretKey != "FamilyTree2026AdminSecret" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid secret key"})
-			return
-		}
-
-		var user models.User
-		if result := db.First(&user, "email = ?", req.Email); result.Error != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-			return
-		}
-
-		user.Role = models.RoleAdmin
-		if result := db.Save(&user); result.Error != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{"message": "User promoted to admin", "user": user})
-	})
-
-	// Public read-only access to persons (for demo mode)
-	r.GET("/public/persons", personHandler.GetPersons)
+	// Headline counts for the landing page. This replaced a public endpoint
+	// that served every person's full record — contact email, phone, birth
+	// date, biography — to anybody, in order to render two numbers.
+	r.GET("/public/stats", personHandler.GetPublicStats)
 
 	// Protected Routes (authenticated users)
 	api := r.Group("/api")
 	api.Use(middleware.AuthMiddleware(db))
 	{
-		// User info endpoint - get current user with role
 		api.GET("/me", func(c *gin.Context) {
 			user, exists := c.Get("user")
 			if !exists {
@@ -213,16 +170,6 @@ func main() {
 		})
 
 		// Person Routes - READ for all authenticated users
-
-		// Users endpoint - get all registered users
-		api.GET("/users", func(c *gin.Context) {
-			var users []models.User
-			if result := db.Find(&users); result.Error != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
-				return
-			}
-			c.JSON(http.StatusOK, users)
-		})
 		api.GET("/persons", personHandler.GetPersons)
 		api.GET("/persons/:id", personHandler.GetPerson)
 
@@ -246,22 +193,7 @@ func main() {
 		api.PUT("/comments/:id", postHandler.UpdateComment)
 		api.DELETE("/comments/:id", postHandler.DeleteComment)
 
-		// Message Routes - all users can chat
-		api.GET("/messages", messageHandler.GetMessages)
-		api.POST("/messages", messageHandler.SendMessage)
-		api.PUT("/messages/:id", messageHandler.UpdateMessage)
-		api.DELETE("/messages/:id", messageHandler.DeleteMessage)
-
-		// Event Routes. Anyone signed in can propose a family event; only the
-		// organiser or an admin can then change or cancel it.
-		api.GET("/events", eventHandler.GetEvents)
-		api.POST("/events", eventHandler.CreateEvent)
-		api.PUT("/events/:id", eventHandler.UpdateEvent)
-		api.DELETE("/events/:id", eventHandler.DeleteEvent)
-		api.POST("/events/:id/rsvp", eventHandler.ToggleRSVP)
-
 		// Notification Routes
-		api.POST("/devices/register", notificationHandler.RegisterDeviceToken)
 		api.GET("/notifications", notificationHandler.GetNotifications)
 		api.GET("/notifications/unread-count", notificationHandler.GetUnreadCount)
 		api.PUT("/notifications/:id/read", notificationHandler.MarkAsRead)
@@ -270,13 +202,6 @@ func main() {
 		api.DELETE("/notifications", notificationHandler.DeleteAllNotifications)
 		api.GET("/notifications/preferences", notificationHandler.GetPreferences)
 		api.PUT("/notifications/preferences", notificationHandler.UpdatePreferences)
-
-		// Reminder Routes
-		api.GET("/reminders", reminderHandler.GetReminders)
-		api.POST("/reminders", reminderHandler.CreateReminder)
-		api.PUT("/reminders/:id", reminderHandler.UpdateReminder)
-		api.PUT("/reminders/:id/snooze", reminderHandler.SnoozeReminder)
-		api.DELETE("/reminders/:id", reminderHandler.DeleteReminder)
 
 		// Account routes
 		api.PUT("/me/password", passwordHandler.ChangePassword)
@@ -290,26 +215,21 @@ func main() {
 
 	// Admin-only Routes
 	admin := r.Group("/api/admin")
-	admin.Use(middleware.AuthMiddleware(db), middleware.AdminMiddleware(db))
+	admin.Use(middleware.AuthMiddleware(db), middleware.AdminMiddleware())
 	{
 		// Link Request Admin Routes
 		admin.GET("/link-requests", linkHandler.GetLinkRequests)
 		admin.PUT("/link-requests/:id", linkHandler.UpdateLinkStatus)
 
-		// Person management - CREATE, DELETE (admin only)
+		// Person management - CREATE, UPDATE, DELETE (admin only)
 		admin.POST("/persons", personHandler.CreatePerson)
-		admin.PUT("/persons/:id", personHandler.UpdatePerson)
+		admin.PUT("/persons/:id", personHandler.UpdatePersonWithPermission)
 		admin.DELETE("/persons/:id", personHandler.DeletePerson)
 
 		// Post management - CREATE, UPDATE, DELETE (admin only)
 		admin.POST("/posts", postHandler.CreatePost)
 		admin.PUT("/posts/:id", postHandler.UpdatePost)
 		admin.DELETE("/posts/:id", postHandler.DeletePost)
-
-		// Event management - CREATE, UPDATE, DELETE (admin only)
-		admin.POST("/events", eventHandler.CreateEvent)
-		admin.PUT("/events/:id", eventHandler.UpdateEvent)
-		admin.DELETE("/events/:id", eventHandler.DeleteEvent)
 
 		// User management — returns a plain array, which is the shape the
 		// Flutter admin repository already parses.
@@ -515,11 +435,10 @@ func main() {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not load people"})
 				return
 			}
+			models.DeriveChildren(people)
 
 			var posts []models.Post
-			db.Where("family_tree_id = ?", treeID).Find(&posts)
-			var events []models.Event
-			db.Find(&events)
+			db.Where("family_tree_id = ?", treeID).Order("created_at desc").Find(&posts)
 
 			c.JSON(http.StatusOK, gin.H{
 				"familyTreeId": treeID,
@@ -527,49 +446,16 @@ func main() {
 				"counts": gin.H{
 					"people": len(people),
 					"posts":  len(posts),
-					"events": len(events),
 				},
 				"people": people,
 				"posts":  posts,
-				"events": events,
 			})
 		})
 	}
 
-	// Start server
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
+	port := config.Port()
+	log.Printf("Server starting on :%s (family tree %q)", port, config.FamilyTreeID())
+	if err := r.Run(":" + port); err != nil {
+		log.Fatal("Server stopped: ", err)
 	}
-	log.Printf("Server starting on :%s", port)
-	r.Run(":" + port)
-}
-
-// enablePushIfConfigured turns on device push when Firebase credentials are
-// present. Its absence is a normal configuration, not a failure: notifications
-// still appear in the app, they just do not reach the lock screen.
-func enablePushIfConfigured(notifications *services.NotificationService) {
-	credentials := os.Getenv("FIREBASE_CREDENTIALS")
-	if credentials == "" {
-		log.Println("Push notifications disabled (FIREBASE_CREDENTIALS not set); " +
-			"in-app notifications are unaffected")
-		return
-	}
-
-	app, err := firebase.NewApp(
-		context.Background(),
-		nil,
-		option.WithCredentialsJSON([]byte(credentials)),
-	)
-	if err != nil {
-		log.Printf("Push notifications disabled: could not read FIREBASE_CREDENTIALS: %v", err)
-		return
-	}
-
-	if err := notifications.EnableFCM(app); err != nil {
-		log.Printf("Push notifications disabled: %v", err)
-		return
-	}
-
-	log.Println("Push notifications enabled")
 }

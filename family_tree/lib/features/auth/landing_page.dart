@@ -10,9 +10,9 @@ import 'package:family_tree/core/widgets/aurora_background.dart';
 import 'package:family_tree/core/widgets/tree_mark.dart';
 import 'package:family_tree/providers/family_stats_provider.dart';
 import 'package:family_tree/data/services/auth_service.dart';
-import 'package:family_tree/features/auth/providers/auth_provider.dart';
+import 'package:family_tree/features/auth/session.dart';
 import 'package:family_tree/providers/theme_provider.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:family_tree/core/design/typography.dart';
 
 /// Stunning landing page with modern animations, floating particles,
 /// and emotionally rich design that celebrates family connections.
@@ -39,7 +39,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
   @override
   void initState() {
     super.initState();
-    
+
     // Main entrance animations
     _mainController = AnimationController(
       duration: const Duration(milliseconds: 1800),
@@ -166,7 +166,8 @@ class _LandingPageState extends ConsumerState<LandingPage>
                             opacity: _fadeAnimation,
                             child: SlideTransition(
                               position: _slideAnimation,
-                              child: _buildHeroSection(context, isMobile, isDark),
+                              child:
+                                  _buildHeroSection(context, isMobile, isDark),
                             ),
                           ),
 
@@ -180,7 +181,8 @@ class _LandingPageState extends ConsumerState<LandingPage>
                           // Stats section
                           FadeTransition(
                             opacity: _fadeAnimation,
-                            child: _buildStatsSection(context, isMobile, isDark),
+                            child:
+                                _buildStatsSection(context, isMobile, isDark),
                           ),
 
                           SizedBox(height: isMobile ? 60 : 100),
@@ -210,7 +212,6 @@ class _LandingPageState extends ConsumerState<LandingPage>
     );
   }
 
-
   Widget _buildNavBar(BuildContext context, bool isMobile, bool isDark) {
     return Container(
       padding: EdgeInsets.symmetric(
@@ -232,7 +233,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
                     'Mammedu Family',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.playfairDisplay(
+                    style: AppType.sans(
                       fontSize: isMobile ? 19 : 22,
                       fontWeight: FontWeight.bold,
                       color: isDark
@@ -255,59 +256,61 @@ class _LandingPageState extends ConsumerState<LandingPage>
           // Sign In / Logout button - responsive and auth-aware
           Consumer(
             builder: (context, ref, _) {
-              final isSignedIn =
-                  ref.watch(authStateProvider).value != null;
-              
+              final isSignedIn = ref.watch(isSignedInProvider);
+
               if (isSignedIn) {
                 // Show Logout button
                 return isMobile
-                  ? IconButton(
-                      onPressed: () async {
-                        await AuthService().signOut();
-                      },
-                      icon: Icon(
-                        Icons.logout_rounded,
-                        color: context.colors.accent,
-                      ),
-                      tooltip: 'Logout',
-                    )
-                  : OutlinedButton.icon(
-                      onPressed: () async {
-                        await AuthService().signOut();
-                      },
-                      icon: const Icon(Icons.logout_rounded, size: 18),
-                      label: const Text('Logout'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: context.colors.accent,
-                        side: BorderSide(
+                    ? IconButton(
+                        onPressed: () async {
+                          await AuthService().signOut();
+                        },
+                        icon: Icon(
+                          Icons.logout_rounded,
                           color: context.colors.accent,
                         ),
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      ),
-                    );
+                        tooltip: 'Logout',
+                      )
+                    : OutlinedButton.icon(
+                        onPressed: () async {
+                          await AuthService().signOut();
+                        },
+                        icon: const Icon(Icons.logout_rounded, size: 18),
+                        label: const Text('Logout'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: context.colors.accent,
+                          side: BorderSide(
+                            color: context.colors.accent,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 12),
+                        ),
+                      );
               } else {
                 // Show Sign In button
                 return isMobile
-                  ? IconButton(
-                      onPressed: () => context.go('/login'),
-                      icon: Icon(
-                        Icons.account_circle_rounded,
-                        color: context.colors.accent,
-                      ),
-                      tooltip: 'Sign In',
-                    )
-                  : OutlinedButton.icon(
-                      onPressed: () => context.go('/login'),
-                      icon: const Icon(Icons.account_circle_rounded, size: 18),
-                      label: const Text('Sign In'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: context.colors.accent,
-                        side: BorderSide(
+                    ? IconButton(
+                        onPressed: () => context.go('/login'),
+                        icon: Icon(
+                          Icons.account_circle_rounded,
                           color: context.colors.accent,
                         ),
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      ),
-                    );
+                        tooltip: 'Sign In',
+                      )
+                    : OutlinedButton.icon(
+                        onPressed: () => context.go('/login'),
+                        icon:
+                            const Icon(Icons.account_circle_rounded, size: 18),
+                        label: const Text('Sign In'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: context.colors.accent,
+                          side: BorderSide(
+                            color: context.colors.accent,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 12),
+                        ),
+                      );
               }
             },
           ),
@@ -372,12 +375,20 @@ class _LandingPageState extends ConsumerState<LandingPage>
         ShaderMask(
           shaderCallback: (bounds) => LinearGradient(
             colors: isDark
-                ? [AppTheme.primaryLight, AppTheme.accentTeal, AppTheme.accentCyan]
-                : [AppTheme.primaryDeep, AppTheme.accentTeal, AppTheme.primaryLight],
+                ? [
+                    AppTheme.primaryLight,
+                    AppTheme.accentTeal,
+                    AppTheme.accentCyan
+                  ]
+                : [
+                    AppTheme.primaryDeep,
+                    AppTheme.accentTeal,
+                    AppTheme.primaryLight
+                  ],
           ).createShader(bounds),
           child: Text(
             'Mammedu Family',
-            style: GoogleFonts.playfairDisplay(
+            style: AppType.sans(
               fontSize: isMobile ? 48 : 72,
               fontWeight: FontWeight.bold,
               color: Colors.white,
@@ -393,13 +404,11 @@ class _LandingPageState extends ConsumerState<LandingPage>
         // Tagline with beautiful typography
         Text(
           'Our Roots, Our Legacy, Our Story',
-          style: GoogleFonts.cormorantGaramond(
+          style: AppType.sans(
             fontSize: isMobile ? 24 : 32,
             fontWeight: FontWeight.w500,
             fontStyle: FontStyle.italic,
-            color: isDark
-                ? AppTheme.textSecondaryDark
-                : ElegantColors.warmGray,
+            color: isDark ? AppTheme.textSecondaryDark : ElegantColors.warmGray,
             height: 1.4,
             letterSpacing: 0.3,
           ),
@@ -414,7 +423,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
           padding: EdgeInsets.symmetric(horizontal: isMobile ? 8.0 : 24.0),
           child: Text(
             'Explore the Mammedu family lineage through generations. Celebrate our ancestors, preserve our memories, and stay connected with our heritage.',
-            style: GoogleFonts.inter(
+            style: AppType.sans(
               fontSize: isMobile ? 15 : 18,
               color: context.colors.inkMuted,
               height: 1.7,
@@ -469,7 +478,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
               const SizedBox(width: 10),
               Text(
                 label,
-                style: GoogleFonts.inter(
+                style: AppType.sans(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                   color: Colors.white,
@@ -482,19 +491,22 @@ class _LandingPageState extends ConsumerState<LandingPage>
     );
   }
 
-  Widget _buildFeaturesSection(BuildContext context, bool isMobile, bool isDark) {
+  Widget _buildFeaturesSection(
+      BuildContext context, bool isMobile, bool isDark) {
     final features = [
       _FeatureData(
         icon: Icons.account_tree_rounded,
         title: 'Smart Tree Views',
-        description: 'Navigate large family trees with intelligent zoom, minimap, and semantic grouping',
+        description:
+            'Navigate large family trees with intelligent zoom, minimap, and semantic grouping',
         color: AppTheme.primaryLight,
         gradient: [AppTheme.primaryLight, AppTheme.primaryDeep],
       ),
       _FeatureData(
         icon: Icons.auto_stories_rounded,
         title: 'Rich Life Stories',
-        description: 'Capture photos, memories, and milestones that bring each ancestor to life',
+        description:
+            'Capture photos, memories, and milestones that bring each ancestor to life',
         color: AppTheme.accentTeal,
         gradient: [AppTheme.accentTeal, AppTheme.accentCyan],
       ),
@@ -510,7 +522,8 @@ class _LandingPageState extends ConsumerState<LandingPage>
       _FeatureData(
         icon: Icons.touch_app_rounded,
         title: 'Easy Navigation',
-        description: 'Tap to select, double-tap for details, explore each branch of our family',
+        description:
+            'Tap to select, double-tap for details, explore each branch of our family',
         color: AppTheme.accentGold,
         gradient: [AppTheme.accentGold, AppTheme.warning],
       ),
@@ -521,7 +534,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
         // Section title
         Text(
           'Our Family Features',
-          style: GoogleFonts.playfairDisplay(
+          style: AppType.sans(
             fontSize: isMobile ? 32 : 42,
             fontWeight: FontWeight.bold,
             color: context.colors.ink,
@@ -531,7 +544,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
         const SizedBox(height: 16),
         Text(
           'Designed for the Mammedu family',
-          style: GoogleFonts.inter(
+          style: AppType.sans(
             fontSize: isMobile ? 16 : 18,
             color: context.colors.inkMuted,
           ),
@@ -650,7 +663,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
             // Title
             Text(
               feature.title,
-              style: GoogleFonts.inter(
+              style: AppType.sans(
                 fontSize: isMobile ? 18 : 20,
                 fontWeight: FontWeight.bold,
                 color: context.colors.ink,
@@ -663,7 +676,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
             // Description
             Text(
               feature.description,
-              style: GoogleFonts.inter(
+              style: AppType.sans(
                 fontSize: isMobile ? 14 : 15,
                 color: context.colors.inkSoft,
                 height: 1.6,
@@ -763,7 +776,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
     if (value == null) {
       figure = Text(
         suffix,
-        style: GoogleFonts.playfairDisplay(
+        style: AppType.sans(
           fontSize: isMobile ? 38 : 52,
           fontWeight: FontWeight.bold,
           color: Colors.white,
@@ -776,7 +789,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
         curve: Curves.easeOutCubic,
         builder: (context, shown, _) => Text(
           value == 0 ? '\u2014' : '$shown',
-          style: GoogleFonts.playfairDisplay(
+          style: AppType.sans(
             fontSize: isMobile ? 38 : 52,
             fontWeight: FontWeight.bold,
             color: Colors.white,
@@ -798,12 +811,11 @@ class _LandingPageState extends ConsumerState<LandingPage>
           const SizedBox(height: 10),
           Text(
             label,
-            style: GoogleFonts.inter(
+            style: AppType.sans(
               fontSize: isMobile ? 13 : 15,
               letterSpacing: 0.6,
-              color: isDark
-                  ? AppTheme.textSecondaryDark
-                  : ElegantColors.warmGray,
+              color:
+                  isDark ? AppTheme.textSecondaryDark : ElegantColors.warmGray,
               fontWeight: FontWeight.w500,
             ),
             textAlign: TextAlign.center,
@@ -831,7 +843,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
         children: [
           Text(
             'Ready to Explore Our Heritage?',
-            style: GoogleFonts.playfairDisplay(
+            style: AppType.sans(
               fontSize: isMobile ? 28 : 38,
               fontWeight: FontWeight.bold,
               color: Colors.white,
@@ -841,7 +853,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
           const SizedBox(height: 16),
           Text(
             'Discover the Mammedu family tree and connect with our roots.',
-            style: GoogleFonts.inter(
+            style: AppType.sans(
               fontSize: isMobile ? 16 : 18,
               color: Colors.white.withValues(alpha: 0.9),
               height: 1.6,
@@ -854,7 +866,8 @@ class _LandingPageState extends ConsumerState<LandingPage>
             child: GestureDetector(
               onTap: () => context.go('/tree'),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
@@ -867,7 +880,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
                         'Explore Tree',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(
+                        style: AppType.sans(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                           color: AppTheme.primaryDeep,
@@ -875,7 +888,8 @@ class _LandingPageState extends ConsumerState<LandingPage>
                       ),
                     ),
                     const SizedBox(width: 10),
-                    const Icon(Icons.arrow_forward_rounded, color: AppTheme.primaryDeep, size: 22),
+                    const Icon(Icons.arrow_forward_rounded,
+                        color: AppTheme.primaryDeep, size: 22),
                   ],
                 ),
               ),
@@ -899,7 +913,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
           const SizedBox(height: 24),
           Text(
             'Made with ❤️ for families everywhere',
-            style: GoogleFonts.inter(
+            style: AppType.sans(
               fontSize: 14,
               color: context.colors.inkMuted,
             ),
@@ -907,7 +921,7 @@ class _LandingPageState extends ConsumerState<LandingPage>
           const SizedBox(height: 8),
           Text(
             '© ${DateTime.now().year} Family Tree. All rights reserved.',
-            style: GoogleFonts.inter(
+            style: AppType.sans(
               fontSize: 12,
               color: isDark
                   ? AppTheme.textMutedDark.withValues(alpha: 0.7)
@@ -958,10 +972,12 @@ class _ParticlePainter extends CustomPainter {
     for (final particle in particles) {
       final adjustedProgress = (progress + particle.delay) % 1.0;
       final x = particle.x * size.width;
-      final y = ((particle.y + adjustedProgress * particle.speed) % 1.2) * size.height;
-      
+      final y = ((particle.y + adjustedProgress * particle.speed) % 1.2) *
+          size.height;
+
       final paint = Paint()
-        ..color = color.withValues(alpha: particle.opacity * (1 - adjustedProgress * 0.5))
+        ..color = color.withValues(
+            alpha: particle.opacity * (1 - adjustedProgress * 0.5))
         ..style = PaintingStyle.fill;
 
       canvas.drawCircle(

@@ -134,7 +134,8 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(_harness(size: const Size(900, 1000), items: sample));
+    await tester
+        .pumpWidget(_harness(size: const Size(900, 1000), items: sample));
     await _settle(tester);
 
     // Two of the three are unread.
@@ -163,7 +164,8 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(_harness(size: const Size(390, 844), items: const []));
+    await tester
+        .pumpWidget(_harness(size: const Size(390, 844), items: const []));
     await _settle(tester);
 
     expect(find.text('Nothing new'), findsOneWidget);
@@ -191,7 +193,8 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(_harness(size: const Size(390, 844), items: sample));
+    await tester
+        .pumpWidget(_harness(size: const Size(390, 844), items: sample));
     await _settle(tester);
 
     expect(find.text('New post from Anna Girma'), findsOneWidget);

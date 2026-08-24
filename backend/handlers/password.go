@@ -62,6 +62,16 @@ func (h *PasswordHandler) IssueResetCode(c *gin.Context) {
 		return
 	}
 
+	// A reset code is a credential. Letting one admin mint one for another is a
+	// lateral takeover between peers who are supposed to be equals, so an admin
+	// who is locked out has to be helped from the database instead.
+	if user.IsAdmin() && user.ID != admin.ID {
+		c.JSON(http.StatusConflict, gin.H{
+			"error": "Cannot issue a reset code for another admin",
+		})
+		return
+	}
+
 	code, err := newResetCode()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not generate a code"})
@@ -119,7 +129,8 @@ func (h *PasswordHandler) ResetPassword(c *gin.Context) {
 	}
 
 	var user models.User
-	if err := h.DB.First(&user, "email = ?", strings.TrimSpace(req.Email)).Error; err != nil {
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+	if err := h.DB.First(&user, "email = ?", email).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "That email and code do not match"})
 		return
 	}
@@ -282,9 +293,8 @@ func (h *PasswordHandler) DeleteOwnAccount(c *gin.Context) {
 	}
 
 	tx.Where("user_id = ?", user.ID).Delete(&models.Notification{})
-	tx.Where("user_id = ?", user.ID).Delete(&models.Reminder{})
-	tx.Where("user_id = ?", user.ID).Delete(&models.DeviceToken{})
 	tx.Where("user_id = ?", user.ID).Delete(&models.NotificationPreference{})
+	tx.Where("user_id = ?", user.ID).Unscoped().Delete(&models.Reaction{})
 	tx.Where("user_id = ?", user.ID).Unscoped().Delete(&models.LinkRequest{})
 	tx.Where("user_id = ?", user.ID).Unscoped().Delete(&models.PasswordReset{})
 
