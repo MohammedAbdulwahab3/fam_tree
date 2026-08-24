@@ -1460,8 +1460,8 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
         ),
       ),
       child: DragTarget<Person>(
-        onWillAccept: (data) => data != null && data.id != person.id,
-        onAccept: (draggedPerson) => _swapPersons(draggedPerson, person),
+        onWillAcceptWithDetails: (details) => details.data.id != person.id,
+        onAcceptWithDetails: (details) => _swapPersons(details.data, person),
         builder: (context, candidateData, rejectedData) {
           final isHovering = candidateData.isNotEmpty;
           return GestureDetector(
@@ -1766,16 +1766,16 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
         setState(() => _selectedPerson = person);
       },
       child: DragTarget<Person>(
-        onWillAccept: (data) => data != null && data.id != person.id,
-        onAccept: (draggedPerson) {
-          _swapPersons(draggedPerson, person);
+        onWillAcceptWithDetails: (details) => details.data.id != person.id,
+        onAcceptWithDetails: (details) {
+          _swapPersons(details.data, person);
         },
         builder: (context, candidateData, rejectedData) {
           final isHovering = candidateData.isNotEmpty;
+          final lift = isHovering ? 1.05 : (isSelected ? 1.02 : 1.0);
           return AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            transform: Matrix4.identity()
-              ..scale(isHovering ? 1.05 : (isSelected ? 1.02 : 1.0)),
+            transform: Matrix4.identity()..scaleByDouble(lift, lift, lift, 1),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(24),
               boxShadow: isHovering
@@ -1798,12 +1798,13 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
 
   Widget _buildCardContent(Person person, int index, int generation,
       Color branchColor, bool isSelected) {
+    final lift = isSelected ? 1.02 : 1.0;
     return GestureDetector(
       onTap: () => setState(() => _selectedPerson = person),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOutCubic,
-        transform: Matrix4.identity()..scale(isSelected ? 1.02 : 1.0),
+        transform: Matrix4.identity()..scaleByDouble(lift, lift, lift, 1),
         decoration: BoxDecoration(
           color: _cardSurface(context),
           borderRadius: BorderRadius.circular(24),
@@ -2699,8 +2700,17 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                 onPressed: isLoading
                     ? null
                     : () async {
+                        // Resolved before anything is awaited. `mounted` is this
+                        // State's, which says nothing about whether the dialog's
+                        // own element survived, so looking Navigator up off the
+                        // dialog context afterwards walks a tree that may be
+                        // gone. The sibling-shift loop below awaits too, so this
+                        // has to sit above all of it.
+                        final navigator = Navigator.of(context);
+                        final messenger = ScaffoldMessenger.of(this.context);
+
                         if (firstNameController.text.trim().isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          messenger.showSnackBar(
                             const SnackBar(
                                 content: Text('Please enter first name'),
                                 backgroundColor: Colors.red),
@@ -2708,7 +2718,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                           return;
                         }
                         if (lastNameController.text.trim().isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          messenger.showSnackBar(
                             const SnackBar(
                                 content:
                                     Text('Please enter family/father name'),
@@ -2775,10 +2785,10 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                           await _adminRepo.addPerson(newPerson);
 
                           if (!mounted) return;
-                          Navigator.pop(context);
+                          navigator.pop();
                           _loadData();
 
-                          ScaffoldMessenger.of(this.context).showSnackBar(
+                          messenger.showSnackBar(
                             SnackBar(
                               content:
                                   Text('${firstNameController.text} added'),
@@ -2788,7 +2798,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                         } catch (e) {
                           if (!mounted) return;
                           setDialogState(() => isLoading = false);
-                          ScaffoldMessenger.of(this.context).showSnackBar(
+                          messenger.showSnackBar(
                             SnackBar(
                               content: Text(readableError(e)),
                               backgroundColor: Colors.red,
@@ -3185,6 +3195,13 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                                           2000);
                                 }
 
+                                // Resolved before the await: see the add-person
+                                // handler above — this State's `mounted` says
+                                // nothing about the dialog's own element.
+                                final navigator = Navigator.of(context);
+                                final messenger =
+                                    ScaffoldMessenger.of(this.context);
+
                                 try {
                                   // If displayOrder changed, swap with the sibling who has that order
                                   if (displayOrder != person.displayOrder &&
@@ -3231,12 +3248,11 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                                   await _adminRepo.updatePerson(updated);
 
                                   if (!mounted) return;
-                                  Navigator.pop(context);
+                                  navigator.pop();
                                   _loadData();
                                   setState(() => _selectedPerson = null);
 
-                                  ScaffoldMessenger.of(this.context)
-                                      .showSnackBar(
+                                  messenger.showSnackBar(
                                     SnackBar(
                                       content: Row(children: [
                                         const Icon(Icons.check_circle,
@@ -3251,8 +3267,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                                 } catch (e) {
                                   if (!mounted) return;
                                   setDialogState(() => isLoading = false);
-                                  ScaffoldMessenger.of(this.context)
-                                      .showSnackBar(
+                                  messenger.showSnackBar(
                                     SnackBar(
                                         content: Text('Error: $e'),
                                         backgroundColor: ArtboardColors.rust),
@@ -3383,6 +3398,10 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                   borderRadius: BorderRadius.circular(12)),
             ),
             onPressed: () async {
+              // Resolved before the await: see the add-person handler above.
+              final navigator = Navigator.of(context);
+              final messenger = ScaffoldMessenger.of(this.context);
+
               try {
                 // One request for the whole subtree. This used to send one
                 // delete per descendant, so a failure partway left half a
@@ -3393,13 +3412,13 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                 );
 
                 if (!mounted) return;
-                Navigator.pop(context);
+                navigator.pop();
                 _loadData();
                 setState(() {
                   _selectedPerson = null;
                   _focusStack.clear();
                 });
-                ScaffoldMessenger.of(this.context).showSnackBar(
+                messenger.showSnackBar(
                   SnackBar(
                     content: Text(
                         'Deleted $totalToDelete family member${totalToDelete > 1 ? 's' : ''}'),
@@ -3408,7 +3427,7 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                 );
               } catch (e) {
                 if (!mounted) return;
-                ScaffoldMessenger.of(this.context).showSnackBar(
+                messenger.showSnackBar(
                   SnackBar(content: Text(readableError(e))),
                 );
               }

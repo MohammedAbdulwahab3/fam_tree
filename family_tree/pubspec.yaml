@@ -52,6 +52,9 @@ dependencies:
   # `printing` pulls `pdf` in transitively and the tree export imports it
   # directly, which meant a `printing` upgrade could silently drop it.
   pdf: ^3.12.0
+  # The web download path is written against package:web rather than the
+  # deprecated dart:html, which dart2wasm cannot compile at all.
+  web: ^1.1.0
   video_player: ^2.10.1
   chewie: ^1.13.0
   printing: ^5.14.2

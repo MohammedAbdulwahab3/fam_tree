@@ -295,8 +295,11 @@ class _MyProfileEditorState extends ConsumerState<MyProfileEditor> {
       canPop: !_dirty,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
+        // Resolved before the confirmation is awaited, so nothing reads a
+        // BuildContext on the far side of the gap.
+        final navigator = Navigator.of(context);
         if (await _confirmDiscard() && mounted) {
-          Navigator.of(context).pop();
+          navigator.pop();
         }
       },
       child: DraggableScrollableSheet(

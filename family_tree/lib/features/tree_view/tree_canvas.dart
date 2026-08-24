@@ -242,9 +242,9 @@ class TreeCanvasState extends State<TreeCanvas>
 
     // Create new matrix that zooms to/from screen center
     final newMatrix = Matrix4.identity()
-      ..translate(screenCenter.dx, screenCenter.dy)
-      ..scale(targetScale)
-      ..translate(-canvasPoint.dx, -canvasPoint.dy);
+      ..translateByDouble(screenCenter.dx, screenCenter.dy, 0, 1)
+      ..scaleByDouble(targetScale, targetScale, targetScale, 1)
+      ..translateByDouble(-canvasPoint.dx, -canvasPoint.dy, 0, 1);
 
     _transformationController.value = newMatrix;
   }
@@ -260,9 +260,9 @@ class TreeCanvasState extends State<TreeCanvas>
     final currentScale = _transformationController.value.getMaxScaleOnAxis();
 
     final newMatrix = Matrix4.identity()
-      ..translate(screenCenter.dx, screenCenter.dy)
-      ..scale(currentScale)
-      ..translate(-canvasPosition.dx, -canvasPosition.dy);
+      ..translateByDouble(screenCenter.dx, screenCenter.dy, 0, 1)
+      ..scaleByDouble(currentScale, currentScale, currentScale, 1)
+      ..translateByDouble(-canvasPosition.dx, -canvasPosition.dy, 0, 1);
 
     _transformationController.value = newMatrix;
   }
@@ -401,10 +401,10 @@ class TreeCanvasState extends State<TreeCanvas>
     final screenCenter = Offset(screenWidth / 2, screenHeight / 2);
 
     // Build transformation matrix
-    final matrix = Matrix4.identity();
-    matrix.translate(screenCenter.dx, screenCenter.dy);
-    matrix.scale(scale, scale);
-    matrix.translate(-contentCenterX, -contentCenterY);
+    final matrix = Matrix4.identity()
+      ..translateByDouble(screenCenter.dx, screenCenter.dy, 0, 1)
+      ..scaleByDouble(scale, scale, scale, 1)
+      ..translateByDouble(-contentCenterX, -contentCenterY, 0, 1);
 
     _transformationController.value = matrix;
   }
@@ -571,9 +571,9 @@ class TreeCanvasState extends State<TreeCanvas>
     final screenCenter = Offset(screenWidth / 2, screenHeight / 2);
 
     final targetMatrix = Matrix4.identity()
-      ..translate(screenCenter.dx, screenCenter.dy)
-      ..scale(scale)
-      ..translate(-contentCenterX, -contentCenterY);
+      ..translateByDouble(screenCenter.dx, screenCenter.dy, 0, 1)
+      ..scaleByDouble(scale, scale, scale, 1)
+      ..translateByDouble(-contentCenterX, -contentCenterY, 0, 1);
 
     _tourAnimation = Matrix4Tween(
       begin: _transformationController.value,
@@ -693,9 +693,9 @@ class TreeCanvasState extends State<TreeCanvas>
     final screenCenter = Offset(screenWidth / 2, screenHeight / 2);
 
     final targetMatrix = Matrix4.identity()
-      ..translate(screenCenter.dx, screenCenter.dy)
-      ..scale(scale)
-      ..translate(-contentCenterX, -contentCenterY);
+      ..translateByDouble(screenCenter.dx, screenCenter.dy, 0, 1)
+      ..scaleByDouble(scale, scale, scale, 1)
+      ..translateByDouble(-contentCenterX, -contentCenterY, 0, 1);
 
     _tourAnimation = Matrix4Tween(
       begin: _transformationController.value,

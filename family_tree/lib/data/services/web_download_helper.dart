@@ -1,9 +1,10 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 
-// Conditional import for web
-// ignore: avoid_web_libraries_in_flutter
-import 'web_download_stub.dart' if (dart.library.html) 'web_download_impl.dart'
-    as download;
+// The web implementation is selected by dart.library.js_interop rather than
+// dart.library.html: the implementation is written against package:web now,
+// and the html guard does not hold under the WebAssembly backend.
+import 'web_download_stub.dart'
+    if (dart.library.js_interop) 'web_download_impl.dart' as download;
 import 'package:family_tree/core/logging.dart';
 
 /// Platform-safe file download utility

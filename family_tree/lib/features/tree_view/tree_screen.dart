@@ -297,6 +297,10 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
         .where((p) => person.relationships.spouseIds.contains(p.id))
         .toList();
 
+    // Resolved before the sheet is awaited: the callback runs once the sheet
+    // has closed, by which point this context may be gone.
+    final messenger = ScaffoldMessenger.of(context);
+
     MyProfileEditor.show(
       context,
       person: person,
@@ -308,7 +312,7 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
       },
     ).then((saved) {
       if (saved == true && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(
             content: const Text('Your profile is updated'),
             backgroundColor: ElegantColors.sage,
