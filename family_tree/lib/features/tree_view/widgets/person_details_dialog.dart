@@ -591,9 +591,8 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
                     width: narrow,
                     child: _buildInfoCard(
                       icon: Icons.family_restroom_rounded,
-                      label: 'Family',
-                      value:
-                          '${widget.spouses.length + widget.children.length} members',
+                      label: 'Children',
+                      value: _childrenLabel,
                       isDark: isDark,
                       color: AppTheme.accentTeal,
                     ),
@@ -623,6 +622,16 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
   /// every animation tick, and this walks the whole tree.
   late final int _descendants =
       countDescendants(widget.person.id, widget.allPersons);
+
+  /// Direct children only. This card used to be labelled "Family" and count
+  /// spouses alongside children, so renaming it meant dropping the spouse
+  /// from the total too — otherwise somebody with a spouse and two children
+  /// would have read "Children: 3".
+  String get _childrenLabel => switch (widget.children.length) {
+        0 => 'None yet',
+        1 => '1 child',
+        final n => '$n children',
+      };
 
   String get _descendantLabel => switch (_descendants) {
         0 => 'None yet',
