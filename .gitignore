@@ -1,0 +1,7 @@
+# Generated decks and exports. The generator is in tools/family-deck; the
+# output is rebuilt from the seed data rather than committed.
+out/
+tools/family-deck/node_modules/
+tools/family-deck/tree.json
+tools/family-deck/*.pptx
+tools/family-deck/*.pdf

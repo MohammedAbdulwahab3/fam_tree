@@ -1,0 +1,11 @@
+{
+  "name": "family-deck",
+  "private": true,
+  "description": "Builds a presentation of the family tree from the seed data.",
+  "scripts": {
+    "build": "python3 parse_tree.py tree.json && node build.js"
+  },
+  "dependencies": {
+    "pptxgenjs": "^4.0.1"
+  }
+}
