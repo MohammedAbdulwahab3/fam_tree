@@ -48,6 +48,7 @@ func main() {
 		&models.NotificationPreference{},
 		&models.LinkRequest{},
 		&models.PasswordReset{},
+		&models.Upload{},
 	); err != nil {
 		log.Fatal("Failed to migrate database:", err)
 	}
@@ -64,7 +65,7 @@ func main() {
 
 	authHandler := &handlers.AuthHandler{DB: db}
 	personHandler := &handlers.PersonHandler{DB: db}
-	uploadHandler := &handlers.UploadHandler{}
+	uploadHandler := &handlers.UploadHandler{DB: db}
 	postHandler := &handlers.PostHandler{DB: db, NotificationService: notificationService}
 	notificationHandler := &handlers.NotificationHandler{DB: db}
 	linkHandler := &handlers.LinkHandler{DB: db, NotificationService: notificationService}
@@ -105,7 +106,10 @@ func main() {
 	// Public by necessity: someone who cannot sign in cannot authenticate to
 	// ask for a password reset. The admin-issued code is what proves identity.
 	r.POST("/reset-password", authLimit, passwordHandler.ResetPassword)
-	r.Static("/uploads", "./uploads")
+	// Served from the database, falling back to ./uploads for the files baked
+	// into the image. r.Static could only ever see the container filesystem,
+	// which is replaced on every deploy and on every wake from idle sleep.
+	r.GET("/uploads/*name", uploadHandler.Serve)
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "pong"})
 	})

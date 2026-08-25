@@ -1,16 +1,25 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
+	"io"
+	"mime"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"family-tree-backend/models"
+
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
-type UploadHandler struct{}
+type UploadHandler struct {
+	DB *gorm.DB
+}
 
 // MaxUploadBytes caps a single upload.
 //
@@ -77,11 +86,37 @@ func (h *UploadHandler) UploadFile(c *gin.Context) {
 	}
 
 	// The stored name is generated, never the one the client sent, so a
-	// crafted filename cannot escape the uploads directory or collide.
+	// crafted filename cannot escape anything or collide.
 	filename := fmt.Sprintf("%d%s", time.Now().UnixNano(), ext)
-	dst := filepath.Join("uploads", filename)
 
-	if err := c.SaveUploadedFile(file, dst); err != nil {
+	opened, err := file.Open()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read the file"})
+		return
+	}
+	defer opened.Close()
+
+	data, err := io.ReadAll(opened)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read the file"})
+		return
+	}
+
+	contentType := mime.TypeByExtension(ext)
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	record := models.Upload{
+		Name:        filename,
+		ContentType: contentType,
+		Kind:        allowedExtensions[ext],
+		Data:        data,
+		Size:        int64(len(data)),
+		UploadedBy:  c.GetString("userID"),
+		CreatedAt:   time.Now(),
+	}
+	if err := h.DB.Create(&record).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
 		return
 	}
@@ -91,4 +126,42 @@ func (h *UploadHandler) UploadFile(c *gin.Context) {
 		"size": file.Size,
 		"kind": allowedExtensions[ext],
 	})
+}
+
+// Serve returns an uploaded file by name.
+//
+// Rows come first, then ./uploads on disk. The disk fallback is what keeps the
+// photographs baked into the image working: they were uploaded before storage
+// moved into the database and their URLs are already written into person and
+// post records, so they have no row to find.
+func (h *UploadHandler) Serve(c *gin.Context) {
+	// Strip the leading slash Gin's wildcard includes, and refuse anything
+	// with a path separator in it — the name is one segment, always.
+	name := strings.TrimPrefix(c.Param("name"), "/")
+	if name == "" || strings.ContainsAny(name, `/\`) || strings.Contains(name, "..") {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not found"})
+		return
+	}
+
+	var record models.Upload
+	err := h.DB.First(&record, "name = ?", name).Error
+	if err == nil {
+		// Immutable: the name is generated per upload and its bytes never
+		// change, so it can be cached hard.
+		c.Header("Cache-Control", "public, max-age=31536000, immutable")
+		c.Data(http.StatusOK, record.ContentType, record.Data)
+		return
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not read the file"})
+		return
+	}
+
+	path := filepath.Join("uploads", name)
+	if info, statErr := os.Stat(path); statErr != nil || info.IsDir() {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not found"})
+		return
+	}
+	c.Header("Cache-Control", "public, max-age=31536000, immutable")
+	c.File(path)
 }

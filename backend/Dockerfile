@@ -27,10 +27,11 @@ WORKDIR /app
 
 COPY --from=build /out/server /app/server
 
-# Render's free plan has no persistent disk: anything written under ./uploads
-# is gone on the next deploy. Baking in the files the database already points
-# at keeps existing photos loading. Newly uploaded files still vanish until a
-# disk is attached — see DEPLOY.md.
+# New uploads go into the database, not here — a container filesystem does not
+# survive a deploy or a wake from idle sleep. These are the photographs that
+# were uploaded before that change: their URLs are already written into person
+# and post records, and they have no row for the handler to find, so it falls
+# back to this directory for them.
 COPY seed_uploads/ /app/uploads/
 
 # Documentation only. Render injects PORT and config.Port() reads it.
