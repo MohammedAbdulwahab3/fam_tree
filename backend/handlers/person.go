@@ -84,6 +84,78 @@ func (h *PersonHandler) GetPersons(c *gin.Context) {
 	c.Data(http.StatusOK, "application/json; charset=utf-8", payload)
 }
 
+// publicView strips a person down to what a visitor who is not signed in may
+// see: who they are, and where they sit in the tree.
+//
+// The tree is the one thing this app shows the world, so the shape of the
+// family and the names in it are public. Everything a member wrote about
+// themselves is not — a stranger can see that a person exists and who their
+// parents are, and nothing that would let them contact or profile them.
+func publicView(p models.Person) models.Person {
+	return models.Person{
+		ID:              p.ID,
+		FamilyTreeID:    p.FamilyTreeID,
+		FirstName:       p.FirstName,
+		LastName:        p.LastName,
+		LocalizedNames:  p.LocalizedNames,
+		Gender:          p.Gender,
+		ProfilePhotoURL: p.ProfilePhotoURL,
+		IsDeceased:      p.IsDeceased,
+		Relationships:   p.Relationships,
+		DisplayOrder:    p.DisplayOrder,
+
+		// Deliberately left zero: AuthUserID, BirthDate, DeathDate, Bio,
+		// Occupation, BirthPlace, CurrentResidence, Education, ContactEmail,
+		// ContactPhone, Interests, MaritalStatus, SpouseName, Photos,
+		// LifeEvents. Empty slices rather than null so the app parses them
+		// as it would any other person.
+		Interests:  models.JSONStringArray{},
+		Photos:     models.JSONStringArray{},
+		LifeEvents: models.LifeEvents{},
+	}
+}
+
+// GetPublicTree returns the family tree to anybody, signed in or not, so the
+// landing page's "Explore Tree" leads somewhere without demanding an account
+// first.
+//
+// Every record is passed through publicView. This is the same tree the members
+// see, drawn from the same rows, with each person reduced to the fields the
+// canvas needs to place and label them.
+func (h *PersonHandler) GetPublicTree(c *gin.Context) {
+	persons, err := h.loadTree()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not load the tree"})
+		return
+	}
+
+	redacted := make([]models.Person, 0, len(persons))
+	for _, p := range persons {
+		redacted = append(redacted, publicView(p))
+	}
+
+	payload, err := json.Marshal(redacted)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not encode people"})
+		return
+	}
+
+	// Same conditional-request handling as the members' endpoint: the app polls
+	// this on a timer, and an unchanged poll should cost a round trip and no
+	// body. The ETag is of the redacted payload, so it cannot collide with the
+	// full one a signed-in client holds for the same tree.
+	etag := `"` + fmt.Sprintf("%x", sha256.Sum256(payload)) + `"`
+	c.Header("ETag", etag)
+	c.Header("Cache-Control", "public, no-cache")
+
+	if match := c.GetHeader("If-None-Match"); match != "" && etagMatches(match, etag) {
+		c.Status(http.StatusNotModified)
+		return
+	}
+
+	c.Data(http.StatusOK, "application/json; charset=utf-8", payload)
+}
+
 // GetPublicStats returns the headline counts the landing page shows, and
 // nothing else.
 //

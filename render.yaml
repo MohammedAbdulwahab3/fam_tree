@@ -1,0 +1,96 @@
+# Render Blueprint for the whole stack: Postgres, the Go API, and the Flutter
+# web bundle as a static site.
+#
+# Everything here is on Render's free tier. Three consequences worth knowing
+# before you rely on it, all covered in DEPLOY.md:
+#   - a free database is deleted 30 days after creation;
+#   - a free web service sleeps after 15 minutes idle, so the first request
+#     after a quiet spell waits ~50s for a cold start;
+#   - free services get no persistent disk, so uploads do not survive a deploy.
+
+databases:
+  - name: family-tree-db
+    databaseName: family_tree
+    user: family_tree
+    plan: free
+    region: oregon
+
+services:
+  # ---------------------------------------------------------------- API ----
+  - type: web
+    name: family-tree-api
+    runtime: docker
+    plan: free
+    region: oregon
+    branch: main
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    # /ping is the health route. There is no /api/health despite the name
+    # appearing in some older notes.
+    healthCheckPath: /ping
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: family-tree-db
+          property: connectionString
+
+      # Generated once by Render and then held constant. Rotating it signs new
+      # sessions with a different key, which logs everyone out.
+      - key: JWT_SECRET
+        generateValue: true
+
+      # config.RequireSecret refuses to start in release mode without
+      # JWT_SECRET, which is the point: a missing secret should fail the
+      # deploy rather than quietly sign tokens with the public dev default.
+      - key: GIN_MODE
+        value: release
+
+      # Must match the app's FAMILY_TREE_ID below — registration files new
+      # members under this id and the app only ever reads that one tree.
+      - key: FAMILY_TREE_ID
+        value: main-family-tree
+
+      - key: TOKEN_TTL
+        value: 720h
+
+    # A free instance has no disk, so uploaded photos are lost on redeploy.
+    # Attaching one requires a paid instance type; uncomment both blocks
+    # together, and drop the COPY of seed_uploads/ in backend/Dockerfile once
+    # the disk holds the real files.
+    #
+    # plan: starter
+    # disk:
+    #   name: uploads
+    #   mountPath: /app/uploads
+    #   sizeGB: 1
+
+  # ----------------------------------------------------------- Web app ----
+  - type: web
+    name: family-tree-web
+    runtime: static
+    branch: main
+    rootDir: family_tree
+    buildCommand: ./render-build.sh
+    staticPublishPath: build/web
+    pullRequestPreviewsEnabled: false
+    envVars:
+      # property: host yields the bare hostname with no scheme; render-build.sh
+      # prefixes https:// itself.
+      - key: API_HOST
+        fromService:
+          type: web
+          name: family-tree-api
+          property: host
+
+      - key: FLUTTER_VERSION
+        value: 3.35.6
+
+      - key: FAMILY_TREE_ID
+        value: main-family-tree
+
+    routes:
+      # Flutter's router owns every path below /. Without this rewrite a
+      # reload on any deep link is a 404 from Render's CDN rather than the app.
+      - type: rewrite
+        source: /*
+        destination: /index.html

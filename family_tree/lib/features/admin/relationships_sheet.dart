@@ -62,6 +62,11 @@ class _RelationshipsFormState extends State<_RelationshipsForm> {
   late List<RelationshipConnection> _spouses =
       List<RelationshipConnection>.from(widget.person.relationships.spouses);
 
+  /// A spouse married in from outside the family usually has no record to
+  /// point at, so their name is typed rather than picked.
+  late final TextEditingController _spouseName =
+      TextEditingController(text: widget.person.spouseName ?? '');
+
   bool _saving = false;
   bool _dirty = false;
   String? _error;
@@ -93,6 +98,12 @@ class _RelationshipsFormState extends State<_RelationshipsForm> {
         _error = null;
       });
 
+  @override
+  void dispose() {
+    _spouseName.dispose();
+    super.dispose();
+  }
+
   Future<void> _save() async {
     setState(() {
       _saving = true;
@@ -100,6 +111,7 @@ class _RelationshipsFormState extends State<_RelationshipsForm> {
     });
 
     final updated = widget.person.copyWith(
+      spouseName: _spouseName.text.trim(),
       relationships: widget.person.relationships.copyWith(
         parentIds: _parentIds,
         spouses: _spouses,
@@ -207,11 +219,22 @@ class _RelationshipsFormState extends State<_RelationshipsForm> {
               const SizedBox(height: Insets.sectionGap),
               AppSection(
                 title: 'Marriages',
-                subtitle: 'Only people who are in the tree. A spouse who is '
-                    'not can be named on their profile instead.',
+                subtitle: 'Type the name of whoever they married. Linking to '
+                    'somebody already in the tree is optional.',
                 icon: Icons.favorite_outline_rounded,
                 gap: Insets.sm,
                 children: [
+                  AppTextField(
+                    label: 'Spouse name',
+                    controller: _spouseName,
+                    hint: 'Fatuma Ahmed',
+                    icon: Icons.favorite_rounded,
+                    textCapitalization: TextCapitalization.words,
+                    helper: 'They do not need a record of their own — most '
+                        'people who marry into the family never get one.',
+                    onChanged: (_) => _touch(() {}),
+                  ),
+                  const SizedBox(height: Insets.sm),
                   for (final spouse in _spouses)
                     Padding(
                       padding: const EdgeInsets.only(bottom: Insets.xs),
@@ -226,7 +249,7 @@ class _RelationshipsFormState extends State<_RelationshipsForm> {
                       ),
                     ),
                   SecondaryButton(
-                    label: 'Add a marriage',
+                    label: 'Link to someone in the tree',
                     icon: Icons.add_rounded,
                     onPressed: () => _pickPerson(
                       title: 'Married to whom?',

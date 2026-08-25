@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import 'package:family_tree/core/config.dart';
 import 'package:family_tree/features/admin/admin_family_artboard.dart';
-import 'package:family_tree/features/auth/landing_page.dart';
 import 'package:family_tree/features/auth/reset_password_page.dart';
 import 'package:family_tree/features/auth/session.dart';
 import 'package:family_tree/features/auth/sign_in_page.dart';
@@ -33,16 +32,30 @@ final routerProvider = Provider<GoRouter>((ref) {
       final session = ref.read(sessionProvider);
       final path = state.matchedLocation;
 
-      const openToEveryone = {'/', '/signin', '/signup', '/reset-password'};
-      final isOpen = openToEveryone.contains(path);
+      // Anybody may look at the family. The tree is what this app is for, and
+      // asking a relative to make an account before they can see whether their
+      // family is even in here is the wrong order — the server serves it
+      // redacted (see /public/tree) so browsing it costs nobody their details.
+      const openToEveryone = {
+        '/',
+        '/signin',
+        '/signup',
+        '/reset-password',
+        '/tree',
+      };
+
+      // The screens that exist only to get somebody signed in.
+      const authScreens = {'/signin', '/signup', '/reset-password'};
 
       // Signed out and heading somewhere private: go and sign in.
-      if (!session.isSignedIn) return isOpen ? null : '/signin';
+      if (!session.isSignedIn) {
+        return openToEveryone.contains(path) ? null : '/signin';
+      }
 
       // Signed in and looking at the sign-in screen: there is nothing here for
       // them. New members go to the step that matters — finding themselves in
       // the tree — and everybody else to the family.
-      if (isOpen && path != '/') {
+      if (authScreens.contains(path)) {
         return session.isLinked ? '/tree' : '/welcome';
       }
 
@@ -53,10 +66,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-      GoRoute(
-        path: '/',
-        builder: (context, state) => const LandingPage(),
-      ),
+      // There is no landing page any more; the tree is the front door. This
+      // stays a redirect rather than becoming the initialLocation so that
+      // links and bookmarks to / still resolve.
+      GoRoute(path: '/', redirect: (_, __) => '/tree'),
       GoRoute(
         path: '/signin',
         builder: (context, state) => const SignInPage(),

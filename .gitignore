@@ -1,3 +1,12 @@
+# Database dumps produced by scripts/dump-local-db.sh. These contain real
+# member data and password hashes — never commit one.
+*_dump.sql
+family_tree_dump.sql
+
+# Backups taken before destructive data changes. Real member data — contact
+# details, photo URLs — so they must never be committed.
+render-people-backup-*.csv
+
 # Generated decks and exports. The generator is in tools/family-deck; the
 # output is rebuilt from the seed data rather than committed.
 out/

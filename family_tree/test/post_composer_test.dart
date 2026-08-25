@@ -141,7 +141,7 @@ void main() {
     expect(header.contains("label: 'Add post'"), isFalse);
   });
 
-  test('reload and tools sit left of the title', () {
+  test('reload and tools sit at the trailing edge', () {
     final source = File('lib/features/admin/admin_family_artboard.dart')
         .readAsStringSync();
     // One row again: the three-band header started the tree halfway down the
@@ -151,17 +151,19 @@ void main() {
       source.indexOf('Widget _roundIcon'),
     );
     final back = header.indexOf('Icons.arrow_back_rounded');
+    final title = header.indexOf("'Family Artboard'");
     final reload = header.indexOf('Icons.refresh_rounded');
     final tools = header.indexOf('_toolsMenu(');
-    final title = header.indexOf("'Family Artboard'");
 
-    for (final index in [back, reload, tools, title]) {
+    for (final index in [back, title, reload, tools]) {
       expect(index, greaterThan(-1));
     }
-    expect(back, lessThan(reload));
+    // Only the back arrow leads; the actions were moved to the far end so
+    // they sit where the eye looks for them rather than crowding the arrow.
+    expect(back, lessThan(title));
+    expect(title, lessThan(reload),
+        reason: 'the actions belong right of the title');
     expect(reload, lessThan(tools));
-    expect(tools, lessThan(title),
-        reason: 'every control belongs left of the title');
   });
 
   test('the header is a single row, not stacked bands', () {

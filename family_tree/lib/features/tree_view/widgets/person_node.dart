@@ -258,8 +258,7 @@ class _PersonNodeState extends State<PersonNode>
                               label: lifespan,
                               accent: generationColor,
                             ),
-                          if (widget.person.relationships.spouses.isNotEmpty)
-                            _buildModernRelationshipBadge(),
+                          if (_hasSpouse) _buildModernRelationshipBadge(),
                           if (widget.person.isDeceased)
                             _buildMetaChip(
                               icon: Icons.local_florist_rounded,
@@ -420,6 +419,13 @@ class _PersonNodeState extends State<PersonNode>
               mainAxisSize: MainAxisSize.min,
               children: [
                 _buildProfilePhoto(generationColor, context),
+                // Above the name rather than below it: the canvas draws the
+                // expand-descendants control over the bottom edge of the card,
+                // which sat squarely on top of the spouse's name.
+                if (_hasSpouse) ...[
+                  const SizedBox(height: AppTheme.spaceXs),
+                  _buildRelationshipBadge(context),
+                ],
                 const SizedBox(height: AppTheme.spaceSm),
                 SizedBox(
                   height: 40,
@@ -448,10 +454,6 @@ class _PersonNodeState extends State<PersonNode>
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                if (widget.person.relationships.spouses.isNotEmpty) ...[
-                  const SizedBox(height: AppTheme.spaceXs),
-                  _buildRelationshipBadge(context),
-                ],
                 if (widget.onAddChildTapped != null) ...[
                   const SizedBox(height: AppTheme.spaceSm),
                   GestureDetector(
@@ -622,12 +624,7 @@ class _PersonNodeState extends State<PersonNode>
   }
 
   Widget _buildRelationshipBadge(BuildContext context) {
-    final spouse = widget.person.relationships.spouses.first;
-    final icon = spouse.type == RelationshipType.marriage
-        ? Icons.favorite
-        : spouse.type == RelationshipType.adoption
-            ? Icons.favorite_border
-            : Icons.link;
+    final icon = _spouseIcon;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -640,12 +637,16 @@ class _PersonNodeState extends State<PersonNode>
         children: [
           Icon(icon, size: 10, color: AppTheme.accentTeal),
           const SizedBox(width: 2),
-          Text(
-            localizeRelationshipType(context, spouse.type),
-            style: TextStyle(
-              fontSize: 9,
-              color: AppTheme.accentTeal,
-              fontWeight: FontWeight.w500,
+          Flexible(
+            child: Text(
+              _spouseLabel(context),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 9,
+                color: AppTheme.accentTeal,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],
@@ -688,13 +689,35 @@ class _PersonNodeState extends State<PersonNode>
     );
   }
 
+  /// Somebody is shown as married if either the tree records the marriage or
+  /// their record simply names a spouse. Most people who marry into a family
+  /// never get a record of their own, so keying this off the link alone left
+  /// the commonest case invisible on the canvas.
+  bool get _hasSpouse =>
+      widget.person.relationships.spouses.isNotEmpty ||
+      (widget.person.spouseName?.trim().isNotEmpty ?? false);
+
+  /// The linked spouse's relationship word, or the name written on the record.
+  String _spouseLabel(BuildContext context) {
+    final spouses = widget.person.relationships.spouses;
+    if (spouses.isNotEmpty) {
+      return localizeRelationshipType(context, spouses.first.type);
+    }
+    return widget.person.spouseName!.trim();
+  }
+
+  IconData get _spouseIcon {
+    final spouses = widget.person.relationships.spouses;
+    if (spouses.isEmpty) return Icons.favorite;
+    return switch (spouses.first.type) {
+      RelationshipType.marriage => Icons.favorite,
+      RelationshipType.adoption => Icons.favorite_border,
+      _ => Icons.link,
+    };
+  }
+
   Widget _buildModernRelationshipBadge() {
-    final spouse = widget.person.relationships.spouses.first;
-    final icon = spouse.type == RelationshipType.marriage
-        ? Icons.favorite
-        : spouse.type == RelationshipType.adoption
-            ? Icons.favorite_border
-            : Icons.link;
+    final icon = _spouseIcon;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -710,12 +733,16 @@ class _PersonNodeState extends State<PersonNode>
         children: [
           Icon(icon, size: 11, color: AppTheme.accentTeal),
           const SizedBox(width: 4),
-          Text(
-            localizeRelationshipType(context, spouse.type),
-            style: const TextStyle(
-              fontSize: 11,
-              color: AppTheme.accentTeal,
-              fontWeight: FontWeight.w700,
+          Flexible(
+            child: Text(
+              _spouseLabel(context),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppTheme.accentTeal,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],

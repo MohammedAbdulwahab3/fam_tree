@@ -123,7 +123,10 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const TreeMark(size: 64),
+                    // Centred, not stretched: the column stretches its
+                    // children, and a stretched mark is drawn from its width,
+                    // so it comes out a squashed bar with oversized dots.
+                    const Center(child: TreeMark(size: 64)),
                     const SizedBox(height: Insets.lg),
                     Text(
                       _creatingAccount ? 'Create your account' : 'Welcome back',

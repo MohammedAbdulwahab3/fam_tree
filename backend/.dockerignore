@@ -1,0 +1,10 @@
+# Runtime user content — the image seeds ./uploads from seed_uploads/ instead.
+uploads/
+
+# Not part of the server build.
+e2e/
+*.log
+*.md
+docker-compose.yml
+.git
+.gitignore

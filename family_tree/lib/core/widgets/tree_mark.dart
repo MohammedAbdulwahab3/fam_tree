@@ -10,12 +10,14 @@ class TreeMark extends StatelessWidget {
   ///
   /// Defaults to the ambient theme, which is what every ordinary caller wants.
   /// It is only worth passing when the mark sits on a panel that is dark
-  /// regardless of the theme, as it does in the landing hero.
+  /// regardless of the theme, as it does in the feed's header.
   final bool? isDark;
 
   final double size;
 
-  /// Multiplies the outer glow; used by the landing hero to pulse.
+  /// Multiplies the outer glow. No caller varies it since the landing hero
+  /// that pulsed it was removed; kept because the mark's glow is defined in
+  /// terms of it.
   final double glow;
 
   const TreeMark({

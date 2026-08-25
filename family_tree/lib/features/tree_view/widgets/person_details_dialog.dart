@@ -89,10 +89,16 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
+    final isAdmin = ref.watch(isAdminProvider);
     // Whether this record is the signed-in member's own. Both sides are already
     // in hand, so this used to be a network round trip — and a FutureBuilder —
     // to compare two strings.
-    final canEdit = user != null && widget.person.authUserId == user.uid;
+    final isOwnRecord = user != null && widget.person.authUserId == user.uid;
+    // Admins may edit anybody. The server has always allowed it — only this
+    // screen did not, which left an admin unable to put a photo on a relative
+    // who has no account of their own to do it with. Most of the tree is
+    // people who will never sign in.
+    final canEdit = isOwnRecord || isAdmin;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final generation = _getGeneration();
     final genColor = AppTheme.getGenerationColor(generation);
@@ -669,6 +675,7 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
     final p = widget.person;
     final candidates = <(IconData, String, String?)>[
       (Icons.favorite_outline_rounded, 'Status', _maritalLine(p)),
+      (Icons.favorite_rounded, 'Spouse', _spouseLine(p)),
       (Icons.work_outline_rounded, 'Occupation', p.occupation),
       (Icons.school_outlined, 'Education', p.education),
       (Icons.cake_outlined, 'Born in', p.birthPlace),
@@ -683,15 +690,21 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
     ];
   }
 
-  /// "Married to Amina" reads better than a bare status word, so the spouse's
-  /// name is folded in when there is one.
+  /// The bare status word. The spouse used to be folded in here, which meant
+  /// a named spouse vanished from the card unless the status happened to be
+  /// set to "married" as well — and nothing forces anyone to set it.
   static String? _maritalLine(Person p) {
     final status = p.maritalStatus?.trim() ?? '';
     if (status.isEmpty) return null;
-    final label = status[0].toUpperCase() + status.substring(1);
+    return status[0].toUpperCase() + status.substring(1);
+  }
+
+  /// A spouse who has no record of their own in the tree. Whoever is married
+  /// in from outside is named here and nowhere else, so this shows on its own
+  /// terms rather than depending on any other field being filled in.
+  static String? _spouseLine(Person p) {
     final spouse = p.spouseName?.trim() ?? '';
-    if (status == 'married' && spouse.isNotEmpty) return 'Married to $spouse';
-    return label;
+    return spouse.isEmpty ? null : spouse;
   }
 
   Widget _buildProfileDetails(bool isDark) {
