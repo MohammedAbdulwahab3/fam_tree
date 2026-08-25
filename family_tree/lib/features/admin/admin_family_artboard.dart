@@ -1516,16 +1516,12 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
 
   /// Compact vertical tree - much easier to read
 
-  int _getDescendantCount(Person person) {
-    final children = _persons
-        .where((p) => p.relationships.parentIds.contains(person.id))
-        .toList();
-    int count = children.length;
-    for (final child in children) {
-      count += _getDescendantCount(child);
-    }
-    return count;
-  }
+  /// Delegates to the shared counter so the artboard and the details dialog
+  /// cannot disagree about how many descendants somebody has. The recursion
+  /// this replaced rescanned every person at every level, and had nothing to
+  /// stop it if a record ever became its own ancestor.
+  int _getDescendantCount(Person person) =>
+      countDescendants(person.id, _persons);
 
   Widget _buildFlatGrid() {
     return GridView.builder(

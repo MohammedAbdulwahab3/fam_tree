@@ -15,12 +15,17 @@ class PersonDetailsDialog extends ConsumerStatefulWidget {
   final Person person;
   final List<Person> spouses;
   final List<Person> children;
+
+  /// The whole tree, used only to count descendants. Direct [children] cannot
+  /// answer that on their own — grandchildren are not in it.
+  final List<Person> allPersons;
   final Function(String) onPersonTapped;
 
   const PersonDetailsDialog({
     super.key,
     required this.person,
     this.spouses = const [],
+    this.allPersons = const [],
     this.children = const [],
     required this.onPersonTapped,
   });
@@ -555,35 +560,75 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
 
           const SizedBox(height: 20),
 
-          // Info cards
-          Row(
-            children: [
-              Expanded(
-                child: _buildInfoCard(
-                  icon: Icons.cake_outlined,
-                  label: 'Born',
-                  value: birthDate,
-                  isDark: isDark,
-                  color: genColor,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildInfoCard(
-                  icon: Icons.family_restroom_rounded,
-                  label: 'Family',
-                  value:
-                      '${widget.spouses.length + widget.children.length} members',
-                  isDark: isDark,
-                  color: AppTheme.accentTeal,
-                ),
-              ),
-            ],
+          // Info cards. Three across needs about 380px; below that the third
+          // drops to its own line rather than squeezing all three, which
+          // overflowed a small phone by 11 pixels.
+          LayoutBuilder(
+            builder: (context, constraints) {
+              const gap = 12.0;
+              final threeAcross = constraints.maxWidth >= 380;
+              // The half-pixel keeps a rounding error from wrapping a row
+              // that mathematically fits exactly.
+              final narrow = threeAcross
+                  ? (constraints.maxWidth - gap * 2) / 3 - 0.5
+                  : (constraints.maxWidth - gap) / 2 - 0.5;
+
+              return Wrap(
+                spacing: gap,
+                runSpacing: gap,
+                children: [
+                  SizedBox(
+                    width: narrow,
+                    child: _buildInfoCard(
+                      icon: Icons.cake_outlined,
+                      label: 'Born',
+                      value: birthDate,
+                      isDark: isDark,
+                      color: genColor,
+                    ),
+                  ),
+                  SizedBox(
+                    width: narrow,
+                    child: _buildInfoCard(
+                      icon: Icons.family_restroom_rounded,
+                      label: 'Family',
+                      value:
+                          '${widget.spouses.length + widget.children.length} members',
+                      isDark: isDark,
+                      color: AppTheme.accentTeal,
+                    ),
+                  ),
+                  // Everyone below this person, not just their own children,
+                  // which is the number people actually want from a tree.
+                  SizedBox(
+                    width: threeAcross ? narrow : constraints.maxWidth,
+                    child: _buildInfoCard(
+                      icon: Icons.account_tree_rounded,
+                      label: 'Descendants',
+                      value: _descendantLabel,
+                      isDark: isDark,
+                      color: genColor,
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
     );
   }
+
+  /// Counted once per open rather than per rebuild: the dialog rebuilds on
+  /// every animation tick, and this walks the whole tree.
+  late final int _descendants =
+      countDescendants(widget.person.id, widget.allPersons);
+
+  String get _descendantLabel => switch (_descendants) {
+        0 => 'None yet',
+        1 => '1 person',
+        _ => '$_descendants people',
+      };
 
   Widget _buildInfoCard({
     required IconData icon,

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:family_tree/core/layout/breakpoints.dart';
 import 'package:family_tree/core/theme/app_theme.dart';
 import 'package:family_tree/core/theme/app_colors.dart';
 import 'package:family_tree/core/theme/elegant_theme.dart';
@@ -18,10 +17,6 @@ import 'package:family_tree/core/widgets/theme_toggle_button.dart';
 import 'package:family_tree/core/widgets/locale_menu_button.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:family_tree/data/services/storage_service.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:printing/printing.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
 import 'package:family_tree/core/design/typography.dart';
 
 /// Which slice of the tree the canvas draws.
@@ -447,6 +442,10 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                                         person: person,
                                         spouses: spouses,
                                         children: children,
+                                        // The unfiltered list: a search or a
+                                        // generation filter must not change
+                                        // how many descendants somebody has.
+                                        allPersons: state.persons,
                                         onPersonTapped: (relativeId) {
                                           Navigator.of(context).pop();
                                           controller.selectPerson(relativeId);

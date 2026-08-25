@@ -531,3 +531,41 @@ class LifeEvent {
     return null;
   }
 }
+
+/// How many people sit below [personId] in the tree: their children, those
+/// children's children, and so on.
+///
+/// Descent is read from [Relationships.parentIds], which the server treats as
+/// the single source of truth — [Relationships.childrenIds] is derived from it
+/// and is not written back, so walking parents is the direction that is always
+/// populated.
+///
+/// The `seen` set is not paranoia. Nothing in the schema stops a record from
+/// ending up its own ancestor — an admin reparenting two people in the wrong
+/// order is enough — and a plain recursion over such a loop runs until the
+/// stack gives out, taking the whole screen with it.
+int countDescendants(String personId, List<Person> everyone) {
+  final childrenByParent = <String, List<String>>{};
+  for (final person in everyone) {
+    for (final parentId in person.relationships.parentIds) {
+      (childrenByParent[parentId] ??= <String>[]).add(person.id);
+    }
+  }
+
+  final seen = <String>{personId};
+  final pending = <String>[personId];
+  var count = 0;
+
+  while (pending.isNotEmpty) {
+    for (final childId in childrenByParent[pending.removeLast()] ?? const []) {
+      // add() is false when the id is already counted, which is what keeps a
+      // cycle — or a person reachable by two paths — from being counted twice.
+      if (seen.add(childId)) {
+        count++;
+        pending.add(childId);
+      }
+    }
+  }
+
+  return count;
+}
