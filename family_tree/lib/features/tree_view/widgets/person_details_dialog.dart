@@ -172,8 +172,12 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
                               child: FadeTransition(
                                 opacity: _slideController,
                                 child: SingleChildScrollView(
+                                  // Top padding rather than 0: the first
+                                  // thing in this column sat flush against
+                                  // the header, so the memorial banner looked
+                                  // stuck to the portrait above it.
                                   padding:
-                                      const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                                      const EdgeInsets.fromLTRB(24, 18, 24, 24),
                                   child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,

@@ -544,9 +544,12 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
   Widget _buildTopBar(BuildContext context, bool isDark, bool isMobile,
       bool isSignedIn, bool isAdmin, bool hasLineage) {
     return Container(
+      // The bar was eating roughly 70 logical pixels before the tree began:
+      // 12 above and below, wrapped around 46px icon buttons. On a phone that
+      // is a tenth of the screen spent on a title.
       padding: EdgeInsets.symmetric(
         horizontal: isMobile ? 12 : 20,
-        vertical: 12,
+        vertical: isMobile ? 6 : 8,
       ),
       child: Row(
         children: [
@@ -557,9 +560,12 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
           Expanded(
             child: Text(
               widget.isDemo ? 'Family Tree Demo' : _getViewTitle(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: AppType.sans(
-                fontSize: isMobile ? 20 : 24,
-                fontWeight: FontWeight.bold,
+                fontSize: isMobile ? 17 : 20,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.2,
                 color: context.colors.ink,
               ),
             ),
@@ -596,22 +602,18 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                   message: isFocusMode ? 'Focus Mode' : 'Full Tree',
                   child: Container(
                     padding: EdgeInsets.symmetric(
-                      horizontal: isMobile ? 10 : 14,
-                      vertical: 10,
+                      horizontal: isMobile ? 9 : 12,
+                      vertical: 7,
                     ),
                     decoration: BoxDecoration(
                       color: isFocusMode
-                          ? (context.colors.accent)
-                          : (isDark
-                              ? Colors.white.withValues(alpha: 0.08)
-                              : ElegantColors.warmWhite),
-                      borderRadius: BorderRadius.circular(14),
+                          ? context.colors.accent
+                          : context.colors.surface,
+                      borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: isFocusMode
                             ? Colors.transparent
-                            : (isDark
-                                ? Colors.white.withValues(alpha: 0.1)
-                                : ElegantColors.champagne),
+                            : context.colors.hairline,
                       ),
                     ),
                     child: Row(
@@ -622,9 +624,9 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                               ? Icons.center_focus_strong_rounded
                               : Icons.account_tree_rounded,
                           color: isFocusMode
-                              ? Colors.white
-                              : (context.colors.inkSoft),
-                          size: 18,
+                              ? context.colors.onAccent
+                              : context.colors.inkSoft,
+                          size: 17,
                         ),
                         // Only show text on larger screens
                         if (!isMobile) ...[
@@ -632,11 +634,11 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                           Text(
                             isFocusMode ? 'Focus' : 'Full Tree',
                             style: AppType.sans(
-                              fontSize: 13,
+                              fontSize: 12.5,
                               fontWeight: FontWeight.w600,
                               color: isFocusMode
-                                  ? Colors.white
-                                  : (context.colors.inkSoft),
+                                  ? context.colors.onAccent
+                                  : context.colors.inkSoft,
                             ),
                           ),
                         ],
@@ -687,22 +689,16 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
           onTap: onTap,
           borderRadius: BorderRadius.circular(14),
           child: Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               gradient: isPrimary ? AppTheme.primaryGradient : null,
-              color: isPrimary
-                  ? null
-                  : isDark
-                      ? Colors.white.withValues(alpha: 0.08)
-                      : ElegantColors.warmWhite,
-              borderRadius: BorderRadius.circular(14),
-              border: isPrimary
-                  ? null
-                  : Border.all(
-                      color: isDark
-                          ? Colors.white.withValues(alpha: 0.1)
-                          : ElegantColors.champagne,
-                    ),
+              // context.colors rather than ElegantColors: those constants are
+              // deprecated and carry one value for both themes, which is why
+              // these buttons read as pale cards in dark mode.
+              color: isPrimary ? null : context.colors.surface,
+              borderRadius: BorderRadius.circular(12),
+              border:
+                  isPrimary ? null : Border.all(color: context.colors.hairline),
               boxShadow: isPrimary
                   ? [
                       BoxShadow(
@@ -715,12 +711,9 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
             ),
             child: Icon(
               icon,
-              color: isPrimary
-                  ? Colors.white
-                  : isDark
-                      ? Colors.white70
-                      : ElegantColors.charcoal,
-              size: 22,
+              color:
+                  isPrimary ? context.colors.onAccent : context.colors.inkSoft,
+              size: 20,
             ),
           ),
         ),
