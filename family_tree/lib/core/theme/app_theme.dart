@@ -40,6 +40,16 @@ class AppTheme {
   static const Color accentCyan = Color(0xFF5E87A8);
   static const Color accentRose = Color(0xFFBE7F7F);
 
+  /// The same three lifted for a dark ground.
+  ///
+  /// These are mid-tones chosen against near-white. Left unchanged on
+  /// backgroundDark they sit only a little above it in luminance, which is
+  /// what made them read as muddy rather than quiet — the fault the semantic
+  /// colours above already avoid by having a Dark variant each.
+  static const Color accentTealDark = Color(0xFF6FB5AE);
+  static const Color accentCyanDark = Color(0xFF85AECF);
+  static const Color accentRoseDark = Color(0xFFD9A0A0);
+
   // ============ DARK GROUNDS ============
   // Near-black with a faint green cast, so the accent sits on it as a relative
   // rather than a stranger. Slate is blue-grey and fought everything on top.

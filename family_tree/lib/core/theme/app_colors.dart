@@ -138,10 +138,14 @@ class AppColors extends ThemeExtension<AppColors> {
     accent: AppTheme.primaryLight,
     accentDeep: AppTheme.primary,
     accentSoft: Color(0xFF12291F),
-    secondary: AppTheme.accentTeal,
+    // The lifted variants. These three used to be the light values verbatim,
+    // the only tokens here that did not change with the theme, which is why a
+    // teal chip or a rose accent went muddy against the near-black ground
+    // while everything around it adapted.
+    secondary: AppTheme.accentTealDark,
     gold: AppTheme.accentGoldDark,
-    rose: AppTheme.accentRose,
-    info: AppTheme.accentCyan,
+    rose: AppTheme.accentRoseDark,
+    info: AppTheme.accentCyanDark,
     onAccent: Color(0xFF04231A),
     success: AppTheme.successDark,
     warning: AppTheme.warningDark,

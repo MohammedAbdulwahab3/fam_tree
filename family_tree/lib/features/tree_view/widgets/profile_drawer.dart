@@ -297,7 +297,7 @@ class _ProfileDrawerState extends ConsumerState<ProfileDrawer>
         icon: Icons.forum_rounded,
         label: 'Family Feed',
         caption: 'Posts & chat',
-        color: ElegantColors.sage,
+        color: context.colors.secondary,
         isDark: isDark,
         onTap: () {
           Navigator.pop(context);
@@ -326,7 +326,7 @@ class _ProfileDrawerState extends ConsumerState<ProfileDrawer>
           icon: Icons.admin_panel_settings_rounded,
           label: 'Admin Panel',
           caption: 'Manage tree',
-          color: ElegantColors.gold,
+          color: context.colors.gold,
           isDark: isDark,
           onTap: () {
             Navigator.pop(context);
@@ -1282,26 +1282,26 @@ class _LineageCard extends StatelessWidget {
                 _RelationChip(
                     label: 'Siblings',
                     count: stats.siblings,
-                    color: ElegantColors.sage,
+                    color: context.colors.secondary,
                     isDark: isDark),
               if (stats.spouses > 0)
                 _RelationChip(
                     label: 'Spouse',
                     count: stats.spouses,
-                    color: ElegantColors.dustyRose,
+                    color: context.colors.rose,
                     isDark: isDark),
               if (stats.children > 0)
                 _RelationChip(
                     label: 'Children',
                     count: stats.children,
-                    color: ElegantColors.gold,
+                    color: context.colors.gold,
                     isDark: isDark),
               if (stats.siblings == 0 &&
                   stats.spouses == 0 &&
                   stats.children == 0)
                 _RelationChip(
                     label: 'No relatives linked yet',
-                    color: ElegantColors.warmGray,
+                    color: context.colors.inkMuted,
                     isDark: isDark),
             ],
           ),
