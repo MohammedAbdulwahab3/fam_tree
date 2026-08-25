@@ -594,6 +594,14 @@ class _MyProfileEditorState extends ConsumerState<MyProfileEditor> {
             label: _photoUrl.isEmpty ? 'Add a photograph' : 'Change photograph',
             onPressed: _uploadingPhoto ? null : _pickPhoto,
           ),
+          // Only worth offering when there is one. Clearing the field here
+          // marks the form dirty like any other edit; Save is what persists
+          // it, so a mistap is undone by leaving without saving.
+          if (_photoUrl.isNotEmpty && !_uploadingPhoto)
+            QuietButton(
+              label: 'Remove photograph',
+              onPressed: () => _touch(() => _photoUrl = ''),
+            ),
           Text(
             you
                 ? 'So your family recognises you in the tree.'

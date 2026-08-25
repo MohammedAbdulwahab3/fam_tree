@@ -446,7 +446,11 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
         ? dateFormat.format(widget.person.birthDate!)
         : 'Unknown';
     final age = _calculateAge();
-    final isAlive = widget.person.deathDate == null;
+    // person.isDeceased, not deathDate: a family often knows somebody has
+    // died long before anyone can name the date, and the admin's flag is what
+    // records that. Reading the date alone put a green "Living" pill directly
+    // above the "In loving memory" banner on exactly those records.
+    final isAlive = !widget.person.isDeceased;
 
     return Padding(
       padding: const EdgeInsets.only(top: 60),
@@ -481,9 +485,10 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
-                // Wrap, not Row: the age pill and the "Living" pill do not fit
-                // side by side on a narrow phone, and a Row would push them
-                // straight off the edge instead of stacking.
+                // Nothing marks a living person: it is the ordinary case,
+                // and the memorial banner above already speaks for the other
+                // one. Wrap rather than Row so anything added here stacks on a
+                // narrow phone instead of running off the edge.
                 Wrap(
                   alignment: WrapAlignment.center,
                   crossAxisAlignment: WrapCrossAlignment.center,
@@ -521,37 +526,6 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
                         ],
                       ),
                     ),
-                    if (isAlive)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppTheme.success.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 6,
-                              height: 6,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: AppTheme.success,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            const Text(
-                              'Living',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: AppTheme.success,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                   ],
                 ),
               ],
@@ -717,6 +691,12 @@ class _PersonDetailsDialogState extends ConsumerState<PersonDetailsDialog>
 
     if (widget.person.deathDate != null) {
       return 'Lived $age years';
+    }
+    // Deceased with no date recorded: the age above was counted to today, so
+    // it is not an age at death and saying either "lived" or "years old"
+    // would be a guess. The birth year is the part that is actually known.
+    if (widget.person.isDeceased) {
+      return 'Born ${birth.year}';
     }
     return '$age years old';
   }

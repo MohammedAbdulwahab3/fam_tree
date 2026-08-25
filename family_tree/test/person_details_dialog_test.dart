@@ -22,6 +22,20 @@ Person _person(String id, String first, {String last = 'Bekele'}) => Person(
       updatedAt: DateTime(2020, 1, 1),
     );
 
+Widget _harnessFor(Person person, {Size size = const Size(430, 932)}) {
+  return ProviderScope(
+    overrides: [currentUserProvider.overrideWithValue(null)],
+    child: MediaQuery(
+      data: MediaQueryData(size: size),
+      child: MaterialApp(
+        home: Scaffold(
+          body: PersonDetailsDialog(person: person, onPersonTapped: (_) {}),
+        ),
+      ),
+    ),
+  );
+}
+
 Widget _harness({required Size size, Brightness brightness = Brightness.dark}) {
   return ProviderScope(
     overrides: [
@@ -128,5 +142,45 @@ void main() {
     );
     await tester.pump();
     expect(tester.takeException(), isNull);
+  });
+
+  group('life status', () {
+    testWidgets('a living person is not labelled at all', (tester) async {
+      final person = _person('p1', 'Mamaduu');
+      await tester.pumpWidget(_harnessFor(person));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text('Living'), findsNothing);
+      expect(find.text('In loving memory'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a death date is enough to be remembered', (tester) async {
+      final person =
+          _person('p1', 'Mamaduu').copyWith(deathDate: DateTime(2011, 6, 2));
+      await tester.pumpWidget(_harnessFor(person));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text('In loving memory'), findsOneWidget);
+      expect(find.text('Living'), findsNothing);
+      expect(find.textContaining('Lived'), findsOneWidget);
+    });
+
+    testWidgets('the admin flag alone is enough, with no date', (tester) async {
+      // The regression: life status was read from deathDate, so a person an
+      // admin had marked deceased — before anyone knew the date — got a green
+      // "Living" pill directly above the "In loving memory" banner.
+      final person = _person('p1', 'Mamaduu').copyWith(isDeceasedFlag: true);
+      await tester.pumpWidget(_harnessFor(person));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text('In loving memory'), findsOneWidget);
+      expect(find.text('Living'), findsNothing);
+      // Neither "lived N years" nor "N years old": both would be counted to
+      // today, and the age at death is not known.
+      expect(find.textContaining('years old'), findsNothing);
+      expect(find.textContaining('Lived'), findsNothing);
+      expect(find.text('Born 1958'), findsOneWidget);
+    });
   });
 }

@@ -16,6 +16,8 @@ import 'package:family_tree/features/auth/session.dart';
 import 'package:family_tree/core/widgets/theme_toggle_button.dart';
 import 'package:family_tree/core/widgets/locale_menu_button.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:family_tree/data/services/api_service.dart'
+    show messageForError;
 import 'package:family_tree/data/services/storage_service.dart';
 import 'package:family_tree/core/design/typography.dart';
 
@@ -119,8 +121,11 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
     return allPersons.where((p) => included.contains(p.id)).toList();
   }
 
-  /// Show photo upload options (camera or gallery)
+  /// Show photo options (camera, gallery, and removal when there is a photo).
   void _showPhotoUploadOptions(BuildContext context, bool isDark) {
+    final hasPhoto =
+        (ref.read(currentUserProvider)?.photoURL ?? '').trim().isNotEmpty;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: context.colors.surface,
@@ -198,11 +203,60 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
                 _pickAndUploadPhoto(ImageSource.gallery);
               },
             ),
+            if (hasPhoto)
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: context.colors.danger.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.delete_outline_rounded,
+                    color: context.colors.danger,
+                  ),
+                ),
+                title: Text(
+                  'Remove Photo',
+                  style: AppType.sans(
+                    color: context.colors.danger,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _removeProfilePhoto();
+                },
+              ),
             const SizedBox(height: 20),
           ],
         ),
       ),
     );
+  }
+
+  /// Clear the signed-in user's photo.
+  ///
+  /// Sends an empty string rather than omitting the field: /api/me reads it
+  /// into a pointer and only writes the column when the key is present, so an
+  /// omitted photoUrl would leave the old picture in place.
+  Future<void> _removeProfilePhoto() async {
+    try {
+      await ref.read(authServiceProvider).updatePhotoUrl('');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('Profile photo removed')));
+      setState(() {});
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          content: Text(messageForError(error)),
+          backgroundColor: AppTheme.error,
+        ));
+    }
   }
 
   /// Pick and upload photo
