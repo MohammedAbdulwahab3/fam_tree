@@ -34,7 +34,7 @@ class FamilyTreeApp extends ConsumerStatefulWidget {
 
 class _FamilyTreeAppState extends ConsumerState<FamilyTreeApp> {
   /// Restoring the stored session before the first frame is what stops the app
-  /// flashing the landing page at somebody who is already signed in.
+  /// flashing the signed-out tree at somebody who is already signed in.
   ///
   /// This used to happen in `main()`, before ProviderScope existed, which
   /// meant the session lived in a singleton the providers then had to be

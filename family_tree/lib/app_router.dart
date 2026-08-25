@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import 'package:family_tree/core/config.dart';
 import 'package:family_tree/features/admin/admin_family_artboard.dart';
-import 'package:family_tree/features/auth/landing_page.dart';
 import 'package:family_tree/features/auth/reset_password_page.dart';
 import 'package:family_tree/features/auth/session.dart';
 import 'package:family_tree/features/auth/sign_in_page.dart';
@@ -67,10 +66,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-      GoRoute(
-        path: '/',
-        builder: (context, state) => const LandingPage(),
-      ),
+      // There is no landing page any more; the tree is the front door. This
+      // stays a redirect rather than becoming the initialLocation so that
+      // links and bookmarks to / still resolve.
+      GoRoute(path: '/', redirect: (_, __) => '/tree'),
       GoRoute(
         path: '/signin',
         builder: (context, state) => const SignInPage(),

@@ -5,7 +5,8 @@ import 'package:http/http.dart' as http;
 
 import 'support.dart';
 
-/// The landing page's headline counts come from the server now.
+/// The public stats endpoint, which reports the tree's size without
+/// exposing anybody in it.
 ///
 /// This used to fetch `/public/persons` — every person's full record, contact
 /// details included, without authentication — and count the generations here,

@@ -93,9 +93,9 @@ class AppTheme {
 
   /// The one gradient in the app, from the deep green through the accent.
   ///
-  /// Six call sites — the landing page, the tree's primary action, a post's
-  /// author chip — draw it, so it is defined once rather than rebuilt inline
-  /// with slightly different stops each time.
+  /// Three call sites — the tree's primary action and a post's author chip —
+  /// draw it, so it is defined once rather than rebuilt inline with slightly
+  /// different stops each time.
   static const LinearGradient primaryGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,

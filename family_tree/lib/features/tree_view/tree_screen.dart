@@ -499,15 +499,8 @@ class _TreeScreenState extends ConsumerState<TreeScreen> {
       ),
       child: Row(
         children: [
-          // Back button
-          _buildIconButton(
-            icon: Icons.arrow_back_ios_new_rounded,
-            onTap: () => context.go('/'),
-            isDark: isDark,
-            tooltip: 'Home',
-          ),
-
-          const SizedBox(width: 12),
+          // No back button: / redirects here, so "Home" pointed at the screen
+          // it was already on.
 
           // Title
           Expanded(
