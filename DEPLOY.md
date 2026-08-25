@@ -1,5 +1,34 @@
 # Deploying to Render
 
+## Live deployment
+
+Deployed 2026-08-25. These resources exist and are running:
+
+| Resource | Render ID | URL |
+|---|---|---|
+| Database | `dpg-da6mmjc9v7es73ed8tug-a` | internal only |
+| API | `srv-da6mn8v10e5c73c799v0` | https://family-tree-api-smmc.onrender.com |
+| Web app | `srv-da6msanavr4c739d4frg` | https://family-tree-web-7m8q.onrender.com |
+
+Render appended a random suffix to both service names because it scopes names
+globally, not per account.
+
+**These were created through the Render API, not as a Blueprint.** Render's API
+has no endpoint for applying a `render.yaml` (`POST /v1/blueprints` returns 405),
+so the three resources were created individually with the same settings this
+file describes. The consequence: editing `render.yaml` does **not** change the
+running services. It stays accurate as a description, and as the thing to apply
+if you ever recreate the stack from the dashboard — but today the dashboard is
+the source of truth. To switch, delete the three resources and use
+**New → Blueprint** instead.
+
+**External database access is turned off.** The IP allow list is empty, so
+nothing outside Render can connect; the API reaches it over the internal
+connection string, which the allow list does not gate. To run `psql` against it
+you must add your IP first, under the database's **Connections** tab. Bear in
+mind your public IP is dynamic — it changed twice during the initial migration.
+
+
 Three resources, all defined in [`render.yaml`](render.yaml) and all on the free
 tier:
 
@@ -60,8 +89,8 @@ can compile, which is most of the ten-or-so minutes.
 
 When it finishes you will have:
 
-- API: `https://family-tree-api.onrender.com`
-- App: `https://family-tree-web.onrender.com`
+- API: `https://family-tree-api-smmc.onrender.com`
+- App: `https://family-tree-web-7m8q.onrender.com`
 
 (Render appends a suffix if those names are taken. Use whatever the dashboard
 shows.)
@@ -69,7 +98,7 @@ shows.)
 ## 3. Check the API before touching the data
 
 ```bash
-curl https://family-tree-api.onrender.com/ping
+curl https://family-tree-api-smmc.onrender.com/ping
 # {"message":"pong"}
 ```
 
@@ -93,7 +122,7 @@ psql "$RENDER_DB_URL" -v ON_ERROR_STOP=1 -f family_tree_dump.sql
 
 # 3. Repoint the stored file URLs at the deployed API.
 psql "$RENDER_DB_URL" -v ON_ERROR_STOP=1 \
-  -v api="https://family-tree-api.onrender.com" \
+  -v api="https://family-tree-api-smmc.onrender.com" \
   -f scripts/rewrite-upload-urls.sql
 ```
 
@@ -105,7 +134,7 @@ so eight rows in your database currently point at `http://localhost:5000` and
 Verify:
 
 ```bash
-curl https://family-tree-api.onrender.com/public/stats
+curl https://family-tree-api-smmc.onrender.com/public/stats
 # {"generations":6,"people":205}
 ```
 
@@ -115,7 +144,7 @@ that were never on disk anywhere; they will 404 whatever you do.
 
 ## 5. Open the app
 
-`https://family-tree-web.onrender.com` — sign in with your existing account, the
+`https://family-tree-web-7m8q.onrender.com` — sign in with your existing account, the
 one that came across in the dump.
 
 If you started from an empty database instead, register, then promote yourself:
