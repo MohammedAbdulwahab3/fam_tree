@@ -83,15 +83,16 @@ void main() {
 
     expect(find.text('Members'), findsOneWidget);
     expect(find.text('Posts'), findsOneWidget);
-    expect(find.text('Send announcement'), findsOneWidget);
-    // The claims queue is labelled in the same plain language as the
-    // permission table — "Confirm who is who" — rather than "Link requests".
-    expect(find.text('Who is who'), findsOneWidget);
-    expect(find.text('Export tree'), findsOneWidget);
+    expect(find.text('Link requests'), findsOneWidget);
+    // Removed from the menu: announcements, adding a member (still reachable
+    // from a person's card) and exporting the tree.
+    expect(find.text('Send announcement'), findsNothing);
+    expect(find.text('Add member'), findsNothing);
+    expect(find.text('Export tree'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('narrow layout folds the add actions into the menu',
+  testWidgets('narrow layout keeps the add-post action in the menu',
       (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1.0;
@@ -100,16 +101,14 @@ void main() {
     await tester.pumpWidget(_harness(size: const Size(390, 844)));
     await _settle(tester);
 
-    // Not shown inline at this width…
-    expect(find.text('Add member'), findsNothing);
-
     await tester.tap(find.byIcon(Icons.tune_rounded));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
-    // …but still reachable.
-    expect(find.text('Add member'), findsOneWidget);
+    // Adding a post stays in the menu; adding a member has moved out of it
+    // entirely and is reached from a person's card instead.
     expect(find.text('Add post'), findsOneWidget);
+    expect(find.text('Add member'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

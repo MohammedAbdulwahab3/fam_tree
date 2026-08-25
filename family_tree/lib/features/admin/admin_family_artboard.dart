@@ -18,8 +18,6 @@ import 'package:family_tree/features/auth/session.dart';
 import 'package:family_tree/features/linking/link_status.dart';
 import 'package:family_tree/features/linking/review_claims_page.dart';
 import 'package:family_tree/features/admin/post_composer_sheet.dart';
-import 'package:family_tree/data/services/family_export_service.dart';
-import 'package:family_tree/data/services/web_download_helper.dart';
 import 'package:family_tree/core/config.dart';
 import 'package:family_tree/core/design/typography.dart';
 
@@ -333,15 +331,6 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                     isDark: isDark,
                     onTap: () => context.go('/tree'),
                   ),
-                  const SizedBox(width: 6),
-                  _roundIcon(
-                    icon: Icons.refresh_rounded,
-                    tooltip: 'Reload',
-                    isDark: isDark,
-                    onTap: _loadData,
-                  ),
-                  const SizedBox(width: 6),
-                  _toolsMenu(isDark),
                   const SizedBox(width: 12),
                   // Flexible rather than fixed: on a narrow phone the title
                   // ellipsises instead of pushing the controls off the edge.
@@ -365,6 +354,17 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
                   ),
                   const SizedBox(width: 8),
                   _buildGenerationFilter(isDark, compact: compact),
+                  // Reload and the tools menu sit at the trailing edge, where
+                  // the actions are, rather than crowding the back arrow.
+                  const SizedBox(width: 6),
+                  _roundIcon(
+                    icon: Icons.refresh_rounded,
+                    tooltip: 'Reload',
+                    isDark: isDark,
+                    onTap: _loadData,
+                  ),
+                  const SizedBox(width: 6),
+                  _toolsMenu(isDark),
                 ],
               ),
             ),
@@ -429,7 +429,15 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
           dense: true,
           contentPadding: EdgeInsets.zero,
           leading: Icon(icon, size: 20),
-          title: Text(label, style: AppType.sans(fontSize: 13.5)),
+          // Without softWrap: false the label breaks on every character when
+          // the menu is laid out narrow, so "Link requests" came out as a
+          // vertical column of letters.
+          title: Text(
+            label,
+            softWrap: false,
+            overflow: TextOverflow.ellipsis,
+            style: AppType.sans(fontSize: 13.5),
+          ),
           trailing: badge == 0 ? null : _CountBadge(count: badge),
         ),
       );
@@ -439,19 +447,19 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
       tooltip: 'Admin tools',
       onSelected: _onToolSelected,
       position: PopupMenuPosition.under,
+      // The menu inherited an unbounded-but-tiny width from the icon it hangs
+      // off, which is what squeezed the labels into vertical letter columns.
+      constraints: const BoxConstraints(minWidth: 224, maxWidth: 300),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       color: context.colors.surface,
       itemBuilder: (context) => [
-        item('add-person', Icons.person_add_alt_1_rounded, 'Add member'),
         item('add-post', Icons.post_add_rounded, 'Add post'),
         const PopupMenuDivider(),
         item('members', Icons.people_outline_rounded, 'Members'),
         item('posts', Icons.forum_outlined, 'Posts'),
         const PopupMenuDivider(),
-        item('announce', Icons.campaign_outlined, 'Send announcement'),
-        item('links', Icons.verified_user_outlined, 'Who is who',
+        item('links', Icons.verified_user_outlined, 'Link requests',
             badge: waiting),
-        item('export', Icons.download_outlined, 'Export tree'),
       ],
       child: Stack(
         clipBehavior: Clip.none,
@@ -546,147 +554,8 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
     }
   }
 
-  Future<void> _showAnnouncementDialog() async {
-    final titleController = TextEditingController();
-    final messageController = TextEditingController();
-
-    final send = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: context.colors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text('Send announcement',
-            style: AppType.sans(fontWeight: FontWeight.w700)),
-        content: SizedBox(
-          width: 420,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: titleController,
-                autofocus: true,
-                decoration: const InputDecoration(
-                    labelText: 'Title', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: messageController,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                    labelText: 'Message', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Every member receives this as a notification.',
-                style: AppType.sans(fontSize: 12, color: Colors.grey),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancel')),
-          TextButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Send')),
-        ],
-      ),
-    );
-
-    if (send != true) return;
-    if (titleController.text.trim().isEmpty ||
-        messageController.text.trim().isEmpty) {
-      _artboardToast('A title and a message are both required', isError: true);
-      return;
-    }
-
-    try {
-      await _adminRepo.sendAnnouncement(
-        title: titleController.text.trim(),
-        message: messageController.text.trim(),
-      );
-      _artboardToast('Announcement sent to the family');
-    } catch (e) {
-      _artboardToast(readableError(e), isError: true);
-    }
-  }
-
   /// Download the whole tree. JSON keeps every field; CSV opens in a
   /// spreadsheet.
-  Future<void> _exportTree() async {
-    final choice = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: context.colors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text('Export tree',
-            style: AppType.sans(fontWeight: FontWeight.w700)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.data_object_rounded),
-              title: const Text('JSON'),
-              subtitle: const Text('Every field, for backup or re-import'),
-              onTap: () => Navigator.pop(dialogContext, 'json'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.table_chart_rounded),
-              title: const Text('CSV'),
-              subtitle: const Text('Opens in a spreadsheet'),
-              onTap: () => Navigator.pop(dialogContext, 'csv'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.description_rounded),
-              title: const Text('Member list'),
-              subtitle: const Text('A readable roster'),
-              onTap: () => Navigator.pop(dialogContext, 'list'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
-    );
-    if (choice == null) return;
-
-    if (_persons.isEmpty) {
-      _artboardToast('There is nobody in the tree to export', isError: true);
-      return;
-    }
-
-    try {
-      final stamp = DateTime.now().toIso8601String().split('T').first;
-      switch (choice) {
-        case 'json':
-          WebDownloadHelper.downloadFile(
-            FamilyExportService.exportAsJson(_persons),
-            'family-tree-$stamp.json',
-            'application/json',
-          );
-        case 'csv':
-          WebDownloadHelper.downloadFile(
-            FamilyExportService.exportAsCsv(_persons),
-            'family-tree-$stamp.csv',
-            'text/csv',
-          );
-        case 'list':
-          WebDownloadHelper.downloadFile(
-            FamilyExportService.exportAsMemberList(_persons, 'Family'),
-            'family-members-$stamp.txt',
-            'text/plain',
-          );
-      }
-      _artboardToast('Export downloaded');
-    } catch (e) {
-      _artboardToast(readableError(e), isError: true);
-    }
-  }
 
   /// Depth of a person below the roots, memoised in [_generationCache].
   ///
@@ -713,23 +582,17 @@ class _AdminFamilyArtboardState extends ConsumerState<AdminFamilyArtboard>
   /// Routes a choice from the admin tools menu.
   void _onToolSelected(String value) {
     switch (value) {
-      case 'add-person':
-        _showUnifiedAddDialog();
       case 'add-post':
         _showAddPostDialog();
       case 'members':
         AdminToolsSheet.open(context, AdminTool.members);
       case 'posts':
         AdminToolsSheet.open(context, AdminTool.posts);
-      case 'announce':
-        _showAnnouncementDialog();
       case 'links':
         Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const ReviewClaimsPage()),
         );
-      case 'export':
-        _exportTree();
     }
   }
 

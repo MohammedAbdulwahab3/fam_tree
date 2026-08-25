@@ -12,7 +12,8 @@ void main() {
     await tester.pumpWidget(MaterialApp(
       home: AppPage(
         title: 'Forgotten password',
-        bottomAction: PrimaryButton(label: 'Set new password', onPressed: () {}),
+        bottomAction:
+            PrimaryButton(label: 'Set new password', onPressed: () {}),
         child: const Text('the form'),
       ),
     ));

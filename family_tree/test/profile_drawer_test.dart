@@ -151,8 +151,7 @@ Future<void> _openDrawer(WidgetTester tester) async {
 
 void main() {
   group('family stats', () {
-    testWidgets('counts generations, members and direct relatives',
-        (tester) async {
+    testWidgets('counts generations and members', (tester) async {
       _useTallScreen(tester);
 
       final members = _family();
@@ -163,18 +162,17 @@ void main() {
 
       expect(find.text('Generations'), findsOneWidget);
       expect(find.text('Members'), findsOneWidget);
-      expect(find.text('Relatives'), findsOneWidget);
+      // The relatives tile was dropped: it restated what the lineage card
+      // below it already breaks down chip by chip.
+      expect(find.text('Relatives'), findsNothing);
 
       // grandpa -> dad -> me -> kid
       expect(find.text('4'), findsOneWidget);
       // everyone in the list
       expect(find.text('8'), findsOneWidget);
-      // 2 parents + 1 sibling + 1 spouse + 1 child
-      expect(find.text('5'), findsOneWidget);
     });
 
-    testWidgets('breaks the relative count down by relationship',
-        (tester) async {
+    testWidgets('chips the relationships worth naming', (tester) async {
       _useTallScreen(tester);
 
       final members = _family();
@@ -184,7 +182,9 @@ void main() {
       await _openDrawer(tester);
 
       expect(find.text('In the tree as Me Tester'), findsOneWidget);
-      expect(find.text('Parents'), findsOneWidget);
+      // Parents are not chipped: everybody has them, so the count said
+      // nothing worth the space.
+      expect(find.text('Parents'), findsNothing);
       // Derived from the shared parents, not the (empty) siblingIds list.
       expect(find.text('Siblings'), findsOneWidget);
       expect(find.text('Spouse'), findsOneWidget);
@@ -276,8 +276,11 @@ void main() {
       ));
       await _openDrawer(tester);
 
+      // The identity badge states it once. The quick-action tile that used
+      // to repeat it has gone; the Account section's call to action is the
+      // one place that offers the flow.
       expect(find.text('Not linked'), findsOneWidget);
-      expect(find.text('Link account'), findsOneWidget);
+      expect(find.text('Link account'), findsNothing);
       expect(find.text('You are not linked to the tree yet'), findsOneWidget);
       expect(find.text('Find myself in the tree'), findsOneWidget);
 
@@ -296,9 +299,10 @@ void main() {
       ));
       await _openDrawer(tester);
 
-      // Said twice on purpose: the identity badge and the quick-action tile.
-      expect(find.text('Link pending'), findsNWidgets(2));
-      expect(find.text('Awaiting review'), findsOneWidget);
+      // Once, on the identity badge: the quick-action tile that used to
+      // repeat it has gone.
+      expect(find.text('Link pending'), findsOneWidget);
+      expect(find.text('Awaiting review'), findsNothing);
       expect(find.text('Your claim is being reviewed'), findsOneWidget);
       expect(find.text('View claim status'), findsOneWidget);
       expect(find.text('Find myself in the tree'), findsNothing);
@@ -367,8 +371,10 @@ void main() {
       ));
       await _openDrawer(tester);
 
-      expect(find.text('Linked'), findsNWidgets(2));
-      expect(find.text('Verified member'), findsOneWidget);
+      // Once, on the identity badge. The inert "Linked" quick-action tile
+      // that restated it has gone.
+      expect(find.text('Linked'), findsOneWidget);
+      expect(find.text('Verified member'), findsNothing);
       // One row now: the family record *is* the profile.
       expect(find.text('Edit profile'), findsOneWidget);
       expect(find.text('Account details'), findsNothing);

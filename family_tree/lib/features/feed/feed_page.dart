@@ -10,8 +10,6 @@ import 'package:family_tree/core/theme/app_colors.dart';
 import 'package:family_tree/core/theme/elegant_theme.dart';
 import 'package:family_tree/core/utils/platform_image_picker.dart';
 import 'package:family_tree/core/widgets/aurora_background.dart';
-import 'package:family_tree/core/widgets/theme_toggle_button.dart';
-import 'package:family_tree/core/widgets/tree_mark.dart';
 import 'package:family_tree/data/models/post.dart';
 import 'package:family_tree/data/repositories/group_repository.dart';
 import 'package:family_tree/data/services/api_service.dart';
@@ -206,8 +204,6 @@ class _FeedPageState extends ConsumerState<FeedPage>
                 onPressed: () => context.go('/tree'),
               ),
               const SizedBox(width: 4),
-              TreeMark(isDark: isDark, size: 34),
-              const SizedBox(width: 12),
               Flexible(
                 child: Text(
                   'Family Feed',
@@ -219,10 +215,6 @@ class _FeedPageState extends ConsumerState<FeedPage>
                     color: context.colors.ink,
                   ),
                 ),
-              ),
-              const Spacer(),
-              ThemeToggleIcon(
-                color: context.colors.ink,
               ),
             ],
           ),

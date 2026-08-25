@@ -187,8 +187,6 @@ class _ProfileDrawerState extends ConsumerState<ProfileDrawer>
                         _reveal(8, _PreferencesCard(isDark: isDark)),
                         const SizedBox(height: 24),
                         _reveal(9, _buildSignOut(isDark)),
-                        const SizedBox(height: 18),
-                        _reveal(9, _Footer(isDark: isDark)),
                       ],
                     ),
                   ),
@@ -323,7 +321,6 @@ class _ProfileDrawerState extends ConsumerState<ProfileDrawer>
           );
         },
       ),
-      _linkTile(isDark),
       if (isAdmin)
         _QuickTile(
           icon: Icons.admin_panel_settings_rounded,
@@ -344,37 +341,6 @@ class _ProfileDrawerState extends ConsumerState<ProfileDrawer>
   /// The link tile reads the account's real status rather than assuming: an
   /// unlinked account may still have a request sitting in the admin queue, and
   /// offering "request link" again there would only 409.
-  Widget _linkTile(bool isDark) {
-    final statusAsync = ref.watch(linkStatusProvider);
-    final linked = widget.linkedPerson != null;
-
-    // Treat the person record as the source of truth — if this account already
-    // owns one, it is linked regardless of what the status endpoint is doing.
-    final state = linked
-        ? _LinkState.verified
-        : statusAsync.maybeWhen(
-            data: (status) => _LinkState.fromStatus(status),
-            orElse: () => _LinkState.unknown,
-          );
-
-    return _QuickTile(
-      icon: state.icon,
-      label: state.label,
-      caption: state.caption,
-      color: state.color(context),
-      isDark: isDark,
-      // Nothing to do once you are linked; the tile just reports the fact.
-      onTap: state == _LinkState.verified
-          ? null
-          : () {
-              Navigator.pop(context);
-              showFindMyselfSheet(
-                context,
-                people: widget.familyMembers,
-              );
-            },
-    );
-  }
 
   /// Editing is gated on the link: until an admin has tied this account to a
   /// person there is nothing personal to edit, so the section offers the way
@@ -636,11 +602,16 @@ class _ProfileDrawerState extends ConsumerState<ProfileDrawer>
         icon: const Icon(Icons.logout_rounded, size: 18),
         label: Text(
           'Sign Out',
-          style: AppType.sans(fontWeight: FontWeight.w600),
+          style: AppType.sans(fontWeight: FontWeight.w700),
         ),
+        // context.colors.danger rather than a hardcoded rose: it is the same
+        // destructive colour the rest of the app uses, and it has a dark-mode
+        // value, which AppTheme.accentRose does not.
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppTheme.accentRose,
-          side: BorderSide(color: AppTheme.accentRose.withValues(alpha: 0.45)),
+          foregroundColor: context.colors.danger,
+          side: BorderSide(
+            color: context.colors.danger.withValues(alpha: 0.45),
+          ),
           padding: const EdgeInsets.symmetric(vertical: 15),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
@@ -715,8 +686,6 @@ class _FamilyStats {
   const _FamilyStats({
     required this.members,
     required this.generations,
-    required this.relatives,
-    required this.parents,
     required this.siblings,
     required this.spouses,
     required this.children,
@@ -726,9 +695,6 @@ class _FamilyStats {
   final int members;
   final int generations;
 
-  /// Direct relatives of the linked person: parents, siblings, spouses, kids.
-  final int relatives;
-  final int parents;
   final int siblings;
   final int spouses;
   final int children;
@@ -743,8 +709,6 @@ class _FamilyStats {
       return _FamilyStats(
         members: members.length,
         generations: generations,
-        relatives: 0,
-        parents: 0,
         siblings: 0,
         spouses: 0,
         children: 0,
@@ -765,7 +729,6 @@ class _FamilyStats {
       }
     }
 
-    final parents = rel.parentIds.length;
     final spouses = rel.spouseIds.length;
     final children = members
         .where((p) => p.relationships.parentIds.contains(linked.id))
@@ -774,8 +737,6 @@ class _FamilyStats {
     return _FamilyStats(
       members: members.length,
       generations: generations,
-      relatives: parents + siblingIds.length + spouses + children,
-      parents: parents,
       siblings: siblingIds.length,
       spouses: spouses,
       children: children,
@@ -1189,16 +1150,6 @@ class _StatsRow extends StatelessWidget {
             isDark: isDark,
           ),
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _StatTile(
-            icon: Icons.favorite_rounded,
-            value: stats.relatives,
-            label: 'Relatives',
-            color: context.colors.rose,
-            isDark: isDark,
-          ),
-        ),
       ],
     );
   }
@@ -1327,12 +1278,6 @@ class _LineageCard extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              if (stats.parents > 0)
-                _RelationChip(
-                    label: 'Parents',
-                    count: stats.parents,
-                    color: ElegantColors.softBlue,
-                    isDark: isDark),
               if (stats.siblings > 0)
                 _RelationChip(
                     label: 'Siblings',
@@ -1351,7 +1296,9 @@ class _LineageCard extends StatelessWidget {
                     count: stats.children,
                     color: ElegantColors.gold,
                     isDark: isDark),
-              if (stats.relatives == 0)
+              if (stats.siblings == 0 &&
+                  stats.spouses == 0 &&
+                  stats.children == 0)
                 _RelationChip(
                     label: 'No relatives linked yet',
                     color: ElegantColors.warmGray,
@@ -1712,21 +1659,6 @@ enum _LinkState {
         pending => Icons.hourglass_top_rounded,
         rejected => Icons.info_outline_rounded,
         _ => Icons.link_rounded,
-      };
-
-  String get label => switch (this) {
-        verified => 'Linked',
-        pending => 'Link pending',
-        rejected => 'Not approved',
-        _ => 'Link account',
-      };
-
-  String get caption => switch (this) {
-        verified => 'Verified member',
-        pending => 'Awaiting review',
-        rejected => 'Tap to see why',
-        notLinked => 'Claim your record',
-        unknown => 'Check your status',
       };
 
   /// Takes a context rather than a bool: the palette now comes from the theme,
@@ -2136,35 +2068,6 @@ class _SectionLabel extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _Footer extends StatelessWidget {
-  const _Footer({required this.isDark});
-
-  final bool isDark;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        children: [
-          Icon(
-            Icons.park_rounded,
-            size: 15,
-            color: context.colors.hairline,
-          ),
-          const SizedBox(height: 5),
-          Text(
-            'Family Tree · v1.0.0',
-            style: AppType.sans(
-              fontSize: 12,
-              color: context.colors.inkMuted,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
