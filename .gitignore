@@ -1,0 +1,4 @@
+# Database dumps produced by scripts/dump-local-db.sh. These contain real
+# member data and password hashes — never commit one.
+*_dump.sql
+family_tree_dump.sql
